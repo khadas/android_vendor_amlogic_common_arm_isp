@@ -822,7 +822,7 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
     video_set_drvdata( vfd, dev );
 
     /* videoX start number, -1 is autodetect */
-    rc = video_register_device( vfd, VFL_TYPE_GRABBER, -1 );
+    rc = video_register_device( vfd, VFL_TYPE_GRABBER, 50 );
     if ( rc < 0 )
         goto deinit_ctrl;
 
