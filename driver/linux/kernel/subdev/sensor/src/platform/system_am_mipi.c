@@ -111,6 +111,18 @@ int am_mipi_parse_dt(struct device_node *node)
 		}
 	}
 
+	rtn = of_property_read_u32(node, "aphy-ctrl3-cfg", &t_mipi->aphy_ctrl3_cfg);
+	if (rtn != 0)
+		t_mipi->aphy_ctrl3_cfg = 0x02; /*A: 0x02, B: 0xc002*/
+
+	rtn = of_property_read_u32(node, "dphy0-ctrl0-cfg", &t_mipi->dphy0_ctrl0_cfg);
+	if (rtn != 0)
+		t_mipi->dphy0_ctrl0_cfg = 0x123; /*A: 0x123, B: 0x123ff*/
+
+	rtn = of_property_read_u32(node, "dphy0-ctrl1-cfg", &t_mipi->dphy0_ctrl1_cfg);
+	if (rtn != 0)
+		t_mipi->dphy0_ctrl1_cfg = 0x123; /*A: 0x123, B: 0x1ff01*/
+
 	t_mipi->link_node = of_parse_phandle(node, "link-device", 0);
 
 	if (t_mipi->link_node == NULL) {
@@ -224,7 +236,7 @@ static int am_mipi_phy_init(void *info)
 		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x0b440581);
 
 	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL1, 0x803f0000);
-	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL3, 0x02);
+	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL3, g_mipi->aphy_ctrl3_cfg);
 
 	//mipi_phy_reg_wr(MIPI_PHY_CTRL, data32);   //soft reset bit
 	//mipi_phy_reg_wr(MIPI_PHY_CTRL,   0);   //release soft reset bit
@@ -244,8 +256,8 @@ static int am_mipi_phy_init(void *info)
 	mipi_phy_reg_wr(MIPI_PHY_TWD_HS ,0x400000);
 	mipi_phy_reg_wr(MIPI_PHY_DATA_LANE_CTRL , 0x0);
 	mipi_phy_reg_wr(MIPI_PHY_DATA_LANE_CTRL1 , 0x3 | (0x1f << 2 ) | (0x3 << 7));     // enable data lanes pipe line and hs sync bit err.
-	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL0 ,0x00000123);
-	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL1 ,0x00000123);
+	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL0 ,g_mipi->dphy0_ctrl0_cfg);
+	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL1 ,g_mipi->dphy0_ctrl1_cfg);
 	//mipi_phy_reg_wr(MIPI_PHY_AN_CTRL0,0xa3a9); //MIPI_COMMON<15:0>=<1010,0011,1010,1001>
 	//mipi_phy_reg_wr(MIPI_PHY_AN_CTRL1,0xcf25); //MIPI_CHCTL1<15:0>=<1100,1111,0010,0101>
 	//mipi_phy_reg_wr(MIPI_PHY_AN_CTRL2,0x0667); //MIPI_CHCTL2<15:0>=<0000,0110,0110,0111>

@@ -86,6 +86,9 @@ struct am_mipi {
 	void __iomem *csi1_host;
 	int phy_irq;
 	int csi_irq;
+	uint32_t aphy_ctrl3_cfg;
+	uint32_t dphy0_ctrl0_cfg;
+	uint32_t dphy0_ctrl1_cfg;
 };
 
 typedef struct am_mipi_info {
