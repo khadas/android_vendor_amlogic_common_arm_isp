@@ -55,7 +55,6 @@
 #define HHI_CSI_PHY_CNTL0		(0xff630000 + 0xd3 * 4)
 #define HHI_CSI_PHY_CNTL1		(0xff630000 + 0x114 * 4)
 
-
 struct device_info {
     struct clk* clk_isp_0;
     struct clk* clk_mipi_0;
@@ -545,10 +544,41 @@ void isp_hw_disable(void)
     isp_power_down();
 }
 
+static uint32_t isp_module_check(struct platform_device *pdev)
+{
+    unsigned int val = 0;
+    struct resource *res;
+    resource_size_t *base;
+
+    res = platform_get_resource_byname(pdev,
+        IORESOURCE_MEM, "ISP_EFUSE");
+    if (res) {
+        base = ioremap_nocache(res->start, res->end - res->start);
+        val = __raw_readl(base);
+        val = (val & 0x4000);
+        if (val == 0) {
+            iounmap(base);
+            return 0;
+        } else {
+            iounmap(base);
+            return 1;
+        }
+    } else {
+        LOG( LOG_CRIT, "warning, no efuse register mapping. Enabled as default\n");
+        return 0;
+    }
+    return 0;
+}
+
 static int32_t isp_platform_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
     struct resource *isp_res;
+
+    if (isp_module_check(pdev)) {
+        LOG( LOG_CRIT, "This chip don't have isp module.\n" );
+        return rc;
+    }
 
     // Initialize irq
     isp_res = platform_get_resource_byname( pdev,
