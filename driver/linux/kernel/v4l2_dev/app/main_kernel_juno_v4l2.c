@@ -546,27 +546,45 @@ void isp_hw_disable(void)
 
 static uint32_t isp_module_check(struct platform_device *pdev)
 {
-    unsigned int val = 0;
-    struct resource *res;
-    resource_size_t *base;
+    void __iomem *efuse_addr;
+    uint32_t val;
+    int ret;
+    struct device_node *np = pdev->dev.of_node;
+    unsigned int length = 0;
+    u32 efuse_val[10] = {0};
 
-    res = platform_get_resource_byname(pdev,
-        IORESOURCE_MEM, "ISP_EFUSE");
-    if (res) {
-        base = ioremap_nocache(res->start, res->end - res->start);
-        val = __raw_readl(base);
-        val = (val & 0x4000);
-        if (val == 0) {
-            iounmap(base);
-            return 0;
-        } else {
-            iounmap(base);
-            return 1;
-        }
-    } else {
+    if (of_find_property(np, "isp-efuse", &length) == NULL) {
         LOG( LOG_CRIT, "warning, no efuse register mapping. Enabled as default\n");
         return 0;
     }
+    if ((length / sizeof(u32)) > (sizeof(efuse_val) / sizeof(efuse_val[0]))) {
+        LOG( LOG_CRIT, "exceed the isp array efuse_val size\n");
+        return 1;
+    }
+    ret = of_property_read_u32_array(pdev->dev.of_node, "isp-efuse",
+        efuse_val, length / sizeof(u32));
+    if (ret) {
+        LOG( LOG_CRIT, "warning, no efuse register mapping. Enabled as default\n");
+        return 0;
+    } else {
+        LOG( LOG_ERR, "isp efuse value: %x %x\n", efuse_val[0], efuse_val[1]);
+        efuse_addr = ioremap_nocache(efuse_val[0], 8);
+        if (efuse_addr == NULL) {
+            LOG( LOG_CRIT, "Failed to ioremap isp efuse register\n");
+            return 1;
+        } else {
+            val = __raw_readl(efuse_addr);
+            val = (val & efuse_val[1]);
+            if (val == 0) {
+                iounmap(efuse_addr);
+                return 0;
+            } else {
+                iounmap(efuse_addr);
+                return 1;
+            }
+        }
+    }
+
     return 0;
 }
 
