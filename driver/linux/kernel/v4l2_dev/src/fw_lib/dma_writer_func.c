@@ -116,7 +116,9 @@ void acamera_frame_buffer_update( dma_writer_fsm_const_ptr_t p_fsm )
 void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 {
     // register interrupts
-    p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_START ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_FR ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_DS );
+    p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_START )
+        | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_FR ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_DS )
+        | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_DROP_FR ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_DROP_DS );
 
     dma_writer_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );
 

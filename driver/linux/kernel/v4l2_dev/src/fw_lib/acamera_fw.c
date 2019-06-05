@@ -159,7 +159,7 @@ void acamera_fw_process( acamera_context_t *p_ctx )
 
 void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
 { //dma writer events should be passed for the capture on freeze requirement
-    if ( p_ctx->stab.global_freeze_firmware == 0 || event_id == event_id_new_frame
+    if ( p_ctx->stab.global_freeze_firmware == 0 || event_id == event_id_new_frame || event_id == event_id_drop_frame
 #if defined( ISP_HAS_DMA_WRITER_FSM )
          || event_id == event_id_frame_buffer_fr_ready || event_id == event_id_frame_buffer_ds_ready || event_id == event_id_frame_buffer_metadata
 #endif
@@ -178,7 +178,7 @@ void acamera_fw_raise_event( acamera_context_t *p_ctx, event_id_t event_id )
 
 void acamera_fsm_mgr_raise_event( acamera_fsm_mgr_t *p_fsm_mgr, event_id_t event_id )
 { //dma writer events should be passed for the capture on freeze requirement
-    if ( p_fsm_mgr->p_ctx->stab.global_freeze_firmware == 0 || event_id == event_id_new_frame
+    if ( p_fsm_mgr->p_ctx->stab.global_freeze_firmware == 0 || event_id == event_id_new_frame || event_id == event_id_drop_frame
 #if defined( ISP_HAS_DMA_WRITER_FSM )
          || event_id == event_id_frame_buffer_fr_ready || event_id == event_id_frame_buffer_ds_ready || event_id == event_id_frame_buffer_metadata
 #endif
@@ -615,6 +615,7 @@ void acamera_general_interrupt_hanlder( acamera_context_ptr_t p_ctx, uint8_t eve
     }
 
     if ( ( p_ctx->stab.global_freeze_firmware == 0 )
+         || (event == ACAMERA_IRQ_FRAME_DROP_FR) || (event == ACAMERA_IRQ_FRAME_DROP_DS)
 #if defined( ISP_HAS_DMA_WRITER_FSM )
          || ( event == ACAMERA_IRQ_FRAME_WRITER_FR ) // process interrupts for frame buffer anyway (otherwise picture will be frozen)
          || ( event == ACAMERA_IRQ_FRAME_WRITER_DS ) // process interrupts for frame buffer anyway (otherwise picture will be frozen)

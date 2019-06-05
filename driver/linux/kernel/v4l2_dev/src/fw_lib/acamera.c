@@ -476,6 +476,13 @@ static void start_processing_frame( void )
     acamera_fw_raise_event( p_ctx, event_id_new_frame );
 }
 
+static void start_dropping_frame( void )
+{
+    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
+
+    acamera_fw_raise_event( p_ctx, event_id_drop_frame );
+}
+
 static void dma_complete_context_func( void *arg )
 {
     LOG( LOG_INFO, "DMA COMPLETION FOR CONTEXT" );
@@ -506,16 +513,27 @@ static void dma_complete_metering_func( void *arg )
     // after we finish transfer context and metering we can start processing the current data
 }
 
+static void dma_drop_context_func( void *arg )
+{
+    g_firmware.dma_flag_isp_config_completed = 1;
+
+    if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
+        LOG( LOG_INFO, "START DROPPING FROM CONTEXT CALLBACK" );
+        start_dropping_frame();
+    }
+
+    system_dma_unmap_sg( arg );
+}
 
 // single context handler
 int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
+    int not_empty = 0;
     LOG( LOG_INFO, "Interrupt handler called" );
 
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[0];
-
 
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
@@ -559,11 +577,10 @@ int32_t acamera_interrupt_handler()
                         LOG( LOG_CRIT, "DMA is not finished, cfg: %d, meter: %d, skip this frame.", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
                         return -2;
                     }
-
+                    not_empty = acamera_event_queue_not_empty( &p_ctx->fsm_mgr.event_queue );
                     // we must finish all previous processing before scheduling new dma
-                    if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) ) {
+                    {
                         // switch to ping/pong contexts for the next frame
-
                         // these flags are used for sync of callbacks
                         g_firmware.dma_flag_isp_config_completed = 0;
                         g_firmware.dma_flag_isp_metering_completed = 0;
@@ -581,12 +598,17 @@ int32_t acamera_interrupt_handler()
                             //            |^^^^^^^^^|
                             // conf --->  |  PONG   |
                             //            |_________|
-                            LOG( LOG_INFO, "DMA metering from pong to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
-                            // dma all stat memory only to the software context
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func );
-                            LOG( LOG_INFO, "DMA config from pong to DDR of size %d", ACAMERA_ISP1_SIZE );
+                            if (!not_empty) {
+                                LOG( LOG_INFO, "DMA metering from pong to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
+                                // dma all stat memory only to the software context
+                                system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PING, SYS_DMA_FROM_DEVICE, dma_complete_metering_func );
 
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func );
+                                LOG( LOG_INFO, "DMA config from pong to DDR of size %d", ACAMERA_ISP1_SIZE );
+                                system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_complete_context_func );
+                            } else {
+                                g_firmware.dma_flag_isp_metering_completed = 1;
+                                system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, dma_drop_context_func );
+                            }
                         } else {
                             LOG( LOG_INFO, "Current config is ping" );
                             //            |^^^^^^^^^|
@@ -600,16 +622,18 @@ int32_t acamera_interrupt_handler()
                             // conf --->  |  PING   |
                             //            |_________|
 
-                            LOG( LOG_INFO, "DMA metering from ping to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
-                            // dma all stat memory only to the software context
+                            if (!not_empty) {
+                                LOG( LOG_INFO, "DMA metering from ping to DDR of size %d", ACAMERA_METERING_STATS_MEM_SIZE );
+                                // dma all stat memory only to the software context
+                                system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func );
 
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_metering, ISP_CONFIG_PONG, SYS_DMA_FROM_DEVICE, dma_complete_metering_func );
-                            LOG( LOG_INFO, "DMA config from DDR to ping of size %d", ACAMERA_ISP1_SIZE );
-
-                            system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func );
+                                LOG( LOG_INFO, "DMA config from DDR to ping of size %d", ACAMERA_ISP1_SIZE );
+                                system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_complete_context_func );
+                            } else {
+                                g_firmware.dma_flag_isp_metering_completed = 1;
+                                system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PONG, SYS_DMA_TO_DEVICE, dma_drop_context_func );
+                            }
                         }
-                    } else {
-                        LOG( LOG_CRIT, "Attempt to start a new frame before processing is done for the prevous frame. Skip this frame" );
                     }
                 } else {
                     // unhandled irq

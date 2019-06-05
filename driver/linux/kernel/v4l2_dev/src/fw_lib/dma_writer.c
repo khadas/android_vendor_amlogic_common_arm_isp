@@ -350,7 +350,7 @@ tframe_t *dma_writer_api_return_next_ready_frame( void *handle, dma_type type )
 extern int32_t acamera_get_api_context( void );
 
 //extern void dma_input_reset();
-dma_error dma_writer_pipe_update( dma_pipe *pipe )
+dma_error dma_writer_pipe_update( dma_pipe *pipe , bool drop_frame)
 {
     dma_error result = edma_ok;
     tframe_t *empty_frame = NULL;
@@ -367,6 +367,11 @@ dma_error dma_writer_pipe_update( dma_pipe *pipe )
                 if (pipe->settings.init_delay > 0) {
                     /* recycle the buffer as empty */
                     pipe->settings.init_delay--;
+                    pipe->settings.last_tframe->primary.status = dma_buf_empty;
+                    pipe->settings.last_tframe->secondary.status = dma_buf_empty;
+                    pipe->settings.last_tframe = NULL;
+                } else if (drop_frame) {
+                    /* recycle the buffer as empty */
                     pipe->settings.last_tframe->primary.status = dma_buf_empty;
                     pipe->settings.last_tframe->secondary.status = dma_buf_empty;
                     pipe->settings.last_tframe = NULL;
@@ -554,13 +559,25 @@ dma_error dma_writer_pipe_process_interrupt( dma_pipe *pipe, uint32_t irq_event 
     switch ( irq_event ) {
     case ACAMERA_IRQ_FRAME_WRITER_FR:
         if ( pipe->type == dma_fr ) {
-            dma_writer_pipe_update( pipe ); // have to change last address and buffer ring
+            dma_writer_pipe_update( pipe , false); // have to change last address and buffer ring
             dma_writer_pipe_set_fps(pipe); //change the fps of fr path
         }
         break;
     case ACAMERA_IRQ_FRAME_WRITER_DS:
         if ( pipe->type == dma_ds1 || pipe->type == dma_ds2 ) {
-            dma_writer_pipe_update( pipe ); // have to change last address and buffer ring
+            dma_writer_pipe_update( pipe , false); // have to change last address and buffer ring
+            dma_writer_pipe_set_fps(pipe); //change the fps of ds1 path
+        }
+        break;
+    case ACAMERA_IRQ_FRAME_DROP_FR:
+        if ( pipe->type == dma_fr ) {
+            dma_writer_pipe_update( pipe , true); // have to change last address and buffer ring
+            dma_writer_pipe_set_fps(pipe); //change the fps of fr path
+        }
+        break;
+    case ACAMERA_IRQ_FRAME_DROP_DS:
+        if ( pipe->type == dma_ds1 || pipe->type == dma_ds2 ) {
+            dma_writer_pipe_update( pipe , true); // have to change last address and buffer ring
             dma_writer_pipe_set_fps(pipe); //change the fps of ds1 path
         }
         break;
@@ -608,7 +625,7 @@ dma_error dma_writer_pipe_get_next_empty_buffer( void *handle, dma_type type )
         dma_handle *p_dma = (dma_handle *)handle;
         dma_pipe *pipe = &p_dma->pipe[type];
 
-        return dma_writer_pipe_update(pipe);
+        return dma_writer_pipe_update(pipe, false);
     } else {
         result = edma_fail;
     }
