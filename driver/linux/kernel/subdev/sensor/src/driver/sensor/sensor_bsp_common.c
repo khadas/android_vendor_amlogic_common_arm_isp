@@ -5,6 +5,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/amlogic/aml_gpio_consumer.h>
 #include <linux/of_gpio.h>
+#include <linux/delay.h>
 #include "sensor_bsp_common.h"
 
 int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev)
@@ -134,12 +135,37 @@ int clk_am_enable(sensor_bringup_t* sensor_bp, const char* propname)
 	return 0;
 }
 
+int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t rate)
+{
+	int ret;
+	struct clk *clk;
+	int clk_val;
+	clk = devm_clk_get(sensor_bp->dev, propname);
+	if (IS_ERR(clk)) {
+	    pr_err("cannot get %s clk\n", propname);
+	    clk = NULL;
+	    return -1;
+	}
+	ret = clk_set_rate(clk, rate);
+	if (ret < 0)
+		pr_err("clk_set_rate failed\n");
+	udelay(30);
+	ret = clk_prepare_enable(clk);
+	if (ret < 0)
+		pr_err(" clk_prepare_enable failed\n");
+	clk_val = clk_get_rate(clk);
+	pr_err("isp init clock is %d MHZ\n",clk_val/1000000);
+
+	sensor_bp->mclk = clk;
+	return 0;
+}
+
 int clk_am_disable(sensor_bringup_t *sensor_bp)
 {
 	struct clk *mclk = NULL;
 
 	if (sensor_bp == NULL || sensor_bp->mclk == NULL) {
-		pr_err("%s:Error input param\n", __func__);
+		pr_err("Error input param\n");
 		return -EINVAL;
 	}
 

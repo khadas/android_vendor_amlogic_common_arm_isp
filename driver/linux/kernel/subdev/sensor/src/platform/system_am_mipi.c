@@ -203,6 +203,23 @@ static inline void mipi_phy_reg_rd(int addr, uint32_t *val)
 	*val = data;
 }
 
+static inline void mipi_phy1_reg_wr(int addr, uint32_t val)
+{
+	void __iomem *reg_addr = g_mipi->csi2_phy1 + addr;
+
+	__raw_writel(val, reg_addr);
+}
+
+static inline void mipi_phy1_reg_rd(int addr, uint32_t *val)
+{
+	uint32_t data = 0;
+	void __iomem *reg_addr = g_mipi->csi2_phy1 + addr;
+
+	data = __raw_readl(reg_addr);
+
+	*val = data;
+}
+
 static inline void mipi_aphy_reg_wr(int addr, uint32_t val)
 {
 	void __iomem *reg_addr = g_mipi->aphy + addr;
@@ -256,14 +273,40 @@ static int am_mipi_phy_init(void *info)
 	mipi_phy_reg_wr(MIPI_PHY_TWD_HS ,0x400000);
 	mipi_phy_reg_wr(MIPI_PHY_DATA_LANE_CTRL , 0x0);
 	mipi_phy_reg_wr(MIPI_PHY_DATA_LANE_CTRL1 , 0x3 | (0x1f << 2 ) | (0x3 << 7));     // enable data lanes pipe line and hs sync bit err.
-	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL0 ,g_mipi->dphy0_ctrl0_cfg);
-	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL1 ,g_mipi->dphy0_ctrl1_cfg);
+	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL0 ,0x00000123);
+	mipi_phy_reg_wr(MIPI_PHY_MUX_CTRL1 ,0x00000123);
+
+	if (m_info->fte1_flag) {
+		mipi_phy1_reg_wr(MIPI_PHY_CLK_LANE_CTRL ,0x3d8); //3d8:continue mode
+		mipi_phy1_reg_wr(MIPI_PHY_TCLK_MISS ,0x9);  // clck miss = 50 ns --(x< 60 ns)
+		mipi_phy1_reg_wr(MIPI_PHY_TCLK_SETTLE ,0x1f);  // clck settle = 160 ns --(95ns< x < 300 ns)
+		mipi_phy1_reg_wr(MIPI_PHY_THS_EXIT ,0x1f);   // hs exit = 160 ns --(x>100ns)
+		mipi_phy1_reg_wr(MIPI_PHY_THS_SKIP ,0xa);   // hs skip = 55 ns --(40ns<x<55ns+4*UI)
+		mipi_phy1_reg_wr(MIPI_PHY_THS_SETTLE , settle);//settle);   // hs settle = 160 ns --(85 ns + 6*UI<x<145 ns + 10*UI)
+		mipi_phy1_reg_wr(MIPI_PHY_TINIT ,0x4e20);  // >100us
+		mipi_phy1_reg_wr(MIPI_PHY_TMBIAS ,0x100);
+		mipi_phy1_reg_wr(MIPI_PHY_TULPS_C ,0x1000);
+		mipi_phy1_reg_wr(MIPI_PHY_TULPS_S ,0x100);
+		mipi_phy1_reg_wr(MIPI_PHY_TLP_EN_W ,0x0c);
+		mipi_phy1_reg_wr(MIPI_PHY_TLPOK ,0x100);
+		mipi_phy1_reg_wr(MIPI_PHY_TWD_INIT ,0x400000);
+		mipi_phy1_reg_wr(MIPI_PHY_TWD_HS ,0x400000);
+		mipi_phy1_reg_wr(MIPI_PHY_DATA_LANE_CTRL , 0x0);
+		mipi_phy1_reg_wr(MIPI_PHY_DATA_LANE_CTRL1 , 0x3 | (0x1f << 2 ) | (0x3 << 7));     // enable data lanes pipe line and hs sync bit err.
+		mipi_phy1_reg_wr(MIPI_PHY_MUX_CTRL0 ,g_mipi->dphy0_ctrl0_cfg);
+		mipi_phy1_reg_wr(MIPI_PHY_MUX_CTRL1 ,g_mipi->dphy0_ctrl1_cfg);
+	}
+
 	//mipi_phy_reg_wr(MIPI_PHY_AN_CTRL0,0xa3a9); //MIPI_COMMON<15:0>=<1010,0011,1010,1001>
 	//mipi_phy_reg_wr(MIPI_PHY_AN_CTRL1,0xcf25); //MIPI_CHCTL1<15:0>=<1100,1111,0010,0101>
 	//mipi_phy_reg_wr(MIPI_PHY_AN_CTRL2,0x0667); //MIPI_CHCTL2<15:0>=<0000,0110,0110,0111>
 	data32 = ((~(m_info->channel)) & 0xf) | (0 << 4); //enable lanes digital clock
 	data32 |= ((0x10 | m_info->channel) << 5); //mipi_chpu  to analog
 	mipi_phy_reg_wr(MIPI_PHY_CTRL, 0);
+
+	if (m_info->fte1_flag) {
+		mipi_phy1_reg_wr(MIPI_PHY_CTRL, 0);
+	}
 
 	return 0;
 }
@@ -274,6 +317,8 @@ static void am_mipi_phy_reset(void)
 	data32 = 0x1f; //disable lanes digital clock
 	data32 |= 0x1 << 31; //soft reset bit
 	mipi_phy_reg_wr(MIPI_PHY_CTRL, data32);
+	mipi_phy1_reg_wr(MIPI_PHY_CTRL, data32);
+
 }
 
 /*
@@ -290,6 +335,23 @@ static inline void mipi_csi_reg_rd(int addr, uint32_t *val)
 {
 	uint32_t data = 0;
 	void __iomem *reg_addr = g_mipi->csi0_host + addr;
+
+	data = __raw_readl(reg_addr);
+
+	*val = data;
+}
+
+static inline void mipi_csi1_reg_wr(int addr, uint32_t val)
+{
+	void __iomem *reg_addr = g_mipi->csi1_host + addr;
+
+	__raw_writel(val, reg_addr);
+}
+
+static inline void mipi_csi1_reg_rd(int addr, uint32_t *val)
+{
+	uint32_t data = 0;
+	void __iomem *reg_addr = g_mipi->csi1_host + addr;
 
 	data = __raw_readl(reg_addr);
 
@@ -321,12 +383,22 @@ static int am_mipi_csi_init(void *info)
 	mipi_csi_reg_wr(MIPI_CSI_N_LANES, (m_info->lanes - 1) & 3);  //set lanes
 	mipi_csi_reg_wr(MIPI_CSI_PHY_SHUTDOWNZ, 0xffffffff); // enable power
 
+	if (m_info->fte1_flag) {
+		mipi_csi1_reg_wr(MIPI_CSI_CSI2_RESETN, 0); // csi2 reset
+		mipi_csi1_reg_wr(MIPI_CSI_CSI2_RESETN, 0xffffffff); // release csi2 reset
+		mipi_csi1_reg_wr(MIPI_CSI_DPHY_RSTZ, 0xffffffff); // release DPHY reset
+		mipi_csi1_reg_wr(MIPI_CSI_N_LANES, (m_info->lanes - 1) & 3);  //set lanes
+		mipi_csi1_reg_wr(MIPI_CSI_PHY_SHUTDOWNZ, 0xffffffff); // enable power
+	}
+
 	return 0;
 }
 
 static void am_mipi_csi_set_lanes(int lanes)
 {
 	mipi_csi_reg_wr(MIPI_CSI_N_LANES, (lanes - 1) & 0x3);
+
+	mipi_csi1_reg_wr(MIPI_CSI_N_LANES, (lanes - 1) & 0x3);
 }
 
 static void am_mipi_csi_reset(void)
@@ -334,6 +406,10 @@ static void am_mipi_csi_reset(void)
 	mipi_csi_reg_wr(MIPI_CSI_PHY_SHUTDOWNZ, 0); // enable power
 	mipi_csi_reg_wr(MIPI_CSI_DPHY_RSTZ, 0); // release DPHY reset
 	mipi_csi_reg_wr(MIPI_CSI_CSI2_RESETN, 0); // csi2 reset
+
+	mipi_csi1_reg_wr(MIPI_CSI_PHY_SHUTDOWNZ, 0); // enable power
+	mipi_csi1_reg_wr(MIPI_CSI_DPHY_RSTZ, 0); // release DPHY reset
+	mipi_csi1_reg_wr(MIPI_CSI_CSI2_RESETN, 0); // csi2 reset
 }
 
 int am_mipi_csi_clk_enable(void)

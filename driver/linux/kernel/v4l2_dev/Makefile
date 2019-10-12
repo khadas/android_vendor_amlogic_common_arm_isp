@@ -15,7 +15,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-
 obj-m += iv009_isp.o
 
 M_PATH := $(shell dirname $(lastword $(MAKEFILE_LIST)))
@@ -35,3 +34,20 @@ EXTRA_CFLAGS := -I$(M_PATH)/app -I$(M_PATH)/inc -I$(M_PATH)/app/control \
 
 EXTRA_CFLAGS += -Wno-declaration-after-statement -Idrivers/staging/android/
 
+ifeq ($(SYSTEM_VERSION),)
+    ccflags-y += -DCONFIG_ANDROID_OS
+else
+    ccflags-y += -DCONFIG_$(SYSTEM_VERSION)
+endif
+
+ifeq ($(PLATFORM_VERSION),)
+    ccflags-y += -DCONFIG_G12B
+else
+    ccflags-y += -DCONFIG_$(PLATFORM_VERSION)
+endif
+
+ifeq ($(SEAMLESS_SUPPORT),)
+    ccflags-y += -DCONFIG_SEAMLESS_N
+else
+    ccflags-y += -DCONFIG_SEAMLESS_$(SEAMLESS_SUPPORT)
+endif

@@ -24,12 +24,31 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
+#include "acamera_firmware_config.h"
 
+//---------------- C1_phy_host_base -----------------
+/*
+csi2_phy0: 0xfe008000
+csi2_phy1: 0xfe008400
+aphy_reg:  0xfe007c00
+csi0_host: 0xfe022000
+csi1_host: 0xfe022400
+*/
 
+#if PLATFORM_G12B
 #define HI_CSI_PHY_CNTL0	0x4C
 #define HI_CSI_PHY_CNTL1	0x50
 #define HI_CSI_PHY_CNTL2	0x54
 #define HI_CSI_PHY_CNTL3	0x58
+#endif
+
+#if PLATFORM_C308X
+#define HI_CSI_PHY_CNTL0	(0x90 << 2)
+#define HI_CSI_PHY_CNTL1	(0x91 << 2)
+#define HI_CSI_PHY_CNTL2	(0x92 << 2)
+#define HI_CSI_PHY_CNTL3	(0x93 << 2)
+#endif
+
 
 #define MIPI_PHY_CTRL	0x00
 #define MIPI_PHY_CLK_LANE_CTRL	0x04
@@ -97,7 +116,7 @@ typedef struct am_mipi_info {
 	uint8_t lanes;
 
 	uint32_t csi_version;
-
+	uint32_t fte1_flag;
 }am_mipi_info_t;
 
 int am_mipi_parse_dt(struct device_node *node);

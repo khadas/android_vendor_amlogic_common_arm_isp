@@ -19,6 +19,7 @@
 
 #include "acamera_fw.h"
 #include "ae_manual_fsm.h"
+#include "acamera_3aalg_preset.h"
 #include "sbuf.h"
 
 #ifdef LOG_MODULE
@@ -26,15 +27,17 @@
 #define LOG_MODULE LOG_MODULE_AE_MANUAL
 #endif
 
+isp_ae_preset_t p_ae_preset;
+
 void AE_fsm_clear( AE_fsm_t *p_fsm )
 {
-    p_fsm->error_log2 = 0;
+    p_fsm->error_log2 = p_ae_preset.error_log2;
     p_fsm->ae_hist_mean = 0;
-    p_fsm->exposure_log2 = 0;
-    p_fsm->new_exposure_log2 = 0;
-    p_fsm->integrator = 0;
-    p_fsm->exposure_ratio = 64;
-    p_fsm->new_exposure_ratio = 64;
+    p_fsm->exposure_log2 = p_ae_preset.exposure_log2;
+    p_fsm->new_exposure_log2 = p_ae_preset.exposure_log2;
+    p_fsm->integrator = p_ae_preset.integrator;
+    p_fsm->exposure_ratio = p_ae_preset.exposure_ratio;
+    p_fsm->new_exposure_ratio = p_ae_preset.exposure_ratio;
     p_fsm->exposure_ratio_avg = 64;
     p_fsm->ae_roi_api = AE_CENTER_ZONES;
     p_fsm->roi = AE_CENTER_ZONES;
@@ -122,6 +125,22 @@ int AE_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
 
         break;
     }
+	case FSM_PARAM_SET_AE_PRESET:
+        if ( !input || input_size != sizeof( isp_ae_preset_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+	    isp_ae_preset_t *p_new = (isp_ae_preset_t *)input;
+        p_fsm->new_exposure_log2 = p_new->exposure_log2;
+		p_fsm->new_exposure_ratio = p_new->exposure_ratio;
+		p_ae_preset.error_log2 = p_new->error_log2;
+		p_ae_preset.exposure_log2 = p_new->exposure_log2;
+		p_ae_preset.integrator = p_new->integrator;
+		p_ae_preset.exposure_ratio = p_new->exposure_ratio;
+		ae_calculate_exposure( p_fsm );
+		break;
 
     default:
         rc = -1;

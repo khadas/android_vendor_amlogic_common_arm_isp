@@ -43,17 +43,18 @@ typedef struct {
     //in case scatter and gather is not supported, need more than one channel
     struct dma_chan *dma_channel[SYSTEM_DMA_MAX_CHANNEL];
     //for sg
-    struct sg_table sg_device_table[SYSTEM_DMA_TOGGLE_COUNT];
-    unsigned int sg_device_nents[SYSTEM_DMA_TOGGLE_COUNT];
+    struct sg_table sg_device_table[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+    unsigned int sg_device_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
 
-    struct sg_table sg_fwmem_table[SYSTEM_DMA_TOGGLE_COUNT];
-    unsigned int sg_fwmem_nents[SYSTEM_DMA_TOGGLE_COUNT];
+    struct sg_table sg_fwmem_table[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
+    unsigned int sg_fwmem_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
 
     //for flushing
-    fwmem_addr_pair_t *fwmem_pair_flush[SYSTEM_DMA_TOGGLE_COUNT];
+    fwmem_addr_pair_t *fwmem_pair_flush[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
     //for callback unmapping
     int32_t buff_loc;
     uint32_t direction;
+    uint32_t cur_fw_ctx_id;
 
     //conf synchronization and completion
     dma_completion_callback complete_func;
@@ -81,16 +82,18 @@ typedef struct {
 
 typedef struct {
     char *name;
-    unsigned int sg_device_nents[SYSTEM_DMA_TOGGLE_COUNT];
+    unsigned int sg_device_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
 
-    unsigned int sg_fwmem_nents[SYSTEM_DMA_TOGGLE_COUNT];
+    unsigned int sg_fwmem_nents[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
 
-    mem_addr_pair_t *mem_addrs[SYSTEM_DMA_TOGGLE_COUNT];
+    mem_addr_pair_t *mem_addrs[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT];
 
-    mem_tasklet_t task_list[SYSTEM_DMA_TOGGLE_COUNT][SYSTEM_DMA_MAX_CHANNEL];
+    mem_tasklet_t task_list[FIRMWARE_CONTEXT_NUMBER][SYSTEM_DMA_TOGGLE_COUNT][SYSTEM_DMA_MAX_CHANNEL];
 
     int32_t buff_loc;
     uint32_t direction;
+    uint32_t cur_fw_ctx_id;
+
     //conf synchronization and completion
     dma_completion_callback complete_func;
     atomic_t nents_done;
@@ -104,6 +107,8 @@ typedef struct {
 int32_t system_dma_init( void **ctx )
 {
     int32_t i, result = 0;
+    int32_t idx;
+
     if ( ctx != NULL ) {
 
         *ctx = system_malloc( sizeof( system_dma_device_t ) );
@@ -131,17 +136,22 @@ int32_t system_dma_init( void **ctx )
                 return -1;
             }
         }
-        for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
-            system_dma_device->sg_device_nents[i] = 0;
-            system_dma_device->sg_fwmem_nents[i] = 0;
+
+        for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {
+            for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
+                system_dma_device->sg_device_nents[idx][i] = 0;
+                system_dma_device->sg_fwmem_nents[idx][i] = 0;
+            }
         }
 
 #else
         system_dma_device->name = "TSK_DMA";
-        for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
-            system_dma_device->sg_device_nents[i] = 0;
-            system_dma_device->sg_fwmem_nents[i] = 0;
-            system_dma_device->mem_addrs[i] = 0;
+        for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {
+            for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
+                system_dma_device->sg_device_nents[idx][i] = 0;
+                system_dma_device->sg_fwmem_nents[idx][i] = 0;
+                system_dma_device->mem_addrs[idx][i] = 0;
+            }
         }
 #endif
     } else {
@@ -156,6 +166,8 @@ int32_t system_dma_init( void **ctx )
 int32_t system_dma_destroy( void *ctx )
 {
     int32_t i, result = 0;
+    int32_t idx;
+
     if ( ctx != 0 ) {
         system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
 
@@ -164,23 +176,28 @@ int32_t system_dma_destroy( void *ctx )
             dma_release_channel( system_dma_device->dma_channel[i] );
         }
 
-        for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
-            if ( system_dma_device->sg_device_nents[i] )
-                sg_free_table( &system_dma_device->sg_device_table[i] );
-            if ( system_dma_device->sg_fwmem_nents[i] )
-                sg_free_table( &system_dma_device->sg_device_table[i] );
-            if ( system_dma_device->fwmem_pair_flush[i] )
-                kfree( system_dma_device->fwmem_pair_flush[i] );
+        for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {
+            for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
+                if ( system_dma_device->sg_device_nents[idx][i] )
+                    sg_free_table( &system_dma_device->sg_device_table[idx][i] );
+
+                if ( system_dma_device->sg_fwmem_nents[idx][i] )
+                    sg_free_table( &system_dma_device->sg_device_table[idx][i] );
+
+                if ( system_dma_device->fwmem_pair_flush[idx][i] )
+                    kfree( system_dma_device->fwmem_pair_flush[idx][i] );
+            }
         }
 
 #else
-
-        for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
-            if ( system_dma_device->mem_addrs[i] ) {
-                int j;
-                for ( j = 0; j < system_dma_device->sg_device_nents[i]; j++ )
-                    iounmap( system_dma_device->mem_addrs[i][j].dev_addr );
-                kfree( system_dma_device->mem_addrs[i] );
+        for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {
+            for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
+                if ( system_dma_device->mem_addrs[idx][i] ) {
+                    int j;
+                    for ( j = 0; j < system_dma_device->sg_device_nents[idx][i]; j++ )
+                        iounmap( system_dma_device->mem_addrs[idx][i][j].dev_addr );
+                    kfree( system_dma_device->mem_addrs[idx][i] );
+                }
             }
         }
 #endif
@@ -199,7 +216,7 @@ static void dma_complete_func( void *ctx )
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
 
     unsigned int nents_done = atomic_inc_return( &system_dma_device->nents_done );
-    if ( nents_done >= system_dma_device->sg_device_nents[system_dma_device->buff_loc] ) {
+    if ( nents_done >= system_dma_device->sg_device_nents[system_dma_device->cur_fw_ctx_id][system_dma_device->buff_loc] ) {
         if ( system_dma_device->complete_func ) {
             system_dma_device->complete_func( ctx );
             LOG( LOG_DEBUG, "async completed on buff:%d dir:%d", system_dma_device->buff_loc, system_dma_device->direction );
@@ -212,16 +229,16 @@ static void dma_complete_func( void *ctx )
 
 #if FW_USE_SYSTEM_DMA
 //sg from here
-int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs )
+int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
 {
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
     struct scatterlist *sg;
     int i, ret;
 
-    if ( !system_dma_device || !device_addr_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT )
+    if ( !system_dma_device || !device_addr_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT || fw_ctx_id >= FIRMWARE_CONTEXT_NUMBER )
         return -1;
 
-    struct sg_table *table = &system_dma_device->sg_device_table[buff_loc];
+    struct sg_table *table = &system_dma_device->sg_device_table[fw_ctx_id][buff_loc];
 
     /* Allocate the scatterlist table */
     ret = sg_alloc_table( table, addr_pairs, GFP_KERNEL );
@@ -229,7 +246,7 @@ int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t
         LOG( LOG_CRIT, "unable to allocate DMA table\n" );
         return ret;
     }
-    system_dma_device->sg_device_nents[buff_loc] = addr_pairs;
+    system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] = addr_pairs;
 
     /* Add the DATA FPGA registers to the scatterlist */
     sg = table->sgl;
@@ -238,37 +255,37 @@ int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t
         sg_dma_len( sg ) = device_addr_pair[i].size;
         sg = sg_next( sg );
     }
-    LOG( LOG_INFO, "dma device setup success %d", system_dma_device->sg_device_nents[buff_loc] );
+    LOG( LOG_INFO, "dma device setup success %d", system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] );
     return 0;
 }
 
-int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs )
+int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
 {
     //unsigned int nr_pages;
     int i, ret;
     struct scatterlist *sg;
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
 
-    if ( !system_dma_device || !fwmem_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT ) {
+    if ( !system_dma_device || !fwmem_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT || fw_ctx_id >= FIRMWARE_CONTEXT_NUMBER ) {
         LOG( LOG_CRIT, "null param problems" );
         return -1;
     }
 
-    struct sg_table *table = &system_dma_device->sg_fwmem_table[buff_loc];
+    struct sg_table *table = &system_dma_device->sg_fwmem_table[fw_ctx_id][buff_loc];
     /* Allocate the scatterlist table */
     ret = sg_alloc_table( table, addr_pairs, GFP_KERNEL );
     if ( ret ) {
         LOG( LOG_CRIT, "unable to allocate DMA table\n" );
         return ret;
     }
-    system_dma_device->sg_fwmem_nents[buff_loc] = addr_pairs;
-    system_dma_device->fwmem_pair_flush[buff_loc] = kmalloc( sizeof( fwmem_addr_pair_t ) * addr_pairs, GFP_KERNEL );
-    if ( !system_dma_device->fwmem_pair_flush[buff_loc] ) {
+    system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc] = addr_pairs;
+    system_dma_device->fwmem_pair_flush[fw_ctx_id][buff_loc] = kmalloc( sizeof( fwmem_addr_pair_t ) * addr_pairs, GFP_KERNEL );
+    if ( !system_dma_device->fwmem_pair_flush[fw_ctx_id][buff_loc] ) {
         LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
         return -1;
     }
     for ( i = 0; i < addr_pairs; i++ ) {
-        system_dma_device->fwmem_pair_flush[buff_loc][i] = fwmem_pair[i];
+        system_dma_device->fwmem_pair_flush[fw_ctx_id][buff_loc][i] = fwmem_pair[i];
     }
     sg = table->sgl;
     for ( i = 0; i < addr_pairs; i++ ) {
@@ -276,7 +293,7 @@ int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_
         sg = sg_next( sg );
     }
 
-    LOG( LOG_INFO, "fwmem setup success %d", system_dma_device->sg_device_nents[buff_loc] );
+    LOG( LOG_INFO, "fwmem setup success %d", system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] );
 
     return 0;
 }
@@ -288,14 +305,15 @@ void system_dma_unmap_sg( void *ctx )
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
     int32_t buff_loc = system_dma_device->buff_loc;
     uint32_t direction = system_dma_device->direction;
+    uint32_t cur_fw_ctx_id = system_dma_device->cur_fw_ctx_id;
     int i;
     for ( i = 0; i < SYSTEM_DMA_MAX_CHANNEL; i++ ) {
         struct dma_chan *chan = system_dma_device->dma_channel[i];
-        dma_unmap_sg( chan->device->dev, system_dma_device->sg_fwmem_table[buff_loc].sgl, system_dma_device->sg_fwmem_nents[buff_loc], direction );
+        dma_unmap_sg( chan->device->dev, system_dma_device->sg_fwmem_table[cur_fw_ctx_id][buff_loc].sgl, system_dma_device->sg_fwmem_nents[cur_fw_ctx_id][buff_loc], direction );
     }
 }
 
-int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func )
+int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func, uint32_t fw_ctx_id )
 {
     int32_t i, result = 0;
     if ( !ctx ) {
@@ -319,16 +337,16 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
     enum dma_ctrl_flags flags = DMA_CTRL_ACK | DMA_PREP_FENCE | DMA_PREP_INTERRUPT;
 
     if ( direction == SYS_DMA_TO_DEVICE ) {
-        dst_sg = system_dma_device->sg_device_table[buff_loc].sgl;
-        dst_nents = system_dma_device->sg_device_nents[buff_loc];
-        src_sg = system_dma_device->sg_fwmem_table[buff_loc].sgl;
-        src_nents = system_dma_device->sg_fwmem_nents[buff_loc];
+        dst_sg = system_dma_device->sg_device_table[fw_ctx_id][buff_loc].sgl;
+        dst_nents = system_dma_device->sg_device_nents[fw_ctx_id][buff_loc];
+        src_sg = system_dma_device->sg_fwmem_table[fw_ctx_id][buff_loc].sgl;
+        src_nents = system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc];
         direction = DMA_TO_DEVICE;
     } else {
-        src_sg = system_dma_device->sg_device_table[buff_loc].sgl;
-        src_nents = system_dma_device->sg_device_nents[buff_loc];
-        dst_sg = system_dma_device->sg_fwmem_table[buff_loc].sgl;
-        dst_nents = system_dma_device->sg_fwmem_nents[buff_loc];
+        src_sg = system_dma_device->sg_device_table[fw_ctx_id][buff_loc].sgl;
+        src_nents = system_dma_device->sg_device_nents[fw_ctx_id][buff_loc];
+        dst_sg = system_dma_device->sg_fwmem_table[fw_ctx_id][buff_loc].sgl;
+        dst_nents = system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc];
         direction = DMA_FROM_DEVICE;
     }
 
@@ -339,19 +357,20 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
 
     //flush memory before transfer
     for ( i = 0; i < src_nents; i++ ) {
-        flush_icache_range( (unsigned long)( system_dma_device->fwmem_pair_flush[buff_loc][i].address ), (unsigned long)( (uintptr_t)system_dma_device->fwmem_pair_flush[buff_loc][i].address + system_dma_device->fwmem_pair_flush[buff_loc][i].size ) );
+        flush_icache_range( (unsigned long)( system_dma_device->fwmem_pair_flush[fw_ctx_id][buff_loc][i].address ), (unsigned long)( (uintptr_t)system_dma_device->fwmem_pair_flush[fw_ctx_id][buff_loc][i].address + system_dma_device->fwmem_pair_flush[fw_ctx_id][buff_loc][i].size ) );
     }
 
     for ( i = 0; i < SYSTEM_DMA_MAX_CHANNEL; i++ ) {
         chan = system_dma_device->dma_channel[i];
 
-        result = dma_map_sg( chan->device->dev, system_dma_device->sg_fwmem_table[buff_loc].sgl, system_dma_device->sg_fwmem_nents[buff_loc], direction );
+        result = dma_map_sg( chan->device->dev, system_dma_device->sg_fwmem_table[fw_ctx_id][buff_loc].sgl, system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc], direction );
         if ( result <= 0 ) {
             LOG( LOG_CRIT, "unable to map %d", result );
             return -1;
         }
         LOG( LOG_DEBUG, "src_nents:%d src_sg:%p dst_nents:%d dst_sg:%p dma map res:%d", src_nents, src_sg, dst_nents, dst_sg, result );
     }
+    system_dma_device->cur_fw_ctx_id = fw_ctx_id;
     /*
      * All buffers passed to this function should be ready and mapped
      * for DMA already. Therefore, we don't need to do anything except
@@ -428,7 +447,7 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
         wait_for_completion( &system_dma_device->comp );
         for ( i = 0; i < SYSTEM_DMA_MAX_CHANNEL; i++ ) {
             chan = system_dma_device->dma_channel[i];
-            dma_unmap_sg( chan->device->dev, system_dma_device->sg_fwmem_table[buff_loc].sgl, system_dma_device->sg_fwmem_nents[buff_loc], direction );
+            dma_unmap_sg( chan->device->dev, system_dma_device->sg_fwmem_table[fw_ctx_id][buff_loc].sgl, system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc], direction );
         }
     }
 
@@ -438,33 +457,33 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
 
 #else
 
-int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs )
+int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
 {
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
     int i;
 
-    if ( !system_dma_device || !device_addr_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT || addr_pairs > SYSTEM_DMA_MAX_CHANNEL )
+    if ( !system_dma_device || !device_addr_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT || addr_pairs > SYSTEM_DMA_MAX_CHANNEL || fw_ctx_id >= FIRMWARE_CONTEXT_NUMBER )
         return -1;
 
-    system_dma_device->sg_device_nents[buff_loc] = addr_pairs;
-    if ( !system_dma_device->mem_addrs[buff_loc] )
-        system_dma_device->mem_addrs[buff_loc] = kzalloc( sizeof( mem_addr_pair_t ) * SYSTEM_DMA_MAX_CHANNEL, GFP_KERNEL );
+    system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] = addr_pairs;
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] )
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc] = kmalloc( sizeof( mem_addr_pair_t ) * SYSTEM_DMA_MAX_CHANNEL, GFP_KERNEL );
 
-    if ( !system_dma_device->mem_addrs[buff_loc] ) {
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] ) {
         LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
         return -1;
     }
     for ( i = 0; i < addr_pairs; i++ ) {
-        system_dma_device->mem_addrs[buff_loc][i].dev_addr = ioremap_nocache( device_addr_pair[i].address, device_addr_pair[i].size );
-        system_dma_device->mem_addrs[buff_loc][i].size = device_addr_pair[i].size;
-        system_dma_device->mem_addrs[buff_loc][i].sys_back_ptr = ctx;
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].dev_addr = ioremap( device_addr_pair[i].address, device_addr_pair[i].size );
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].size = device_addr_pair[i].size;
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].sys_back_ptr = ctx;
     }
 
     LOG( LOG_INFO, "dma device setup success %d", system_dma_device->sg_device_nents[buff_loc] );
     return 0;
 }
 
-int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs )
+int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
 {
     int i;
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
@@ -473,27 +492,27 @@ int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_
         LOG( LOG_CRIT, "null param problems" );
         return -1;
     }
-    system_dma_device->sg_fwmem_nents[buff_loc] = addr_pairs;
+    system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc] = addr_pairs;
 
-    if ( !system_dma_device->mem_addrs[buff_loc] )
-        system_dma_device->mem_addrs[buff_loc] = kmalloc( sizeof( mem_addr_pair_t ) * SYSTEM_DMA_MAX_CHANNEL, GFP_KERNEL );
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] )
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc] = kmalloc( sizeof( mem_addr_pair_t ) * SYSTEM_DMA_MAX_CHANNEL, GFP_KERNEL );
 
-    if ( !system_dma_device->mem_addrs[buff_loc] ) {
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] ) {
         LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
         return -1;
     }
 
-    if ( !system_dma_device->mem_addrs[buff_loc] ) {
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] ) {
         LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
         return -1;
     }
     for ( i = 0; i < addr_pairs; i++ ) {
-        system_dma_device->mem_addrs[buff_loc][i].fw_addr = fwmem_pair[i].address;
-        system_dma_device->mem_addrs[buff_loc][i].size = fwmem_pair[i].size;
-        system_dma_device->mem_addrs[buff_loc][i].sys_back_ptr = ctx;
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].fw_addr = fwmem_pair[i].address;
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].size = fwmem_pair[i].size;
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].sys_back_ptr = ctx;
     }
 
-    LOG( LOG_INFO, "fwmem setup success %d", system_dma_device->sg_device_nents[buff_loc] );
+    LOG( LOG_INFO, "fwmem setup success %d", system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] );
 
     return 0;
 }
@@ -555,7 +574,7 @@ void system_dma_unmap_sg( void *ctx )
     return;
 }
 
-int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func )
+int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func, uint32_t fw_ctx_id )
 {
     int32_t i, result = 0;
     if ( !ctx ) {
@@ -572,12 +591,14 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
     system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
 
 
-    unsigned int src_nents = system_dma_device->sg_device_nents[buff_loc];
-    unsigned int dst_nents = system_dma_device->sg_fwmem_nents[buff_loc];
+    unsigned int src_nents = system_dma_device->sg_device_nents[fw_ctx_id][buff_loc];
+    unsigned int dst_nents = system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc];
     if ( src_nents != dst_nents || !src_nents || !dst_nents ) {
         LOG( LOG_CRIT, "Unbalance src_nents:%d dst_nents:%d", src_nents, dst_nents );
         return -1;
     }
+
+    system_dma_device->cur_fw_ctx_id = fw_ctx_id;
 
     atomic_set( &system_dma_device->nents_done, 0 ); //set the number of nents done
     if ( async_dma == 0 ) {
@@ -591,10 +612,10 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
 
 
     for ( i = 0; i < SYSTEM_DMA_MAX_CHANNEL; i++ ) {
-        system_dma_device->task_list[buff_loc][i].mem_data = &( system_dma_device->mem_addrs[buff_loc][i] );
-        system_dma_device->task_list[buff_loc][i].m_task.data = (unsigned long)&system_dma_device->task_list[buff_loc][i];
-        system_dma_device->task_list[buff_loc][i].m_task.func = memcopy_func;
-        tasklet_schedule( &system_dma_device->task_list[buff_loc][i].m_task );
+        system_dma_device->task_list[fw_ctx_id][buff_loc][i].mem_data = &( system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i] );
+        system_dma_device->task_list[fw_ctx_id][buff_loc][i].m_task.data = (unsigned long)&system_dma_device->task_list[fw_ctx_id][buff_loc][i];
+        system_dma_device->task_list[fw_ctx_id][buff_loc][i].m_task.func = memcopy_func;
+        tasklet_schedule( &system_dma_device->task_list[fw_ctx_id][buff_loc][i].m_task );
     }
 
 

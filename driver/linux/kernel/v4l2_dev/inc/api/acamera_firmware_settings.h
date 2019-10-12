@@ -92,6 +92,8 @@ typedef struct _aframe_t {
     uint32_t line_offset ; // line offset for the frame
     uint32_t size ; // total size of the memory in bytes
     uint32_t status ;
+    void *virt_addr ;      // virt address accessed by cpu
+    uint32_t frame_id ;
 } aframe_t ;
 
 typedef struct _tframe_t {
@@ -131,6 +133,7 @@ typedef struct _acamera_settings {
     uint32_t (*get_calibrations)( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations * ) ;  // must be initialized to provide calibrations. Must be provided.
     void (*custom_initialization)( uint32_t ctx_num ) ;                       // customer initialization sequence. called at the end of acamera_init. May be NULL.
     uintptr_t isp_base ;                                                 // isp base offset (not absolute memory address ). Should be started from start of isp memory. All ISP r/w accesses inside the firmware will use this value as the start_offset.
+    uint32_t hw_isp_addr ;                                               // hardware isp register configuration address.
     aframe_t* temper_frames ;                                          // frames to be used for the front-end dma writer
     uint32_t  temper_frames_number ;                                   // number of frames for dma front-end
     void (*callback_meta)( uint32_t ctx_num, const void *fw_metadata ) ;  // callback on every frame time. can be null if no meta callback is needed

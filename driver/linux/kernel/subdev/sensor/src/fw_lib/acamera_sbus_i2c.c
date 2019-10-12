@@ -86,7 +86,7 @@ static uint32_t i2c_io_read_sample( acamera_sbus_t *p_bus, uintptr_t addr, uint8
     uint8_t i = 0xff;
 
     if ( p_bus->bus == 0 ) {
-        LOG( LOG_ERR, "I2C bus address is zero. Please check the configuration of sensor connection " );
+        LOG( LOG_DEBUG, "I2C bus address is zero. Please check the configuration of sensor connection " );
     }
 #if ISP_FW_BUILD
     if ( p_ctx )

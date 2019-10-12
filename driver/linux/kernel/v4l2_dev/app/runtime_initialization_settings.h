@@ -82,5 +82,29 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .ds2_frames = NULL,
         .ds2_frames_number = 0,
         .callback_ds2 = callback_ds2,
-    }
+    },
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    {
+        .sensor_init = sensor_init_v4l2,
+        .sensor_deinit = sensor_deinit_v4l2,
+        .get_calibrations = get_calibrations_v4l2,
+        .lens_init = lens_init,
+        .lens_deinit = lens_deinit,
+        .custom_initialization = custom_initialization,
+        .isp_base = 0x0,
+        .temper_frames = sensor0_v4l2_temper_frames,
+        .temper_frames_number = sizeof( sensor0_v4l2_temper_frames ) / sizeof( aframe_t ),
+        .callback_meta = callback_meta,
+        .fr_frames = NULL,//sensor0_v4l2_fr_frames,
+        .fr_frames_number = 0,//sizeof( sensor0_v4l2_fr_frames ) / sizeof( tframe_t ),
+        .callback_fr = callback_fr,
+        .ds1_frames = NULL,//sensor0_v4l2_ds1_frames,
+        .ds1_frames_number = 0,//sizeof( sensor0_v4l2_ds1_frames ) / sizeof( tframe_t ),
+        .callback_ds1 = callback_ds1,
+        .ds2_frames = NULL,
+        .ds2_frames_number = 0,
+        .callback_ds2 = callback_ds2,
+    },
+
+#endif // FIRMWARE_CONTEXT_NUMBER == 2
 } ;

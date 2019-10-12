@@ -24,9 +24,25 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
+#include "acamera_firmware_config.h"
 
+#if PLATFORM_G12B
 #define FRONTEND_BASE               0x00004800
+#define FRONTEND1_BASE              0x00004C00
+#define RD_BASE                     0x00005000
+#define PIXEL_BASE                  0x00005000
+#define ALIGN_BASE                  0x00005000
+#define MISC_BASE                   0x00005000
+#elif PLATFORM_C308X
+#define FRONTEND_BASE               0x00002800
+#define FRONTEND1_BASE              0x00002C00
+#define RD_BASE                     0x00003000
+#define PIXEL_BASE                  0x00003000
+#define ALIGN_BASE                  0x00003000
+#define MISC_BASE                   0x00003000
+#endif
 
+#define FTE1_OFFSET                 0x00000400
 #define CSI2_CLK_RESET				0x00
 #define CSI2_GEN_CTRL0				0x04
 #define CSI2_GEN_CTRL1				0x08
@@ -35,12 +51,23 @@
 #define CSI2_X_START_END_MEM		0x14
 #define CSI2_Y_START_END_MEM		0x18
 #define CSI2_VC_MODE				0x1C
+
+#if PLATFORM_G12B
 #define CSI2_VC_MODE2_MATCH_MASK_L	0x20
 #define CSI2_VC_MODE2_MATCH_MASK_H	0x24
 #define CSI2_VC_MODE2_MATCH_TO_VC_L	0x28
 #define CSI2_VC_MODE2_MATCH_TO_VC_H	0x2C
 #define CSI2_VC_MODE2_MATCH_TO_IGNORE_L	0x30
 #define CSI2_VC_MODE2_MATCH_TO_IGNORE_H	0x34
+#elif PLATFORM_C308X
+#define CSI2_VC_MODE2_MATCH_MASK_A_L	0x20
+#define CSI2_VC_MODE2_MATCH_MASK_A_H	0x24
+#define CSI2_VC_MODE2_MATCH_A_L	0x28
+#define CSI2_VC_MODE2_MATCH_A_H	0x2C
+#define CSI2_VC_MODE2_MATCH_B_L	0x30
+#define CSI2_VC_MODE2_MATCH_B_H	0x34
+#endif
+
 #define CSI2_DDR_START_PIX			0x38
 #define CSI2_DDR_START_PIX_ALT		0x3C
 #define CSI2_DDR_STRIDE_PIX			0x40
@@ -48,6 +75,10 @@
 #define CSI2_DDR_START_OTHER_ALT	0x48
 #define CSI2_DDR_MAX_BYTES_OTHER	0x4C
 #define CSI2_INTERRUPT_CTRL_STAT	0x50
+
+#define CSI2_VC_MODE2_MATCH_MASK_B_L 0x54
+#define CSI2_VC_MODE2_MATCH_MASK_B_H 0x58
+#define CSI2_DDR_LOOP_LINES_PIX      0x5c
 
 #define CSI2_GEN_STAT0				0x80
 #define CSI2_ERR_STAT0				0x84
@@ -66,35 +97,45 @@
 #define CSI2_STAT_GEN_SHORT_0E		0xB8
 #define CSI2_STAT_GEN_SHORT_0F		0xBC
 
-#define RD_BASE                     0x00005000
+
 #define MIPI_ADAPT_DDR_RD0_CNTL0    0x00
 #define MIPI_ADAPT_DDR_RD0_CNTL1    0x04
 #define MIPI_ADAPT_DDR_RD0_CNTL2    0x08
 #define MIPI_ADAPT_DDR_RD0_CNTL3    0x0C
+#define MIPI_ADAPT_DDR_RD0_CNTL4    0x10
+#define MIPI_ADAPT_DDR_RD0_ST0		0x14
+#define MIPI_ADAPT_DDR_RD0_ST1		0x18
+#define MIPI_ADAPT_DDR_RD0_ST2		0x1c
+#define MIPI_ADAPT_DDR_RD0_CNTL5    0x20
+#define MIPI_ADAPT_DDR_RD0_CNTL6    0x24
 #define MIPI_ADAPT_DDR_RD1_CNTL0    0x40
 #define MIPI_ADAPT_DDR_RD1_CNTL1    0x44
 #define MIPI_ADAPT_DDR_RD1_CNTL2    0x48
 #define MIPI_ADAPT_DDR_RD1_CNTL3    0x4C
+#define MIPI_ADAPT_DDR_RD1_CNTL4    0x50
+#define MIPI_ADAPT_DDR_RD1_ST0		0x54
+#define MIPI_ADAPT_DDR_RD1_ST1		0x58
+#define MIPI_ADAPT_DDR_RD1_ST2		0x5c
+#define MIPI_ADAPT_DDR_RD1_CNTL5    0x60
+#define MIPI_ADAPT_DDR_RD1_CNTL6    0x64
 
-#define PIXEL_BASE                  0x00005000
 #define MIPI_ADAPT_PIXEL0_CNTL0     0x80
 #define MIPI_ADAPT_PIXEL0_CNTL1     0x84
 #define MIPI_ADAPT_PIXEL1_CNTL0     0x88
 #define MIPI_ADAPT_PIXEL1_CNTL1     0x8C
 
-
-#define ALIGN_BASE                  0x00005000
 #define MIPI_ADAPT_ALIG_CNTL0       0xC0
 #define MIPI_ADAPT_ALIG_CNTL1       0xC4
 #define MIPI_ADAPT_ALIG_CNTL2       0xC8
 #define MIPI_ADAPT_ALIG_CNTL6       0xD8
 #define MIPI_ADAPT_ALIG_CNTL7       0xDC
 #define MIPI_ADAPT_ALIG_CNTL8       0xE0
+#define MIPI_ADAPT_ALIG_CNTL9       0xE4
+#define MIPI_ADAPT_ALIG_CNTL10		0xF0
+
 #define MIPI_OTHER_CNTL0           0x100
 #define MIPI_ADAPT_IRQ_MASK0       0x180
 #define MIPI_ADAPT_IRQ_PENDING0    0x184
-
-#define MISC_BASE                  0x00005000
 
 
 typedef enum {
@@ -136,9 +177,17 @@ typedef enum {
 	DOL_LINEINFO,
 } dol_type_t;
 
+typedef enum {
+	FTE_DONE = 0,
+	FTE0_DONE,
+	FTE1_DONE,
+} dol_state_t;
+
+
 typedef struct exp_offset {
 	int long_offset;
 	int short_offset;
+	int offset_x;
 } exp_offset_t;
 
 struct am_adap {
@@ -148,6 +197,7 @@ struct am_adap {
 	void __iomem *base_addr;
 	int f_end_irq;
 	int rd_irq;
+	unsigned int adap_buf_size;
 };
 
 struct am_adap_info {
@@ -167,6 +217,7 @@ int am_adap_start(int idx);
 int am_adap_reset(void);
 int am_adap_deinit(void);
 void am_adap_set_info(struct am_adap_info *info);
+int get_fte1_flag(void);
 int am_adap_get_depth(void);
 
 #endif

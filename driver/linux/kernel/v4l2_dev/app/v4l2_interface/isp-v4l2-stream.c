@@ -169,6 +169,9 @@ extern resource_size_t isp_paddr;
 
 extern void cache_flush(uint32_t buf_start, uint32_t buf_size);
 
+extern struct timeval normal_fftt;
+uint8_t g_fftt = 1;
+
 /* ----------------------------------------------------------------
  * temporal frame sync before DDR access is available
  */
@@ -380,7 +383,7 @@ void callback_meta( uint32_t ctx_num, const void *fw_metadata )
 #endif
 
     /* Notify buffer ready */
-    isp_v4l2_notify_event( pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
+    isp_v4l2_notify_event( pstream->ctx_id, pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
 
     LOG( LOG_DEBUG, "[Stream#%d] vid_cap buffer %d done (size=%d, m.w=%d, m.h=%d)",
          pstream->stream_id, buf_index,
@@ -481,10 +484,10 @@ void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata
     unsigned long flags;
     int rc;
 
-    if ( !metadata ) {
-        LOG( LOG_ERR, "callback_fr: metadata is NULL" );
-        return;
-    }
+    //if ( !metadata ) {
+    //    LOG( LOG_ERR, "callback_fr: metadata is NULL" );
+    //    return;
+    //}
 
     /* find stream pointer */
     rc = isp_v4l2_find_stream( &pstream, ctx_num, V4L2_STREAM_TYPE_FR );
@@ -525,7 +528,8 @@ void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata
         //only 2 planes are possible
         frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
         frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-        frame_mgr->frame_buffer.meta = *metadata;
+	    if(metadata)
+            frame_mgr->frame_buffer.meta = *metadata;
         frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
         frame_mgr->frame_buffer.tframe = *tframe;
         /* lock buffer from firmware */
@@ -544,6 +548,11 @@ void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata
     if ( metadata )
         LOG( LOG_DEBUG, "metadata: width: %u, height: %u, line_size: %u, frame_number: %u.",
              metadata->width, metadata->height, metadata->line_size, metadata->frame_number );
+
+	if( g_fftt ) {
+		do_gettimeofday(&normal_fftt);
+		g_fftt = 0;
+	}
 }
 
 // Callback from DS1 output pipe
@@ -599,7 +608,8 @@ void callback_ds1( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
         //only 2 planes are possible
         frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
         frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-        frame_mgr->frame_buffer.meta = *metadata;
+	    if(metadata)
+            frame_mgr->frame_buffer.meta = *metadata;
         frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
         frame_mgr->frame_buffer.tframe = *tframe;
 
@@ -675,7 +685,8 @@ void callback_ds2( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
 			//only 2 planes are possible
 			frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
 			frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-			frame_mgr->frame_buffer.meta = *metadata;
+		    if(metadata)
+			    frame_mgr->frame_buffer.meta = *metadata;
 			frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
 			frame_mgr->frame_buffer.tframe = *tframe;
 
@@ -706,15 +717,15 @@ void callback_ds2( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
 /* DDR ioremap parameters
  */
 /* sensor static informations */
-static isp_v4l2_stream_common g_stream_common;
+static isp_v4l2_stream_common g_stream_common[FIRMWARE_CONTEXT_NUMBER];
 
-int isp_v4l2_stream_init_static_resources(void)
+int isp_v4l2_stream_init_static_resources(struct platform_device *pdev, uint32_t ctx_id)
 {
-    isp_v4l2_stream_common *sc = &g_stream_common;
+    isp_v4l2_stream_common *sc = &( g_stream_common[ctx_id] );
     int i;
     /* initialize stream common field */
     memset( sc, 0, sizeof( isp_v4l2_stream_common ) );
-    fw_intf_isp_get_sensor_info( &sc->sensor_info );
+    fw_intf_isp_get_sensor_info( ctx_id, &sc->sensor_info );
     sc->snapshot_sizes.frmsize_num = sc->sensor_info.preset_num;
     for ( i = 0; i < sc->sensor_info.preset_num; i++ ) {
         sc->snapshot_sizes.frmsize[i].width = sc->sensor_info.preset[i].width;
@@ -724,12 +735,12 @@ int isp_v4l2_stream_init_static_resources(void)
     return 0;
 }
 
-void isp_v4l2_stream_deinit_static_resources(void)
+void isp_v4l2_stream_deinit_static_resources( struct platform_device *pdev )
 {
     return;
 }
 
-int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id )
+int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id, int ctx_id )
 {
     isp_v4l2_stream_t *new_stream = NULL;
     //int current_sensor_preset;
@@ -745,12 +756,13 @@ int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id )
     /* set default format */
 
     //all stream multiplanar
-    new_stream->cur_v4l2_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    new_stream->cur_v4l2_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
     /* set input stream info */
-    new_stream->stream_common = &g_stream_common;
+    new_stream->stream_common = &( g_stream_common[ctx_id] );
 
     /* init control fields */
+    new_stream->ctx_id = ctx_id;
     new_stream->stream_id = stream_id;
     new_stream->stream_type = V4L2_STREAM_TYPE_MAX;
     new_stream->stream_started = 0;
@@ -761,6 +773,7 @@ int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id )
 
     /* init list */
     INIT_LIST_HEAD( &new_stream->stream_buffer_list );
+    INIT_LIST_HEAD( &new_stream->stream_buffer_list_busy );
 
     /* init locks */
     spin_lock_init( &new_stream->slock );
@@ -782,7 +795,7 @@ int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id )
     return 0;
 }
 
-void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream )
+void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream, int stream_on_count )
 {
     if ( !pstream ) {
         LOG( LOG_ERR, "Null stream passed" );
@@ -792,7 +805,7 @@ void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream )
     LOG( LOG_INFO, "[Stream#%d] Deinitializing stream ...", pstream->stream_id );
 
     /* do stream-off first if it's on */
-    isp_v4l2_stream_off( pstream );
+    isp_v4l2_stream_off( pstream , stream_on_count);
 
     /* release fw_info */
     if ( pstream ) {
@@ -960,6 +973,7 @@ static int isp_v4l2_stream_copy_thread( void *data )
         spin_lock( &pstream->slock );
         t_list = tframe.list;
 
+        s_list = NULL;
 
         list_for_each_entry(pbuf, &pstream->stream_buffer_list, list) {
             s_list = (void *)&pbuf->list;
@@ -1036,7 +1050,7 @@ static int isp_v4l2_stream_copy_thread( void *data )
              pstream->stream_id, buf_index, meta.frame_id );
 
         /* Notify buffer ready */
-        isp_v4l2_notify_event( pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
+        isp_v4l2_notify_event( pstream->ctx_id, pstream->stream_id, V4L2_EVENT_ACAMERA_FRAME_READY );
 
 #if V4L2_FRAME_ID_SYNC
         {
@@ -1079,7 +1093,7 @@ static int isp_v4l2_stream_copy_thread( void *data )
     }
 
     /* Notify stream off */
-    isp_v4l2_notify_event( pstream->stream_id, V4L2_EVENT_ACAMERA_STREAM_OFF );
+    isp_v4l2_notify_event( pstream->ctx_id, pstream->stream_id, V4L2_EVENT_ACAMERA_STREAM_OFF );
 
     LOG( LOG_INFO, "[Stream#%d] Exit HW thread.", pstream->stream_id );
 
@@ -1157,7 +1171,7 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 #endif
 
     /* hardware stream on */
-    if ( fw_intf_stream_start( pstream->stream_type ) < 0 )
+    if ( fw_intf_stream_start( pstream->ctx_id, pstream->stream_type ) < 0 )
         return -1;
 
     /* control fields update */
@@ -1166,7 +1180,7 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
     return 0;
 }
 
-void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
+void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream, int stream_on_count )
 {
     isp_v4l2_buffer_t *buf;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
@@ -1182,7 +1196,7 @@ void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream )
 
     LOG( LOG_INFO, "[Stream#%d] called", pstream->stream_id );
 
-    fw_intf_stream_stop( pstream->stream_id );
+    fw_intf_stream_stop( pstream->ctx_id, pstream->stream_type, stream_on_count );
 
     /* shutdown control thread */
     if ( pstream->kthread_stream != NULL ) {
@@ -1254,7 +1268,7 @@ int isp_v4l2_stream_enum_framesizes( isp_v4l2_stream_t *pstream, struct v4l2_frm
 
     /* check index */
     if ( fsize->index >= pstream->stream_common->snapshot_sizes.frmsize_num ) {
-        LOG( LOG_INFO, "[Stream#%d] index (%d) should be smaller than %u.",
+        LOG( LOG_INFO, "[Stream#%d] index (%d) should be smaller than %lu.",
              pstream->stream_id, fsize->index, pstream->stream_common->snapshot_sizes.frmsize_num );
         return -EINVAL;
     }
@@ -1339,9 +1353,9 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         uint32_t spreset = 0, exposures_preset, rev_val;
 
         if ( fw_intf_is_isp_started() ) {
-            acamera_command( TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &spreset );
-            acamera_command( TSENSOR, SENSOR_INFO_PRESET, spreset, COMMAND_SET, &rev_val );
-            acamera_command( TSENSOR, SENSOR_INFO_EXPOSURES, 0, COMMAND_GET, &exposures_preset );
+            acamera_command( pstream->ctx_id, TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &spreset );
+            acamera_command( pstream->ctx_id, TSENSOR, SENSOR_INFO_PRESET, spreset, COMMAND_SET, &rev_val );
+            acamera_command( pstream->ctx_id, TSENSOR, SENSOR_INFO_EXPOSURES, 0, COMMAND_GET, &exposures_preset );
 
             LOG( LOG_INFO, "[Stream#%d] Changing the number of planes according preset %d to exposures %d=>%d.\n", pstream->stream_id, spreset, tfmt->planes, exposures_preset );
             tfmt->planes = exposures_preset;
@@ -1360,8 +1374,8 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
         if ( f->fmt.pix.width == 0 || f->fmt.pix.height == 0 ) {
             if ( fw_intf_is_isp_started() ) {
                 uint32_t width_cur, height_cur;
-                acamera_command( TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
-                acamera_command( TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
+                acamera_command( pstream->ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
+                acamera_command( pstream->ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
                 f->fmt.pix.width = width_cur;
                 f->fmt.pix.height = height_cur;
             } else {
@@ -1446,7 +1460,6 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     /* try format first */
     isp_v4l2_stream_try_format( pstream, f );
 
-
     pstream->vb2_q->type = f->type;
     if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
         pstream->vb2_q->is_multiplanar = 0;
@@ -1482,7 +1495,7 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     }
 
     /* update resolution */
-    rc = fw_intf_stream_set_resolution( &pstream->stream_common->sensor_info,
+    rc = fw_intf_stream_set_resolution( pstream->ctx_id, &pstream->stream_common->sensor_info,
                                         pstream->stream_type, &( f->fmt.pix_mp.width ), &( f->fmt.pix_mp.height ) );
     if ( rc < 0 ) {
         LOG( LOG_CRIT, "set resolution failed ! (rc = %d)", rc );
@@ -1495,9 +1508,9 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
          pstream->stream_common->sensor_info.preset[pstream->stream_common->sensor_info.preset_cur].exposures[pstream->stream_common->sensor_info.preset[pstream->stream_common->sensor_info.preset_cur].fps_cur] );
 
     /* update format */
-    rc = fw_intf_stream_set_output_format( pstream->stream_type, f->fmt.pix_mp.pixelformat );
+    rc = fw_intf_stream_set_output_format( pstream->ctx_id, pstream->stream_type, f->fmt.pix_mp.pixelformat );
     if ( rc < 0 ) {
-        LOG( LOG_CRIT, "set format failed ! (rc = %d)", rc );
+        LOG( LOG_CRIT, "set format failed ! (rc = %d)", rc ); 
         return rc;
     }
 
@@ -1574,8 +1587,8 @@ int isp_v4l2_get_cropcap(isp_v4l2_stream_t *pstream,
     uint32_t gcd = 0;
     uint32_t ret_val = 0;
 
-    acamera_command( TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
-    acamera_command( TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
+    acamera_command( pstream->ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
+    acamera_command( pstream->ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
 
     if (width_cur == 0 || height_cur == 0) {
         LOG(LOG_ERR, "Error sensor current resolution");
@@ -1590,13 +1603,13 @@ int isp_v4l2_get_cropcap(isp_v4l2_stream_t *pstream,
     cap->defrect.top = 0;
     cap->defrect.left = 0;
     if (pstream->stream_type ==  V4L2_STREAM_TYPE_DS1) {
-        acamera_command( TIMAGE, IMAGE_RESIZE_TYPE_ID,
+        acamera_command( pstream->ctx_id, TIMAGE, IMAGE_RESIZE_TYPE_ID,
                             SCALER, COMMAND_SET, &ret_val );
-        acamera_command(TIMAGE, IMAGE_RESIZE_WIDTH_ID, 0,
+        acamera_command(pstream->ctx_id, TIMAGE, IMAGE_RESIZE_WIDTH_ID, 0,
                             COMMAND_GET, &ret_val);
         cap->defrect.width = ret_val;
 
-        acamera_command(TIMAGE, IMAGE_RESIZE_HEIGHT_ID, 0,
+        acamera_command(pstream->ctx_id, TIMAGE, IMAGE_RESIZE_HEIGHT_ID, 0,
                             COMMAND_GET, &ret_val);
         cap->defrect.height = ret_val;
     } else {
@@ -1643,42 +1656,42 @@ int isp_v4l2_set_crop(isp_v4l2_stream_t *pstream,
     width = crop->c.width & 0xffff;
     height = crop->c.height & 0xffff;
 
-    result = acamera_command( TIMAGE, IMAGE_RESIZE_TYPE_ID,
+    result = acamera_command( pstream->ctx_id, TIMAGE, IMAGE_RESIZE_TYPE_ID,
                             s_type, COMMAND_SET, &ret_val );
     if (result) {
         LOG( LOG_CRIT, "Failed to set resize_type, ret_value: %d.", result );
         return result;
     }
 
-    result = acamera_command(TIMAGE, IMAGE_CROP_XOFFSET_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_CROP_XOFFSET_ID,
                             x_off, COMMAND_SET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to set x offset, ret_value: %d.", result);
         return result;
     }
 
-    result = acamera_command(TIMAGE, IMAGE_RESIZE_WIDTH_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_RESIZE_WIDTH_ID,
                             width, COMMAND_SET, &ret_val);
     if ( result ) {
         LOG( LOG_CRIT, "Failed to set resize_width, ret_value: %d.", result );
         return result;
     }
 
-    result = acamera_command(TIMAGE, IMAGE_CROP_YOFFSET_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_CROP_YOFFSET_ID,
                             y_off, COMMAND_SET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to set y offset, ret_value: %d.", result);
         return result;
     }
 
-    result = acamera_command( TIMAGE, IMAGE_RESIZE_HEIGHT_ID,
+    result = acamera_command( pstream->ctx_id, TIMAGE, IMAGE_RESIZE_HEIGHT_ID,
                             height, COMMAND_SET, &ret_val );
     if (result) {
         LOG( LOG_CRIT, "Failed to set resize_height, ret_value: %d.", result );
         return result;
     }
 
-    result = acamera_command( TIMAGE, IMAGE_RESIZE_ENABLE_ID,
+    result = acamera_command( pstream->ctx_id, TIMAGE, IMAGE_RESIZE_ENABLE_ID,
                             RUN, COMMAND_SET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to set resize_enable, ret_value: %d.", result);
@@ -1686,9 +1699,9 @@ int isp_v4l2_set_crop(isp_v4l2_stream_t *pstream,
     }
 
     if (pstream->stream_type == V4L2_STREAM_TYPE_FR) {
-        acamera_command( TAML_SCALER, SCALER_SRC_WIDTH,
+        acamera_command( pstream->ctx_id, TAML_SCALER, SCALER_SRC_WIDTH,
                             width, COMMAND_SET, &ret_val );
-        acamera_command( TAML_SCALER, SCALER_SRC_HEIGHT,
+        acamera_command( pstream->ctx_id, TAML_SCALER, SCALER_SRC_HEIGHT,
                             height, COMMAND_SET, &ret_val );
     }
 
@@ -1714,14 +1727,14 @@ int isp_v4l2_get_crop(isp_v4l2_stream_t *pstream,
         return s_type;
     }
 
-    result = acamera_command( TIMAGE, IMAGE_RESIZE_TYPE_ID,
+    result = acamera_command( pstream->ctx_id, TIMAGE, IMAGE_RESIZE_TYPE_ID,
                             s_type, COMMAND_SET, &ret_val );
     if (result) {
         LOG( LOG_CRIT, "Failed to get resize_type, ret_value: %d.", result );
         return result;
     }
 
-    result = acamera_command(TIMAGE, IMAGE_CROP_XOFFSET_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_CROP_XOFFSET_ID,
                             0, COMMAND_GET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to get x offset, ret_value: %d.", result);
@@ -1729,7 +1742,7 @@ int isp_v4l2_get_crop(isp_v4l2_stream_t *pstream,
     }
     crop->c.left = ret_val;
 
-    result = acamera_command(TIMAGE, IMAGE_CROP_YOFFSET_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_CROP_YOFFSET_ID,
                             0, COMMAND_GET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to get x offset, ret_value: %d.", result);
@@ -1737,7 +1750,7 @@ int isp_v4l2_get_crop(isp_v4l2_stream_t *pstream,
     }
     crop->c.top = ret_val;
 
-    result = acamera_command(TIMAGE, IMAGE_RESIZE_WIDTH_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_RESIZE_WIDTH_ID,
                             0, COMMAND_GET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to get x offset, ret_value: %d.", result);
@@ -1745,7 +1758,7 @@ int isp_v4l2_get_crop(isp_v4l2_stream_t *pstream,
     }
     crop->c.width = ret_val;
 
-    result = acamera_command(TIMAGE, IMAGE_RESIZE_HEIGHT_ID,
+    result = acamera_command(pstream->ctx_id, TIMAGE, IMAGE_RESIZE_HEIGHT_ID,
                             0, COMMAND_GET, &ret_val);
     if (result) {
         LOG(LOG_CRIT, "Failed to get x offset, ret_value: %d.", result);

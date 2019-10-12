@@ -192,7 +192,7 @@ static int32_t sensor_alloc_digital_gain( void *ctx, int32_t gain )
     uint32_t dgain = acamera_math_exp2( gain, LOG2_GAIN_SHIFT, DGAIN_PRECISION );
     uint32_t d_gain = dgain;
 
-    if ( dgain > p_ctx->dgain_limit ) dgain = p_ctx->dgain_limit;
+    if ( d_gain > p_ctx->dgain_limit ) d_gain = p_ctx->dgain_limit;
 
     p_ctx->dgain_change = 1;
     p_ctx->dgain[0] = d_gain;
@@ -509,15 +509,16 @@ void sensor_init_imx227( void **ctx, sensor_control_t *ctrl, void* sbp)
     s_ctx.param.again_accuracy = 1 << LOG2_GAIN_SHIFT;
     s_ctx.param.sensor_exp_number = SENSOR_EXP_NUMBER;
     s_ctx.param.again_log2_max = 3 << LOG2_GAIN_SHIFT;
-    s_ctx.param.dgain_log2_max = 3 << LOG2_GAIN_SHIFT;
+    s_ctx.param.dgain_log2_max = 4 << LOG2_GAIN_SHIFT;
     s_ctx.param.integration_time_apply_delay = 2;
     s_ctx.param.isp_exposure_channel_delay = 0;
     s_ctx.param.modes_table = supported_modes;
-    s_ctx.param.modes_num = array_size( supported_modes );
+    s_ctx.param.modes_num = array_size_s( supported_modes );
     s_ctx.param.mode = 0;
     s_ctx.param.sensor_ctx = &s_ctx;
     s_ctx.param.isp_context_seq.sequence = p_isp_data;
     s_ctx.param.isp_context_seq.seq_num= SENSOR_IMX227_CONTEXT_SEQ;
+    s_ctx.param.isp_context_seq.seq_table_max = array_size_s( isp_seq_table );
 
     ctrl->alloc_analog_gain = sensor_alloc_analog_gain;
     ctrl->alloc_digital_gain = sensor_alloc_digital_gain;

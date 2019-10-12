@@ -42,11 +42,14 @@
 
 #define ISP_V4L2_NUM_INPUTS 1
 
+
 /* isp_v4l2_dev_t to destroy video device */
-static isp_v4l2_dev_t *g_isp_v4l2_dev = NULL;
+static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
+static isp_v4l2_dev_t *g_isp_v4l2_dev;
 void *isp_kaddr = NULL;
 resource_size_t isp_paddr = 0;
-#define TEMPER_MEM_SIZE (64 * 1024 * 1024UL)
+#define SIZE_1M (1024 * 1024UL)
+#define DEFAULT_TEMPER_BUFFER_SIZE 16
 
 
 /* ----------------------------------------------------------------
@@ -60,84 +63,7 @@ struct isp_v4l2_fh {
     struct v4l2_fh fh;
     unsigned int stream_id;
     struct vb2_queue vb2_q;
-    struct mutex mlock;
 };
-
-static int isp_cma_alloc(struct device *dev, unsigned long size)
-{
-    struct page *cma_pages = NULL;
-
-    cma_pages = dma_alloc_from_contiguous(dev, size >> PAGE_SHIFT, 0);
-    if (cma_pages) {
-        isp_paddr = page_to_phys(cma_pages);
-    } else {
-        LOG(LOG_ERR, "Failed alloc cma pages.\n");
-        return -1;
-    }
-    isp_kaddr = (void *)cma_pages;
-
-    LOG( LOG_INFO, "isp_cma_mem : %p, paddr:0x%x\n", isp_kaddr, isp_paddr);
-
-    return 0;
-}
-
-static void isp_cma_free(struct device *dev, void *kaddr, unsigned long size)
-{
-    struct page *cma_pages = NULL;
-    bool rc = false;
-
-    if (dev == NULL || kaddr == NULL) {
-        LOG(LOG_ERR, "Error input param\n");
-        return;
-    }
-
-    cma_pages = kaddr;
-
-    rc = dma_release_from_contiguous(dev, cma_pages, size >> PAGE_SHIFT);
-    if (rc == false) {
-        LOG(LOG_ERR, "Failed to release cma buffer\n");
-        return;
-    }
-}
-
-static int isp_v4l2_fw_init(struct device *dev, void *ctrl)
-{
-    int rc = -1;
-
-    rc = isp_hw_enable();
-    if (rc < 0) {
-        LOG(LOG_ERR, "Failed to enable hw");
-        return rc;
-    }
-
-    rc = isp_cma_alloc(dev, TEMPER_MEM_SIZE);
-    if (rc < 0) {
-        LOG(LOG_ERR, "Failed to alloc temper mem");
-        return rc;
-    }
-
-    /* initialize isp */
-    rc = fw_intf_isp_init();
-    if ( rc < 0 ) {
-        isp_cma_free(dev, isp_kaddr, TEMPER_MEM_SIZE);
-        LOG(LOG_ERR, "Failed to init isp fw");
-    }
-
-        /* initialize isp */
-    isp_v4l2_stream_init_static_resources();
-
-    v4l2_ctrl_handler_setup(ctrl);
-
-    return rc;
-}
-
-static void isp_v4l2_fw_deinit(struct device *dev)
-{
-    isp_v4l2_stream_deinit_static_resources();
-    fw_intf_isp_deinit();
-    isp_cma_free(dev, isp_kaddr, TEMPER_MEM_SIZE);
-    isp_hw_disable();
-}
 
 static int isp_v4l2_fh_open( struct file *file )
 {
@@ -150,7 +76,9 @@ static int isp_v4l2_fh_open( struct file *file )
         return -ENOMEM;
 
     unsigned int stream_opened = atomic_read( &dev->opened );
-    if ( stream_opened >= V4L2_STREAM_TYPE_MAX ) {
+    /* update open counter */
+
+    if ( stream_opened > V4L2_STREAM_TYPE_MAX ) {
         LOG( LOG_CRIT, "too many open streams." );
         kzfree( sp );
         return -EBUSY;
@@ -158,6 +86,8 @@ static int isp_v4l2_fh_open( struct file *file )
 
     file->private_data = &sp->fh;
 
+    if ( mutex_lock_interruptible( &dev->file_lock ) )
+        LOG( LOG_CRIT, "mutex_lock_interruptible failed.\n" );
     for ( i = 0; i < V4L2_STREAM_TYPE_MAX; i++ ) {
         if ( ( dev->stream_mask & ( 1 << i ) ) == 0 ) {
             dev->stream_mask |= ( 1 << i );
@@ -165,6 +95,7 @@ static int isp_v4l2_fh_open( struct file *file )
             break;
         }
     }
+    mutex_unlock( &dev->file_lock );
 
     v4l2_fh_init( &sp->fh, &dev->video_dev );
     v4l2_fh_add( &sp->fh );
@@ -194,8 +125,8 @@ static int isp_v4l2_fop_open( struct file *file )
     int rc = 0;
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp;
-    uint32_t open_counter = 0;
 
+    atomic_add( 1, &dev->opened );
     /* open file header */
     rc = isp_v4l2_fh_open( file );
     if ( rc < 0 ) {
@@ -204,27 +135,18 @@ static int isp_v4l2_fop_open( struct file *file )
     }
     sp = fh_to_private( file->private_data );
 
-    open_counter = atomic_read(&dev->opened);
-    if (open_counter == 0) {
-        rc = isp_v4l2_fw_init(dev->pdev, dev->isp_v4l2_ctrl.video_dev->ctrl_handler);
-        if (rc != 0) {
-            LOG(LOG_ERR, "Failed to init fw");
-            goto fw_init_fail;
-        }
-    }
-
     LOG( LOG_INFO, "isp_v4l2: %s: called for sid:%d.", __func__, sp->stream_id );
     /* init stream */
-    isp_v4l2_stream_init( &dev->pstreams[sp->stream_id], sp->stream_id );
+    isp_v4l2_stream_init( &dev->pstreams[sp->stream_id], sp->stream_id, dev->ctx_id );
     if ( sp->stream_id == 0 ) {
         // stream_id 0 is a full resolution
         dev->stream_id_index[V4L2_STREAM_TYPE_FR] = sp->stream_id;
-        acamera_api_dma_buff_queue_reset(dma_fr);
+        acamera_api_dma_buff_queue_reset(dev->ctx_id, dma_fr);
     }
 #if ISP_HAS_DS1
     else if ( sp->stream_id == V4L2_STREAM_TYPE_DS1 ) {
         dev->stream_id_index[V4L2_STREAM_TYPE_DS1] = sp->stream_id;
-        acamera_api_dma_buff_queue_reset(dma_ds1);
+        acamera_api_dma_buff_queue_reset(dev->ctx_id, dma_ds1);
     }
 #endif
 #if ISP_HAS_DS2
@@ -235,7 +157,7 @@ static int isp_v4l2_fop_open( struct file *file )
 
     /* init vb2 queue */
 
-    rc = isp_vb2_queue_init( &sp->vb2_q, &dev->mlock, dev->pstreams[sp->stream_id] );
+    rc = isp_vb2_queue_init( &sp->vb2_q, &dev->mlock, dev->pstreams[sp->stream_id], dev->v4l2_dev->dev );
     if ( rc < 0 ) {
         LOG( LOG_ERR, "Error, vb2 queue init fail (rc=%d)", rc );
         goto vb2_q_fail;
@@ -243,37 +165,34 @@ static int isp_v4l2_fop_open( struct file *file )
     if (sp->stream_id == V4L2_STREAM_TYPE_FR ||
         sp->stream_id == V4L2_STREAM_TYPE_DS1) {
 
-        sp->vb2_q.dev = g_isp_v4l2_dev->pdev;
+        sp->vb2_q.dev = g_isp_v4l2_devs[dev->ctx_id]->pdev;
     }
 #if ISP_HAS_DS2
     else if (sp->stream_id == V4L2_STREAM_TYPE_DS2) {
-        sp->vb2_q.dev = g_isp_v4l2_dev->pdev;
+        sp->vb2_q.dev = g_isp_v4l2_devs[dev->ctx_id]->pdev;
     }
 #endif
 
-    dev->pstreams[sp->stream_id]->vb2_q = &sp->vb2_q;
+    g_isp_v4l2_dev = g_isp_v4l2_devs[dev->ctx_id];
+    fw_intf_isp_set_current_ctx_id(dev->ctx_id);
+
+	dev->pstreams[sp->stream_id]->vb2_q = &sp->vb2_q;
     /* init fh_ptr */
     if ( mutex_lock_interruptible( &dev->notify_lock ) )
         LOG( LOG_CRIT, "mutex_lock_interruptible failed.\n" );
     dev->fh_ptr[sp->stream_id] = &( sp->fh );
     mutex_unlock( &dev->notify_lock );
 
-    mutex_init(&sp->mlock);
-
-    /* update open counter */
-    atomic_add( 1, &dev->opened );
-
     return rc;
 
 vb2_q_fail:
-    isp_v4l2_stream_deinit( dev->pstreams[sp->stream_id] );
+    isp_v4l2_stream_deinit( dev->pstreams[sp->stream_id], atomic_read(&dev->stream_on_cnt) );
 
-fw_init_fail:
-    isp_v4l2_fw_deinit(dev->pdev);
     //too_many_stream:
     isp_v4l2_fh_release( file );
 
 fh_open_fail:
+    atomic_sub( 1, &dev->opened );
     return rc;
 }
 
@@ -286,9 +205,6 @@ static int isp_v4l2_fop_close( struct file *file )
 
     LOG( LOG_INFO, "isp_v4l2: %s: called for sid:%d.", __func__, sp->stream_id );
 
-    dev->stream_mask &= ~( 1 << sp->stream_id );
-    open_counter = atomic_sub_return( 1, &dev->opened );
-
     /* deinit fh_ptr */
     if ( mutex_lock_interruptible( &dev->notify_lock ) )
         LOG( LOG_CRIT, "mutex_lock_interruptible failed.\n" );
@@ -299,21 +215,33 @@ static int isp_v4l2_fop_close( struct file *file )
     if ( pstream ) {
         if ( pstream->stream_type < V4L2_STREAM_TYPE_MAX )
             dev->stream_id_index[pstream->stream_type] = -1;
-        isp_v4l2_stream_deinit( pstream );
-        dev->pstreams[sp->stream_id] = NULL;
+        if (pstream->stream_started)
+        {
+            isp_v4l2_stream_deinit( pstream, atomic_read(&dev->stream_on_cnt) );
+            atomic_sub_return( 1, &dev->stream_on_cnt );
+            dev->pstreams[sp->stream_id] = NULL;
+        }
+        if ( dev->pstreams[sp->stream_id] ) {
+            kzfree( dev->pstreams[sp->stream_id] );
+            dev->pstreams[sp->stream_id] = NULL;
+        }
     }
 
     /* release vb2 queue */
     if ( sp->vb2_q.lock )
         mutex_lock( sp->vb2_q.lock );
 
-    isp_vb2_queue_release( &sp->vb2_q, pstream );
+    isp_vb2_queue_release( &sp->vb2_q );
 
     if ( sp->vb2_q.lock )
         mutex_unlock( sp->vb2_q.lock );
 
-    if (open_counter == 0)
-        isp_v4l2_fw_deinit(dev->pdev);
+    if ( mutex_lock_interruptible( &dev->file_lock ) )
+        LOG( LOG_CRIT, "mutex_lock_interruptible failed.\n" );
+
+    dev->stream_mask &= ~( 1 << sp->stream_id );
+    mutex_unlock( &dev->file_lock );
+    open_counter = atomic_sub_return( 1, &dev->opened );
 
     /* release file handle */
     isp_v4l2_fh_release( file );
@@ -383,7 +311,7 @@ static int isp_v4l2_querycap( struct file *file, void *priv, struct v4l2_capabil
     strcpy( cap->card, "juno R2" );
     snprintf( cap->bus_info, sizeof( cap->bus_info ), "platform:%s", dev->v4l2_dev->name );
 
-    /* V4L2_CAP_VIDEO_CAPTURE type for android */
+    /* V4L2_CAP_VIDEO_CAPTURE_MPLANE */
 
     cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
     cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
@@ -442,7 +370,7 @@ static int isp_v4l2_s_fmt_vid_cap( struct file *file, void *priv, struct v4l2_fo
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     struct vb2_queue *q = &sp->vb2_q;
     int rc = 0;
-
+    LOG( LOG_CRIT, "isp_v4l2_s_fmt_vid_cap sid:%d", sp->stream_id );
     if ( vb2_is_busy( q ) )
         return -EBUSY;
 
@@ -484,8 +412,6 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
-    mutex_lock(&sp->mlock);
-
     rc = vb2_streamon( &sp->vb2_q, i );
     if ( rc != 0 ) {
         LOG( LOG_ERR, "fail to vb2_streamon. (rc=%d)", rc );
@@ -496,12 +422,11 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     rc = isp_v4l2_stream_on( pstream );
     if ( rc != 0 ) {
         LOG( LOG_ERR, "fail to isp_stream_on. (stream_id = %d, rc=%d)", sp->stream_id, rc );
-        isp_v4l2_stream_off( pstream );
+        isp_v4l2_stream_off( pstream, atomic_read(&dev->stream_on_cnt) );
         return rc;
     }
 
     atomic_add( 1, &dev->stream_on_cnt );
-    mutex_unlock(&sp->mlock);
 
     return rc;
 }
@@ -516,15 +441,11 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
-    mutex_lock(&sp->mlock);
-
     /* Stop hardware */
-    isp_v4l2_stream_off( pstream );
+    isp_v4l2_stream_off( pstream, atomic_read(&dev->stream_on_cnt) );
 
     /* vb streamoff */
     rc = vb2_streamoff( &sp->vb2_q, i );
-
-    mutex_unlock(&sp->mlock);
 
     atomic_sub_return( 1, &dev->stream_on_cnt );
 
@@ -571,7 +492,6 @@ static int isp_v4l2_reqbufs( struct file *file, void *priv,
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
-    mutex_lock(&sp->mlock);
     rc = vb2_reqbufs( &sp->vb2_q, p );
     if ( rc == 0 )
         sp->vb2_q.owner = p->count ? file->private_data : NULL;
@@ -583,8 +503,6 @@ static int isp_v4l2_reqbufs( struct file *file, void *priv,
         am_sc_system_init();
     }
 #endif
-
-    mutex_unlock(&sp->mlock);
 
     LOG( LOG_DEBUG, "sid:%d reqbuf p->type:%d p->memory %d p->count %d rc %d", sp->stream_id, p->type, p->memory, p->count, rc );
     return rc;
@@ -612,11 +530,9 @@ static int isp_v4l2_qbuf( struct file *file, void *priv, struct v4l2_buffer *p )
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) ) {
         return -EBUSY;
     }
-    mutex_lock(&sp->mlock);
-    rc = vb2_qbuf( &sp->vb2_q, p );
-    mutex_unlock(&sp->mlock);
-    LOG( LOG_DEBUG, "sid:%d qbuf p->type:%d p->index:%d, rc %d", sp->stream_id, p->type, p->index, rc );
 
+    rc = vb2_qbuf( &sp->vb2_q, p );
+    LOG( LOG_DEBUG, "sid:%d qbuf p->type:%d p->index:%d, rc %d", sp->stream_id, p->type, p->index, rc );
     return rc;
 }
 
@@ -628,9 +544,7 @@ static int isp_v4l2_dqbuf( struct file *file, void *priv, struct v4l2_buffer *p 
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
-    mutex_lock(&sp->mlock);
     rc = vb2_dqbuf( &sp->vb2_q, p, file->f_flags & O_NONBLOCK );
-    mutex_unlock(&sp->mlock);
     LOG( LOG_DEBUG, "sid:%d qbuf p->type:%d p->index:%d, rc %d", sp->stream_id, p->type, p->index, rc );
     return rc;
 }
@@ -751,19 +665,65 @@ static const struct v4l2_ioctl_ops isp_v4l2_ioctl_ops = {
     .vidioc_s_crop = isp_v4l2_s_crop,
 
     .vidioc_expbuf = isp_v4l2_expbuf,
-    .vidioc_enum_frameintervals = isp_v4l2_enum_frameintervals,
+ #ifdef CONFIG_ANDROID_OS
+	.vidioc_enum_frameintervals = isp_v4l2_enum_frameintervals,
+ #endif
 };
 
-/* ----------------------------------------------------------------
- * V4L2 external interface for probe
- */
-int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_device *pdev)
+static int isp_cma_alloc(struct platform_device *pdev, unsigned long size)
+{
+    struct page *cma_pages = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+    cma_pages = dma_alloc_from_contiguous(
+			&(pdev->dev), size >> PAGE_SHIFT, 0, false);
+#else
+    cma_pages = dma_alloc_from_contiguous(
+			&(pdev->dev), size >> PAGE_SHIFT, 0);
+#endif
+    if (cma_pages) {
+        isp_paddr = page_to_phys(cma_pages);
+    } else {
+        LOG(LOG_ERR, "Failed alloc cma pages.\n");
+        return -1;
+    }
+    isp_kaddr = (void *)cma_pages;
+
+    LOG( LOG_INFO, "isp_cma_mem : %p, paddr:0x%x\n", isp_kaddr, isp_paddr);
+
+    return 0;
+}
+
+static void isp_cma_free(struct platform_device *pdev, void *kaddr, unsigned long size)
+{
+    struct page *cma_pages = NULL;
+    bool rc = false;
+
+    if (pdev == NULL || kaddr == NULL) {
+        LOG(LOG_ERR, "Error input param\n");
+        return;
+    }
+
+    cma_pages = kaddr;
+
+    rc = dma_release_from_contiguous(&(pdev->dev), cma_pages, size >> PAGE_SHIFT);
+    if (rc == false) {
+        LOG(LOG_ERR, "Failed to release cma buffer\n");
+        return;
+    }
+}
+
+static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
 {
     isp_v4l2_dev_t *dev;
     struct video_device *vfd;
     v4l2_std_id tvnorms_cap = 0;
     int rc = 0;
     int i;
+
+    if ( ctx_id >= FIRMWARE_CONTEXT_NUMBER ) {
+        LOG( LOG_ERR, "Invalid ctx numbr: %d, max: %d.", ctx_id, FIRMWARE_CONTEXT_NUMBER - 1 );
+        return -EINVAL;
+    }
 
     /* allocate main isp_v4l2 state structure */
     dev = kzalloc( sizeof( *dev ), GFP_KERNEL );
@@ -775,19 +735,19 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
     /* register v4l2_device */
 
     dev->v4l2_dev = v4l2_dev;
-    if ( v4l2_dev == NULL )
-        goto free_dev;
+    dev->ctx_id = ctx_id;
 
     /* init v4l2 controls */
     dev->isp_v4l2_ctrl.v4l2_dev = dev->v4l2_dev;
     dev->isp_v4l2_ctrl.video_dev = &dev->video_dev;
-    rc = isp_v4l2_ctrl_init( &dev->isp_v4l2_ctrl );
+    rc = isp_v4l2_ctrl_init( ctx_id, &dev->isp_v4l2_ctrl );
     if ( rc )
         goto free_dev;
 
     /* initialize locks */
     mutex_init( &dev->mlock );
     mutex_init( &dev->notify_lock );
+	mutex_init( &dev->file_lock);
 
     /* initialize stream id table */
     for ( i = 0; i < V4L2_STREAM_TYPE_MAX; i++ ) {
@@ -797,11 +757,6 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
     /* initialize open counter */
     atomic_set( &dev->stream_on_cnt, 0 );
     atomic_set( &dev->opened, 0 );
-
-    dev->pdev = &pdev->dev;
-
-    /* store dev pointer to destroy later and find stream */
-    g_isp_v4l2_dev = dev;
 
     /* finally start creating the device nodes */
     vfd = &dev->video_dev;
@@ -822,16 +777,20 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
     video_set_drvdata( vfd, dev );
 
     /* videoX start number, -1 is autodetect */
-    rc = video_register_device( vfd, VFL_TYPE_GRABBER, 50 );
+    rc = video_register_device( vfd, VFL_TYPE_GRABBER, VIDEO_NODE_NUM );
     if ( rc < 0 )
-        goto deinit_ctrl;
+        goto unreg_dev;
 
-    LOG( LOG_CRIT, "V4L2 capture device registered as %s.",
+    LOG( LOG_INFO, "V4L2 capture device registered as %s.",
          video_device_node_name( vfd ) );
 
-    return 0;
+    /* store dev pointer to destroy later and find stream */
+    g_isp_v4l2_devs[ctx_id] = dev;
 
-deinit_ctrl:
+    return rc;
+
+unreg_dev:
+    video_unregister_device( &dev->video_dev );
     isp_v4l2_ctrl_deinit( &dev->isp_v4l2_ctrl );
 
 free_dev:
@@ -840,23 +799,121 @@ free_dev:
     return rc;
 }
 
+static void isp_v4l2_destroy_dev( int ctx_id )
+{
+    if ( g_isp_v4l2_devs[ctx_id] ) {
+        LOG( LOG_INFO, "unregistering %s.", video_device_node_name( &g_isp_v4l2_devs[ctx_id]->video_dev ) );
+
+        /* unregister video device */
+        video_unregister_device( &g_isp_v4l2_devs[ctx_id]->video_dev );
+
+        isp_v4l2_ctrl_deinit( &g_isp_v4l2_devs[ctx_id]->isp_v4l2_ctrl );
+
+        kfree( g_isp_v4l2_devs[ctx_id] );
+        g_isp_v4l2_devs[ctx_id] = NULL;
+    } else {
+        LOG( LOG_INFO, "isp_v4l2_dev ctx_id: %d is NULL, skip.", ctx_id );
+    }
+}
+
+/* ----------------------------------------------------------------
+ * V4L2 external interface for probe
+ */
+int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_device *pdev, uint32_t hw_isp_addr )
+{
+	uint32_t ctx_id;
+	uint32_t ret_value;
+	unsigned int temper_buf_size;
+	int rc = 0;
+	
+	if ( v4l2_dev == NULL ) {
+		LOG( LOG_ERR, "Invalid parameter" );
+		return -EINVAL;
+	}
+	
+	rc = of_property_read_u32(pdev->dev.of_node, "temper-buf-size",
+							   &temper_buf_size);
+	LOG(LOG_INFO, "%s:temper buffer size %d, rtn %d\n", __func__, temper_buf_size, rc);
+		
+	if (rc != 0) {
+		   LOG(LOG_ERR, "failed to get temper-buf-size from dts, use default value\n");
+		   temper_buf_size = DEFAULT_TEMPER_BUFFER_SIZE;
+	}
+	
+	rc = isp_cma_alloc(pdev, temper_buf_size * SIZE_1M);
+	if (rc < 0)
+		return rc;
+
+	/* initialize isp */
+	rc = fw_intf_isp_init(hw_isp_addr);
+	if ( rc < 0 )
+		goto free_cma;
+	
+    /* initialize stream related resources to prepare for streaming.
+     * It should be called after sensor initialized.
+     */
+    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+        rc = isp_v4l2_stream_init_static_resources( pdev, ctx_id );
+        if ( rc < 0 )
+            goto deinit_fw_intf;
+    }
+
+	/* check sensor devices */
+	for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+		rc = acamera_command(ctx_id, TSENSOR, SENSOR_HWID, 0, COMMAND_GET, &ret_value);
+		if ( rc ) {
+			LOG( LOG_CRIT, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
+			rc = 0;
+			goto deinit_fw_intf;
+		}
+	}
+		
+	/* initialize v4l2 layer devices */
+	for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+		rc = isp_v4l2_init_dev( ctx_id, v4l2_dev );
+		if ( rc ) {
+			LOG( LOG_ERR, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
+			goto unreg_dev;
+		}
+		g_isp_v4l2_devs[ctx_id]->pdev = &pdev->dev;
+	}
+		
+	g_isp_v4l2_dev = g_isp_v4l2_devs[0];
+    g_isp_v4l2_dev->temper_buf_size = temper_buf_size;
+	
+	return 0;
+	
+unreg_dev:
+	for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+		isp_v4l2_destroy_dev( ctx_id );
+	}
+	
+deinit_fw_intf:
+	fw_intf_isp_deinit();
+
+free_cma:
+	isp_cma_free(pdev, isp_kaddr, temper_buf_size * SIZE_1M);
+	
+	return rc;
+}
+
 void isp_v4l2_destroy_instance( struct platform_device *pdev )
 {
     LOG( LOG_INFO, "%s: Enter.\n", __func__ );
 
-    if ( g_isp_v4l2_dev ) {
+	if ( g_isp_v4l2_devs[0] ) {
+        int ctx_id;
+
         /* deinitialize firmware & stream resources */
+        fw_intf_isp_deinit();
+        isp_v4l2_stream_deinit_static_resources(pdev);
 
-        LOG( LOG_INFO, "unregistering %s.",
-             video_device_node_name( &g_isp_v4l2_dev->video_dev ) );
+        isp_cma_free(pdev, isp_kaddr,
+             (g_isp_v4l2_dev->temper_buf_size) * SIZE_1M);
 
-        /* unregister video device */
-        video_unregister_device( &g_isp_v4l2_dev->video_dev );
-
-        isp_v4l2_ctrl_deinit( &g_isp_v4l2_dev->isp_v4l2_ctrl );
-
-        kfree( g_isp_v4l2_dev );
-        g_isp_v4l2_dev = NULL;
+        for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+            isp_v4l2_destroy_dev( ctx_id );
+        }
     }
 }
 
@@ -879,40 +936,45 @@ int isp_v4l2_find_stream( isp_v4l2_stream_t **ppstream,
         return -EINVAL;
     }
 
-    stream_id = g_isp_v4l2_dev->stream_id_index[stream_type];
+    stream_id = g_isp_v4l2_devs[ctx_number]->stream_id_index[stream_type];
     if ( stream_id < 0 || stream_id >= V4L2_STREAM_TYPE_MAX || g_isp_v4l2_dev->pstreams[stream_id] == NULL ) {
         return -EBUSY;
     }
 
-    *ppstream = g_isp_v4l2_dev->pstreams[stream_id];
+    *ppstream = g_isp_v4l2_devs[ctx_number]->pstreams[stream_id];
 
     return 0;
+}
+						  
+isp_v4l2_dev_t *isp_v4l2_get_dev( uint32_t ctx_number )
+{
+    return g_isp_v4l2_devs[ctx_number];
 }
 
 /* ----------------------------------------------------------------
  * event notifier utility function
  */
-int isp_v4l2_notify_event( int stream_id, uint32_t event_type )
+int isp_v4l2_notify_event( int ctx_id, int stream_id, uint32_t event_type )
 {
     struct v4l2_event event;
 
-    if ( g_isp_v4l2_dev == NULL ) {
+    if ( g_isp_v4l2_devs[ctx_id] == NULL ) {
         return -EBUSY;
     }
 
-    if ( mutex_lock_interruptible( &g_isp_v4l2_dev->notify_lock ) )
+    if ( mutex_lock_interruptible( &g_isp_v4l2_devs[ctx_id]->notify_lock ) )
         LOG( LOG_CRIT, "mutex_lock_interruptible failed.\n" );
-    if ( g_isp_v4l2_dev->fh_ptr[stream_id] == NULL ) {
+    if ( g_isp_v4l2_devs[ctx_id]->fh_ptr[stream_id] == NULL ) {
         LOG( LOG_ERR, "Error, no fh_ptr exists for stream id %d (event_type = %d)", stream_id, event_type );
-        mutex_unlock( &g_isp_v4l2_dev->notify_lock );
+        mutex_unlock( &g_isp_v4l2_devs[ctx_id]->notify_lock );
         return -EINVAL;
     }
 
     memset( &event, 0, sizeof( event ) );
     event.type = event_type;
 
-    v4l2_event_queue_fh( g_isp_v4l2_dev->fh_ptr[stream_id], &event );
-    mutex_unlock( &g_isp_v4l2_dev->notify_lock );
+    v4l2_event_queue_fh( g_isp_v4l2_devs[ctx_id]->fh_ptr[stream_id], &event );
+    mutex_unlock( &g_isp_v4l2_devs[ctx_id]->notify_lock );
 
     return 0;
 }

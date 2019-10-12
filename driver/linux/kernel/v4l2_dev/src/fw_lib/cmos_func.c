@@ -74,7 +74,7 @@ const exposure_partition_t exposure_partitions_balanced[] = {
     INTEGRATION_TIME_MAX,
     GAIN_MAX};
 
-#define EXPOSURE_PARTIONS_COUNT array_size( exposure_partitions_balanced )
+#define EXPOSURE_PARTIONS_COUNT array_size_s( exposure_partitions_balanced )
 
 
 const exposure_partition_t exposure_partition_int_priority[EXPOSURE_PARTIONS_COUNT] = {

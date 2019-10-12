@@ -39,7 +39,12 @@ static int isp_v4l2_ctrl_check_valid( struct v4l2_ctrl *ctrl )
 static int isp_v4l2_ctrl_s_ctrl_standard( struct v4l2_ctrl *ctrl )
 {
     int ret = 0;
-    LOG( LOG_ERR, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
+	struct v4l2_ctrl_handler *hdl = ctrl->handler;
+
+    isp_v4l2_ctrl_t *isp_ctrl = std_hdl_to_isp_ctrl( hdl );
+    int ctx_id = isp_ctrl->ctx_id;
+	
+    LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
          ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum );
 
     if ( isp_v4l2_ctrl_check_valid( ctrl ) < 0 ) {
@@ -48,55 +53,55 @@ static int isp_v4l2_ctrl_s_ctrl_standard( struct v4l2_ctrl *ctrl )
 
     switch ( ctrl->id ) {
     case V4L2_CID_BRIGHTNESS:
-        ret = fw_intf_set_brightness( ctrl->val );
+        ret = fw_intf_set_brightness( ctx_id, ctrl->val );
         break;
     case V4L2_CID_CONTRAST:
-        ret = fw_intf_set_contrast( ctrl->val );
+        ret = fw_intf_set_contrast( ctx_id, ctrl->val );
         break;
     case V4L2_CID_SATURATION:
-        ret = fw_intf_set_saturation( ctrl->val );
+        ret = fw_intf_set_saturation( ctx_id, ctrl->val );
         break;
     case V4L2_CID_HUE:
-        ret = fw_intf_set_hue( ctrl->val );
+        ret = fw_intf_set_hue( ctx_id, ctrl->val );
         break;
     case V4L2_CID_SHARPNESS:
-        ret = fw_intf_set_sharpness( ctrl->val );
+        ret = fw_intf_set_sharpness( ctx_id, ctrl->val );
         break;
     case V4L2_CID_COLORFX:
-        ret = fw_intf_set_color_fx( ctrl->val );
+        ret = fw_intf_set_color_fx( ctx_id, ctrl->val );
         break;
     case V4L2_CID_HFLIP:
-        ret = fw_intf_set_hflip( ctrl->val );
+        ret = fw_intf_set_hflip( ctx_id, ctrl->val );
         break;
     case V4L2_CID_VFLIP:
-        ret = fw_intf_set_vflip( ctrl->val );
+        ret = fw_intf_set_vflip( ctx_id, ctrl->val );
         break;
     case V4L2_CID_AUTOGAIN:
-        ret = fw_intf_set_autogain( ctrl->val );
+        ret = fw_intf_set_autogain( ctx_id, ctrl->val );
         break;
     case V4L2_CID_GAIN:
-        ret = fw_intf_set_gain( ctrl->val );
+        ret = fw_intf_set_gain( ctx_id, ctrl->val );
         break;
     case V4L2_CID_EXPOSURE_AUTO:
-        ret = fw_intf_set_exposure_auto( ctrl->val );
+        ret = fw_intf_set_exposure_auto( ctx_id, ctrl->val );
         break;
     case V4L2_CID_EXPOSURE_ABSOLUTE:
-        ret = fw_intf_set_exposure( ctrl->val );
+        ret = fw_intf_set_exposure( ctx_id, ctrl->val );
         break;
     case V4L2_CID_EXPOSURE_AUTO_PRIORITY:
-        ret = fw_intf_set_variable_frame_rate( ctrl->val );
+        ret = fw_intf_set_variable_frame_rate( ctx_id, ctrl->val );
         break;
     case V4L2_CID_AUTO_WHITE_BALANCE:
-        ret = fw_intf_set_white_balance_auto( ctrl->val );
+        ret = fw_intf_set_white_balance_auto( ctx_id, ctrl->val );
         break;
     case V4L2_CID_WHITE_BALANCE_TEMPERATURE:
-        ret = fw_intf_set_white_balance( ctrl->val );
+        ret = fw_intf_set_white_balance( ctx_id, ctrl->val );
         break;
     case V4L2_CID_FOCUS_AUTO:
-        ret = fw_intf_set_focus_auto( ctrl->val );
+        ret = fw_intf_set_focus_auto( ctx_id, ctrl->val );
         break;
     case V4L2_CID_FOCUS_ABSOLUTE:
-        ret = fw_intf_set_focus( ctrl->val );
+        ret = fw_intf_set_focus( ctx_id, ctrl->val );
         break;
     }
 
@@ -106,6 +111,11 @@ static int isp_v4l2_ctrl_s_ctrl_standard( struct v4l2_ctrl *ctrl )
 static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
 {
     int ret = 0;
+    struct v4l2_ctrl_handler *hdl = ctrl->handler;
+
+    isp_v4l2_ctrl_t *isp_ctrl = cst_hdl_to_isp_ctrl( hdl );
+    int ctx_id = isp_ctrl->ctx_id;
+	
 
     LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
          ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum);
@@ -120,93 +130,118 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
     switch ( ctrl->id ) {
     case ISP_V4L2_CID_TEST_PATTERN:
         LOG( LOG_INFO, "new test_pattern: %d.\n", ctrl->val );
-        ret = fw_intf_set_test_pattern( ctrl->val );
+        ret = fw_intf_set_test_pattern( ctx_id, ctrl->val );
         break;
     case ISP_V4L2_CID_TEST_PATTERN_TYPE:
         LOG( LOG_INFO, "new test_pattern_type: %d.\n", ctrl->val );
-        ret = fw_intf_set_test_pattern_type( ctrl->val );
+        ret = fw_intf_set_test_pattern_type( ctx_id, ctrl->val );
         break;
     case ISP_V4L2_CID_AF_REFOCUS:
         LOG( LOG_INFO, "new focus: %d.\n", ctrl->val );
-        ret = fw_intf_set_af_refocus( ctrl->val );
+        ret = fw_intf_set_af_refocus( ctx_id, ctrl->val );
         break;
     case ISP_V4L2_CID_SENSOR_PRESET:
         LOG( LOG_INFO, "new sensor preset: %d.\n", ctrl->val );
-        ret = fw_intf_isp_set_sensor_preset( ctrl->val );
+        ret = fw_intf_isp_set_sensor_preset( ctx_id, ctrl->val );
         break;
     case ISP_V4L2_CID_AF_ROI:
         // map [0,127] to [0, 254] due to limitaton of V4L2_CTRL_TYPE_INTEGER.
         LOG( LOG_INFO, "new af roi: 0x%x.\n", ctrl->val * 2 );
-        ret = fw_intf_set_af_roi( ctrl->val * 2 );
+        ret = fw_intf_set_af_roi( ctx_id, ctrl->val * 2 );
         break;
     case ISP_V4L2_CID_OUTPUT_FR_ON_OFF:
         LOG( LOG_INFO, "output FR on/off: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_output_fr_on_off( ctrl->val );
+        ret = fw_intf_set_output_fr_on_off( ctx_id, ctrl->val );
         break;
     case ISP_V4L2_CID_OUTPUT_DS1_ON_OFF:
         LOG( LOG_INFO, "output DS1 on/off: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_output_ds1_on_off( ctrl->val );
+        ret = fw_intf_set_output_ds1_on_off( ctx_id, ctrl->val );
         break;
     case ISP_V4L2_CID_CUSTOM_SENSOR_WDR_MODE:
         LOG( LOG_INFO, "set custom wdr mode: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_custom_sensor_wdr_mode(ctrl->val);
+        ret = fw_intf_set_custom_sensor_wdr_mode(ctx_id, ctrl->val);
         break;
     case ISP_V4L2_CID_CUSTOM_SENSOR_EXPOSURE:
         LOG( LOG_INFO, "set custom exposure: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_custom_sensor_exposure(ctrl->val);
+        ret = fw_intf_set_custom_sensor_exposure(ctx_id, ctrl->val);
         break;
     case ISP_V4L2_CID_CUSTOM_SET_FR_FPS:
         LOG( LOG_INFO, "set fr fps: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_custom_fr_fps(ctrl->val);
+        ret = fw_intf_set_custom_fr_fps(ctx_id, ctrl->val);
         *(ctrl->p_new.p_s32) = 0;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_SENSOR_TESTPATTERN:
         LOG( LOG_INFO, "set sensor test pattern: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_custom_sensor_testpattern(ctrl->val);
+        ret = fw_intf_set_custom_sensor_testpattern(ctx_id, ctrl->val);
         break;
     case ISP_V4L2_CID_CUSTOM_SENSOR_IR_CUT:
         LOG( LOG_INFO, "set_customer_sensor_ir_cut = %d\n", ctrl->val );
-        ret = fw_intf_set_customer_sensor_ir_cut(ctrl->val);
+        ret = fw_intf_set_customer_sensor_ir_cut(ctx_id, ctrl->val);
         break;
     case ISP_V4L2_CID_CUSTOM_SET_AE_ZONE_WEIGHT:
         LOG( LOG_INFO, "set ae zone weight: 0x%llx.\n", *(ctrl->p_new.p_s64));
-        ret = fw_intf_set_customer_ae_zone_weight(*(ctrl->p_new.p_s64));
+        ret = fw_intf_set_customer_ae_zone_weight(ctx_id, *(ctrl->p_new.p_s64));
         *(ctrl->p_new.p_s64) = 0;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_AWB_ZONE_WEIGHT:
         LOG( LOG_INFO, "set awb zone weight: 0x%llx.\n", *(ctrl->p_new.p_s64));
-        ret = fw_intf_set_customer_awb_zone_weight(*(ctrl->p_new.p_s64));
+        ret = fw_intf_set_customer_awb_zone_weight(ctx_id, *(ctrl->p_new.p_s64));
         *(ctrl->p_new.p_s64) = 0;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_MANUAL_EXPOSURE:
         LOG( LOG_INFO, "set_customer_manual_exposure = %d\n", ctrl->val );
-        ret = fw_intf_set_customer_manual_exposure(ctrl->val);
+        ret = fw_intf_set_customer_manual_exposure(ctx_id, ctrl->val);
         ctrl->val = -1;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_SENSOR_INTEGRATION_TIME:
         LOG( LOG_INFO, "set_customer_integration_time = %d\n", ctrl->val );
-        ret = fw_intf_set_customer_sensor_integration_time(ctrl->val);
+        ret = fw_intf_set_customer_sensor_integration_time(ctx_id, ctrl->val);
         ctrl->val = -1;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_SENSOR_ANALOG_GAIN:
         LOG( LOG_INFO, "set_customer_sensor_analog_gain = %d\n", ctrl->val );
-        ret = fw_intf_set_customer_sensor_analog_gain(ctrl->val);
+        ret = fw_intf_set_customer_sensor_analog_gain(ctx_id, ctrl->val);
         ctrl->val = -1;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_ISP_DIGITAL_GAIN:
         LOG( LOG_INFO, "set_customer_isp_digital_gain = %d\n", ctrl->val );
-        ret = fw_intf_set_customer_isp_digital_gain(ctrl->val);
+        ret = fw_intf_set_customer_isp_digital_gain(ctx_id, ctrl->val);
         ctrl->val = -1;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_STOP_SENSOR_UPDATE:
         LOG( LOG_INFO, "set_customer_stop_sensor_update = %d\n", ctrl->val );
-        ret = fw_intf_set_customer_stop_sensor_update(ctrl->val);
+        ret = fw_intf_set_customer_stop_sensor_update(ctx_id, ctrl->val);
         ctrl->val = -1;
         break;
     case ISP_V4L2_CID_CUSTOM_SET_DS1_FPS:
         LOG( LOG_INFO, "set ds1 fps: 0x%x.\n", ctrl->val );
-        ret = fw_intf_set_custom_ds1_fps(ctrl->val);
+        ret = fw_intf_set_custom_ds1_fps(ctx_id, ctrl->val);
         *(ctrl->p_new.p_s32) = 0;
+        break;
+    case ISP_V4L2_CID_AE_COMPENSATION:
+        LOG( LOG_INFO, "new ae compensation: %d.\n", ctrl->val );
+        ret = fw_intf_set_ae_compensation( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_CUSTOM_SET_SENSOR_DIGITAL_GAIN:
+        LOG( LOG_INFO, "set_customer_sensor_digital_gain = %d\n", ctrl->val );
+        ret = fw_intf_set_customer_sensor_digital_gain(ctx_id, ctrl->val);
+        ctrl->val = -1;
+        break;
+    case ISP_V4L2_CID_CUSTOM_SET_AWB_RED_GAIN:
+        LOG( LOG_INFO, "set_customer_awb_red_gain = %d\n", ctrl->val );
+        ret = fw_intf_set_customer_awb_red_gain(ctx_id, ctrl->val);
+        break;
+    case ISP_V4L2_CID_CUSTOM_SET_AWB_BLUE_GAIN:
+        LOG( LOG_INFO, "set_customer_awb_blue_gain = %d\n", ctrl->val );
+        ret = fw_intf_set_customer_awb_blue_gain(ctx_id, ctrl->val);
+        break;
+    case ISP_V4L2_CID_CUSTOM_SET_MAX_INTEGRATION_TIME:
+        LOG( LOG_INFO, "set_customer_max_integration_time = %d\n", ctrl->val );
+        ret = fw_intf_set_customer_max_integration_time(ctx_id, ctrl->val);
+        break;
+    case ISP_V4L2_CID_CUSTOM_SENSOR_FPS:
+        LOG( LOG_INFO, "set custom fps: %d.\n", ctrl->val );
+        ret = fw_intf_set_custom_sensor_fps(ctx_id, ctrl->val);
         break;
     }
 
@@ -441,6 +476,72 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_stop_sensor_update = {
     .def = -1,
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_ae_compensation = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_AE_COMPENSATION,
+    .name = "ISP AE Compensation",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 255,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_sensor_digital_gain = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SET_SENSOR_DIGITAL_GAIN,
+    .name = "sensor_digital_gain set",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = -1,
+    .max = 256,
+    .step = 1,
+    .def = -1,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_awb_red_gain = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SET_AWB_RED_GAIN,
+    .name = "awb_red_gain set",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = -1,
+    .max = 65535,
+    .step = 1,
+    .def = -1,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_awb_blue_gain = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SET_AWB_BLUE_GAIN,
+    .name = "awb_blue_gain set",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = -1,
+    .max = 65535,
+    .step = 1,
+    .def = -1,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_max_integration_time = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SET_MAX_INTEGRATION_TIME,
+    .name = "max_int_time set",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = -1,
+    .max = 5564,
+    .step = 1,
+    .def = -1,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_sensor_fps = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SENSOR_FPS,
+    .name = "ISP Sensor fps",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 120,
+    .step = 1,
+    .def = 0,
+};
+
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_standard,
 };
@@ -476,7 +577,7 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_class = {
         }                                                    \
     }
 
-int isp_v4l2_ctrl_init( isp_v4l2_ctrl_t *ctrl )
+int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
 {
     struct v4l2_ctrl_handler *hdl_std_ctrl = &ctrl->ctrl_hdl_std_ctrl;
     struct v4l2_ctrl_handler *hdl_cst_ctrl = &ctrl->ctrl_hdl_cst_ctrl;
@@ -489,7 +590,7 @@ int isp_v4l2_ctrl_init( isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_STD( V4L2_CID_BRIGHTNESS, 0, 255, 1, 128 );
     ADD_CTRL_STD( V4L2_CID_CONTRAST, 0, 255, 1, 128 );
     ADD_CTRL_STD( V4L2_CID_SATURATION, 0, 255, 1, 128 );
-    ADD_CTRL_STD( V4L2_CID_HUE, 0, 255, 1, 128 );
+    ADD_CTRL_STD( V4L2_CID_HUE, 0, 360, 1, 180 );
     ADD_CTRL_STD( V4L2_CID_SHARPNESS, 0, 255, 1, 128 );
     ADD_CTRL_STD_MENU( V4L2_CID_COLORFX, 4, 0x1F0, 0 );
     /* orientation */
@@ -558,9 +659,23 @@ int isp_v4l2_ctrl_init( isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_stop_sensor_update, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_DS1_FPS,
                   &isp_v4l2_ctrl_ds1_fps, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_AE_COMPENSATION,
+                  &isp_v4l2_ctrl_ae_compensation, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_SENSOR_DIGITAL_GAIN,
+                  &isp_v4l2_ctrl_sensor_digital_gain, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_AWB_RED_GAIN,
+                  &isp_v4l2_ctrl_awb_red_gain, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_AWB_BLUE_GAIN,
+                  &isp_v4l2_ctrl_awb_blue_gain, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_MAX_INTEGRATION_TIME,
+                  &isp_v4l2_ctrl_max_integration_time, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_FPS,
+                  &isp_v4l2_ctrl_sensor_fps, NULL);
     /* Add control handler to v4l2 device */
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );
     ctrl->video_dev->ctrl_handler = hdl_std_ctrl;
+
+    v4l2_ctrl_handler_setup( hdl_std_ctrl );
 
     return 0;
 }

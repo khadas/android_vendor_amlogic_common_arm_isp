@@ -144,7 +144,14 @@ int acamera_fsm_mgr_set_param(acamera_fsm_mgr_t * p_fsm_mgr, uint32_t param_id, 
             LOG(LOG_ERR, "AF FSM doesn't support set_param().");
             rc = -1;
         }
-    } else {
+    } else if( FSM_PARAM_SET_AUTOCAP_START < param_id && param_id < FSM_PARAM_SET_AUTOCAP_END ) {
+        if( p_fsm_mgr->fsm_arr[FSM_ID_AUTOCAP]->ops.set_param ) {
+            rc = p_fsm_mgr->fsm_arr[FSM_ID_AUTOCAP]->ops.set_param( p_fsm_mgr->fsm_arr[FSM_ID_AUTOCAP]->p_fsm, param_id, input, input_size);
+        } else {
+            LOG(LOG_ERR, "AUTOCAP FSM doesn't support set_param().");
+            rc = -1;
+        }
+    }else {
         LOG(LOG_CRIT, "Unsupported param_id: %d.", param_id);
         rc = -1;
     }

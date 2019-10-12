@@ -42,6 +42,9 @@ struct ctrl_cmd_item {
     uint8_t cmd_category;
 
     /* command content */
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    uint32_t cmd_ctx_id;
+#endif
     uint8_t cmd_type;
     uint8_t cmd_id;
     uint8_t cmd_direction;
@@ -52,8 +55,8 @@ int ctrl_channel_init( void );
 void ctrl_channel_process( void );
 void ctrl_channel_deinit( void );
 
-void ctrl_channel_handle_command( uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction );
-void ctrl_channel_handle_api_calibration( uint8_t type, uint8_t id, uint8_t direction, void *data, uint32_t data_size );
+void ctrl_channel_handle_command( uint32_t cmd_ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction );
+void ctrl_channel_handle_api_calibration( uint32_t cmd_ctx_id, uint8_t type, uint8_t id, uint8_t direction, void *data, uint32_t data_size );
 
 #ifdef __cplusplus
 }

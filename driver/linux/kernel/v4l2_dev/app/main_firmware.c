@@ -157,7 +157,7 @@ void isp_update_setting(void)
     aframe_t *aframe = NULL;
     uint32_t fr_num = 0;
     resource_size_t paddr = 0;
-    int i = 0;
+    int i = 0,j = 0;
 
     if (isp_paddr == 0 || isp_kaddr == NULL) {
         pr_err("%s: Error input isp cma addr\n", __func__);
@@ -165,27 +165,33 @@ void isp_update_setting(void)
     }
 
     paddr = isp_paddr;
+    for(j = 0; j < FIRMWARE_CONTEXT_NUMBER; j++)
+    {
+		aframe = settings[j].temper_frames;
+	    fr_num = settings[j].temper_frames_number;
 
-    aframe = settings[0].temper_frames;
-    fr_num = settings[0].temper_frames_number;
+	    for (i = 0; i < fr_num; i++) {
+	        aframe[i].address = paddr;
 
-    for (i = 0; i < fr_num; i++) {
-        aframe[i].address = paddr;
+	        paddr = aframe[i].address + aframe[i].size;
+	    }
 
-        paddr = aframe[i].address + aframe[i].size;
+	    settings[j].temper_frames_number = 1;
     }
-
-    settings[0].temper_frames_number = 1;
-
 }
 
-int isp_fw_init( void )
+int isp_fw_init( uint32_t hw_isp_addr )
 {
     int result = 0;
+    uint32_t i;
 
     LOG( LOG_INFO, "fw_init start" );
 
     isp_update_setting();
+	
+    for ( i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++ ) {
+        settings[i].hw_isp_addr = hw_isp_addr;
+    }
 
     // The firmware supports multicontext.
     // It means that the customer can use the same firmware for controlling

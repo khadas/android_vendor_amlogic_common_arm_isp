@@ -20,6 +20,15 @@
 #ifndef __ACAMERA_FIRMWARE_CONFIG_H__
 #define __ACAMERA_FIRMWARE_CONFIG_H__
 
+#ifdef CONFIG_G12B
+#define PLATFORM_G12B     1
+#define PLATFORM_C308X    0
+#endif
+
+#ifdef CONFIG_C308X
+#define PLATFORM_G12B     0
+#define PLATFORM_C308X    1
+#endif
 
 #define FIRMWARE_CONTEXT_NUMBER 1
 #define FSM_NAMES {"GENERIC",}

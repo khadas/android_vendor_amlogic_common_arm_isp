@@ -36,13 +36,13 @@
 #include <linux/delay.h>
 
 //use main_firmware.c routines to initialize fw
-extern int isp_fw_init( void );
+extern int isp_fw_init( uint32_t hw_isp_addr );
 extern void isp_fw_exit( void );
 
 static int isp_started = 0;
 static int custom_wdr_mode = 0;
 static int custom_exp = 0;
-
+static int custom_fps = 0;
 /* ----------------------------------------------------------------
  * fw_interface control interface
  */
@@ -54,20 +54,21 @@ void custom_initialization( uint32_t ctx_num )
 
 
 /* fw-interface isp control interface */
-int fw_intf_isp_init( void )
+int fw_intf_isp_init(  uint32_t hw_isp_addr )
 {
 
     LOG( LOG_INFO, "Initializing fw ..." );
     int rc = 0;
     /* flag variable update */
 
-    rc = isp_fw_init();
+    rc = isp_fw_init(hw_isp_addr);
 
     if ( rc == 0 )
         isp_started = 1;
 
     custom_wdr_mode = 0;
     custom_exp = 0;
+    custom_fps = 0;
 
     return rc;
 }
@@ -87,10 +88,10 @@ void fw_intf_isp_deinit( void )
     isp_fw_exit();
 }
 
-uint32_t fw_calibration_update( void )
+uint32_t fw_calibration_update( uint32_t ctx_id )
 {
     uint32_t retval;
-    acamera_command( TSYSTEM, CALIBRATION_UPDATE, UPDATE, COMMAND_SET, &retval );
+    acamera_command( ctx_id, TSYSTEM, CALIBRATION_UPDATE, UPDATE, COMMAND_SET, &retval );
     return retval;
 }
 
@@ -107,9 +108,9 @@ void fw_intf_isp_stop( void )
     LOG( LOG_DEBUG, "Enter" );
 }
 
-int fw_intf_isp_get_current_ctx_id( void )
+int fw_intf_isp_set_current_ctx_id( uint32_t ctx_id )
 {
-    int ctx_id = -1;
+    int active_ctx_id = ctx_id;
 
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
@@ -117,13 +118,29 @@ int fw_intf_isp_get_current_ctx_id( void )
     }
 
 #if defined( TGENERAL ) && defined( ACTIVE_CONTEXT )
-    acamera_command( TGENERAL, ACTIVE_CONTEXT, 0, COMMAND_GET, &ctx_id );
+    acamera_command( ctx_id, TGENERAL, ACTIVE_CONTEXT, ctx_id, COMMAND_SET, &active_ctx_id );
 #endif
 
-    return ctx_id;
+    return active_ctx_id;
 }
 
-int fw_intf_isp_get_sensor_info( isp_v4l2_sensor_info *sensor_info )
+int fw_intf_isp_get_current_ctx_id( uint32_t ctx_id )
+{
+    int active_ctx_id = -1;
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+#if defined( TGENERAL ) && defined( ACTIVE_CONTEXT )
+    acamera_command( ctx_id, TGENERAL, ACTIVE_CONTEXT, 0, COMMAND_GET, &active_ctx_id );
+#endif
+
+    return active_ctx_id;
+}
+
+int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_info )
 {
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
@@ -141,7 +158,7 @@ int fw_intf_isp_get_sensor_info( isp_v4l2_sensor_info *sensor_info )
     memset( sensor_info, 0x0, sizeof( isp_v4l2_sensor_info ) );
 
     /* get preset size */
-    acamera_command( TSENSOR, SENSOR_SUPPORTED_PRESETS, 0, COMMAND_GET, &preset_num );
+    acamera_command( ctx_id, TSENSOR, SENSOR_SUPPORTED_PRESETS, 0, COMMAND_GET, &preset_num );
     if ( preset_num > MAX_SENSOR_PRESET_SIZE ) {
         LOG( LOG_ERR, "MAX_SENSOR_PRESET_SIZE is too small ! (preset_num = %d)", preset_num );
         preset_num = MAX_SENSOR_PRESET_SIZE;
@@ -152,14 +169,14 @@ int fw_intf_isp_get_sensor_info( isp_v4l2_sensor_info *sensor_info )
         uint32_t width, height, fps, wdrmode, exposures = 1;
 
         /* get next preset */
-        acamera_command( TSENSOR, SENSOR_INFO_PRESET, i, COMMAND_SET, &ret_val );
-        acamera_command( TSENSOR, SENSOR_INFO_FPS, i, COMMAND_GET, &fps );
-        acamera_command( TSENSOR, SENSOR_INFO_WIDTH, i, COMMAND_GET, &width );
-        acamera_command( TSENSOR, SENSOR_INFO_HEIGHT, i, COMMAND_GET, &height );
+        acamera_command( ctx_id, TSENSOR, SENSOR_INFO_PRESET, i, COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TSENSOR, SENSOR_INFO_FPS, i, COMMAND_GET, &fps );
+        acamera_command( ctx_id, TSENSOR, SENSOR_INFO_WIDTH, i, COMMAND_GET, &width );
+        acamera_command( ctx_id, TSENSOR, SENSOR_INFO_HEIGHT, i, COMMAND_GET, &height );
 #if defined( SENSOR_INFO_EXPOSURES )
-        acamera_command( TSENSOR, SENSOR_INFO_EXPOSURES, i, COMMAND_GET, &exposures );
+        acamera_command( ctx_id, TSENSOR, SENSOR_INFO_EXPOSURES, i, COMMAND_GET, &exposures );
 #endif
-        acamera_command( TSENSOR, SENSOR_INFO_WDR_MODE, i, COMMAND_GET, &wdrmode );
+        acamera_command( ctx_id, TSENSOR, SENSOR_INFO_WDR_MODE, i, COMMAND_GET, &wdrmode );
         /* find proper index from sensor_info */
         for ( j = 0; j < sensor_info->preset_num; j++ ) {
             if ( sensor_info->preset[j].width == width &&
@@ -183,9 +200,9 @@ int fw_intf_isp_get_sensor_info( isp_v4l2_sensor_info *sensor_info )
         }
     }
     uint32_t spreset, swidth, sheight;
-    acamera_command( TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &spreset );
-    acamera_command( TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &swidth );
-    acamera_command( TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &sheight );
+    acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &spreset );
+    acamera_command( ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &swidth );
+    acamera_command( ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &sheight );
 
     for ( i = 0; i < sensor_info->preset_num; i++ ) {
         if ( swidth == sensor_info->preset[i].width && sheight == sensor_info->preset[i].height ) {
@@ -231,7 +248,7 @@ int fw_intf_isp_get_sensor_info( isp_v4l2_sensor_info *sensor_info )
     return 0;
 }
 
-int fw_intf_isp_get_sensor_preset( void )
+int fw_intf_isp_get_sensor_preset( uint32_t ctx_id )
 {
     int value = -1;
 
@@ -241,13 +258,13 @@ int fw_intf_isp_get_sensor_preset( void )
     }
 
 #if defined( TSENSOR ) && defined( SENSOR_PRESET )
-    acamera_command( TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &value );
+    acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &value );
 #endif
 
     return value;
 }
 
-int fw_intf_isp_set_sensor_preset( uint32_t preset )
+int fw_intf_isp_set_sensor_preset( uint32_t ctx_id, uint32_t preset )
 {
     int value = -1;
 
@@ -258,7 +275,7 @@ int fw_intf_isp_set_sensor_preset( uint32_t preset )
 
 #if defined( TSENSOR ) && defined( SENSOR_PRESET )
     LOG( LOG_INFO, "V4L2 setting sensor preset to %d\n", preset );
-    acamera_command( TSENSOR, SENSOR_PRESET, preset, COMMAND_SET, &value );
+    acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, preset, COMMAND_SET, &value );
 #endif
 
     return value;
@@ -267,7 +284,7 @@ int fw_intf_isp_set_sensor_preset( uint32_t preset )
 /*
  * fw-interface per-stream control interface
  */
-int fw_intf_stream_start( isp_v4l2_stream_type_t streamType )
+int fw_intf_stream_start( uint32_t ctx_id, isp_v4l2_stream_type_t streamType )
 {
     LOG( LOG_DEBUG, "Starting stream type %d", streamType );
     uint32_t rc = 0;
@@ -276,30 +293,29 @@ int fw_intf_stream_start( isp_v4l2_stream_type_t streamType )
     if ( streamType == V4L2_STREAM_TYPE_RAW ) {
 #if defined( TFPGA ) && defined( DMA_RAW_CAPTURE_ENABLED_ID )
         uint32_t ret_val;
-        acamera_command( TFPGA, DMA_RAW_CAPTURE_ENABLED_ID, ON, COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TFPGA, DMA_RAW_CAPTURE_ENABLED_ID, ON, COMMAND_SET, &ret_val );
 #else
         LOG( LOG_CRIT, "no api for DMA_RAW_CAPTURE_ENABLED_ID" );
 #endif
     }
 #endif
-    if (streamType == V4L2_STREAM_TYPE_FR) {
+    if (streamType == V4L2_STREAM_TYPE_FR || streamType == V4L2_STREAM_TYPE_DS1) {
         LOG( LOG_ERR, "Starting stream type %d", streamType );
-        acamera_command( TSENSOR, SENSOR_STREAMING, ON, COMMAND_SET, &rc );
+        acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, ON, COMMAND_SET, &rc );
     }
 
 #if ISP_HAS_DS2
     if (streamType == V4L2_STREAM_TYPE_DS2) {
         uint32_t ret_val;
-        mdelay(200);
         LOG( LOG_ERR, "Starting stream type %d", streamType );
-        acamera_command( TAML_SCALER, SCALER_STREAMING_ON, ON, COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TAML_SCALER, SCALER_STREAMING_ON, ON, COMMAND_SET, &ret_val );
     }
 #endif
 
     return 0;
 }
 
-void fw_intf_stream_stop( isp_v4l2_stream_type_t streamType )
+void fw_intf_stream_stop( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, int stream_on_count )
 {
     uint32_t rc = 0;
     LOG( LOG_DEBUG, "Stopping stream type %d", streamType );
@@ -307,7 +323,7 @@ void fw_intf_stream_stop( isp_v4l2_stream_type_t streamType )
     if ( streamType == V4L2_STREAM_TYPE_RAW ) {
 #if defined( TFPGA ) && defined( DMA_RAW_CAPTURE_ENABLED_ID )
         uint32_t ret_val;
-        acamera_command( TFPGA, DMA_RAW_CAPTURE_ENABLED_ID, OFF, COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TFPGA, DMA_RAW_CAPTURE_ENABLED_ID, OFF, COMMAND_SET, &ret_val );
 #else
         LOG( LOG_CRIT, "no api for DMA_RAW_CAPTURE_ENABLED_ID" );
 #endif
@@ -315,24 +331,27 @@ void fw_intf_stream_stop( isp_v4l2_stream_type_t streamType )
 #endif
 
     if (streamType == V4L2_STREAM_TYPE_FR) {
-        acamera_command( TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
-        acamera_api_dma_buff_queue_reset(dma_fr);
+		if(stream_on_count == 1)
+            acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
+        acamera_api_dma_buff_queue_reset(ctx_id, dma_fr);
     } else if (streamType == V4L2_STREAM_TYPE_DS1) {
-        acamera_api_dma_buff_queue_reset(dma_ds1);
+		if(stream_on_count == 1)
+		    acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
+        acamera_api_dma_buff_queue_reset(ctx_id, dma_ds1);
     }
 
 #if ISP_HAS_DS2
     if (streamType == V4L2_STREAM_TYPE_DS2) {
         uint32_t ret_val;
         LOG( LOG_ERR, "Stopping stream type %d", streamType );
-        acamera_command( TAML_SCALER, SCALER_STREAMING_OFF, OFF, COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TAML_SCALER, SCALER_STREAMING_OFF, OFF, COMMAND_SET, &ret_val );
     }
 #endif
 
     LOG( LOG_CRIT, "Stream off %d\n",  streamType);
 }
 
-void fw_intf_stream_pause( isp_v4l2_stream_type_t streamType, uint8_t bPause )
+void fw_intf_stream_pause( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, uint8_t bPause )
 {
     LOG( LOG_DEBUG, "Pausing/Resuming stream type %d (Flag=%d", streamType, bPause );
 
@@ -345,7 +364,7 @@ void fw_intf_stream_pause( isp_v4l2_stream_type_t streamType, uint8_t bPause )
     if ( streamType == V4L2_STREAM_TYPE_RAW ) {
 #if defined( TFPGA ) && defined( DMA_RAW_CAPTURE_ENABLED_ID )
         uint32_t ret_val;
-        acamera_command( TFPGA, DMA_RAW_CAPTURE_WRITEON_ID, ( bPause ? 0 : 1 ), COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TFPGA, DMA_RAW_CAPTURE_WRITEON_ID, ( bPause ? 0 : 1 ), COMMAND_SET, &ret_val );
 #else
         LOG( LOG_CRIT, "no api for DMA_RAW_CAPTURE_WRITEON_ID" );
 #endif
@@ -357,14 +376,14 @@ void fw_intf_stream_pause( isp_v4l2_stream_type_t streamType, uint8_t bPause )
     if ( streamType == V4L2_STREAM_TYPE_RAW ) {
         uint32_t ret_val;
 
-        acamera_command( TGENERAL, DMA_WRITER_SINGLE_FRAME_MODE, bPause ? ON : OFF, COMMAND_SET, &ret_val );
+        acamera_command( ctx_id, TGENERAL, DMA_WRITER_SINGLE_FRAME_MODE, bPause ? ON : OFF, COMMAND_SET, &ret_val );
     }
 #endif
 #endif
 }
 
 /* fw-interface sensor hw stream control interface */
-int fw_intf_sensor_pause( void )
+int fw_intf_sensor_pause( uint32_t ctx_id )
 {
     uint32_t rc = 0;
 
@@ -378,7 +397,7 @@ int fw_intf_sensor_pause( void )
     return rc;
 }
 
-int fw_intf_sensor_resume( void )
+int fw_intf_sensor_resume( uint32_t ctx_id )
 {
     uint32_t rc = 0;
 
@@ -406,22 +425,41 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
             if (custom_wdr_mode == 0) {
                *( (char *)&sensor_info->preset[i].fps_cur ) = 0;
                for ( j = 0; j < sensor_info->preset[i].fps_num; j++ ) {
-                  if ( sensor_info->preset[i].fps[j] > (*fps)) {
-                     *fps = sensor_info->preset[i].fps[j];
-                     idx = sensor_info->preset[i].idx[j];
-                     *( (char *)&sensor_info->preset[i].fps_cur ) = j;
-                  }
+                   if ( sensor_info->preset[i].wdr_mode[j] == custom_wdr_mode ) {
+                       if (0 != custom_fps) {
+                           if ( sensor_info->preset[i].fps[j] == custom_fps * 256) {
+                               *fps = sensor_info->preset[i].fps[j];
+                               idx = sensor_info->preset[i].idx[j];
+                               *( (char *)&sensor_info->preset[i].fps_cur ) = j;
+                           }
+                       } else {
+                           if ( sensor_info->preset[i].fps[j] > (*fps)) {
+                               *fps = sensor_info->preset[i].fps[j];
+                               idx = sensor_info->preset[i].idx[j];
+                               *( (char *)&sensor_info->preset[i].fps_cur ) = j;
+                           }
+                       }
+                   }
                }
                break;
             } else if ((custom_wdr_mode == 1) || (custom_wdr_mode == 2)) {
                for (j = 0; j < sensor_info->preset[i].fps_num; j++) {
                   if ((sensor_info->preset[i].exposures[j] == custom_exp) &&
                      (sensor_info->preset[i].wdr_mode[j] == custom_wdr_mode)) {
-                     idx = sensor_info->preset[i].idx[j];
-                     *fps = sensor_info->preset[i].fps[j];
-                     LOG( LOG_INFO, "idx = %d, fps = %d\n", idx, *fps);
-                     *( (char *)&sensor_info->preset[i].fps_cur ) = j;
-                     break;
+                     if (0 != custom_fps) {
+                         if ( sensor_info->preset[i].fps[j] == custom_fps * 256) {
+                             *fps = sensor_info->preset[i].fps[j];
+                             idx = sensor_info->preset[i].idx[j];
+                             *( (char *)&sensor_info->preset[i].fps_cur ) = j;
+                         }
+                     } else {
+                         if ( sensor_info->preset[i].fps[j] > (*fps)) {
+                             idx = sensor_info->preset[i].idx[j];
+                             *fps = sensor_info->preset[i].fps[j];
+                             LOG( LOG_INFO, "idx = %d, fps = %d\n", idx, *fps);
+                             *( (char *)&sensor_info->preset[i].fps_cur ) = j;
+                         }
+                     }
                   }
                }
                break;
@@ -440,7 +478,7 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
 }
 
 /* fw-interface per-stream config interface */
-int fw_intf_stream_set_resolution( const isp_v4l2_sensor_info *sensor_info,
+int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *sensor_info,
                                    isp_v4l2_stream_type_t streamType, uint32_t *width, uint32_t *height )
 {
     /*
@@ -466,31 +504,33 @@ int fw_intf_stream_set_resolution( const isp_v4l2_sensor_info *sensor_info,
         w = *width;
         h = *height;
 
-        uint32_t width_cur, height_cur, exposure_cur, wdr_mode_cur;
+        uint32_t width_cur, height_cur, exposure_cur, wdr_mode_cur, fps_cur;
         wdr_mode_cur = 0;
         exposure_cur = 0;
+        fps_cur = 0;
         //check if we need to change sensor preset
-        acamera_command( TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
-        acamera_command( TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
-        acamera_command( TSENSOR, SENSOR_EXPOSURES, 0, COMMAND_GET, &exposure_cur );
-        acamera_command( TSENSOR, SENSOR_WDR_MODE, 0, COMMAND_GET, &wdr_mode_cur );
-        LOG( LOG_INFO, "target (width = %d, height = %d) current (w=%d h=%d exposure_cur = %d wdr_mode_cur = %d)",
-        w, h, width_cur, height_cur, exposure_cur, wdr_mode_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_EXPOSURES, 0, COMMAND_GET, &exposure_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_WDR_MODE, 0, COMMAND_GET, &wdr_mode_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_FPS, 0, COMMAND_GET, &fps_cur );
+        LOG( LOG_INFO, "target (width = %d, height = %d, fps = %d) current (w=%d h=%d exposure_cur = %d wdr_mode_cur = %d, fps = %d)",
+        w, h, custom_fps, width_cur, height_cur, exposure_cur, wdr_mode_cur, fps_cur / 256);
 
-        if ( width_cur != w || height_cur != h || exposure_cur != custom_exp || wdr_mode_cur != custom_wdr_mode) {
+        if ( width_cur != w || height_cur != h || exposure_cur != custom_exp || wdr_mode_cur != custom_wdr_mode || fps_cur / 256 != custom_fps) {
 
             idx = fw_intf_find_proper_present_idx(sensor_info, w, h, &fps);
 
             /* set sensor resolution preset */
             LOG( LOG_CRIT, "Setting new resolution : width = %d, height = %d (preset idx = %d, fps = %d)", w, h, idx, fps / 256 );
-            result = acamera_command( TSENSOR, SENSOR_PRESET, idx, COMMAND_SET, &ret_val );
+            result = acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, idx, COMMAND_SET, &ret_val );
             *( (char *)&sensor_info->preset_cur ) = idx;
             if ( result ) {
                 LOG( LOG_CRIT, "Failed to set preset to %u, ret_value: %d.", idx, result );
                 return result;
             }
         } else {
-            acamera_command( TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &idx );
+            acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &idx );
             LOG( LOG_CRIT, "Leaving same sensor settings resolution : width = %d, height = %d (preset idx = %d)", w, h, idx );
         }
 #endif
@@ -507,8 +547,8 @@ int fw_intf_stream_set_resolution( const isp_v4l2_sensor_info *sensor_info,
 
         uint32_t width_cur, height_cur;
         //check if we need to change sensor preset
-        acamera_command( TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
-        acamera_command( TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
+        acamera_command( ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
         LOG( LOG_INFO, "target (width = %d, height = %d) current (w=%d h=%d)", w, h, width_cur, height_cur );
         if ( w > width_cur || h > height_cur ) {
             LOG( LOG_ERR, "Invalid target size: (width = %d, height = %d), current (w=%d h=%d)", w, h, width_cur, height_cur );
@@ -517,24 +557,24 @@ int fw_intf_stream_set_resolution( const isp_v4l2_sensor_info *sensor_info,
 
 #if defined( TIMAGE ) && defined( IMAGE_RESIZE_TYPE_ID ) && defined( IMAGE_RESIZE_WIDTH_ID )
         {
-            result = acamera_command( TIMAGE, IMAGE_RESIZE_TYPE_ID, SCALER, COMMAND_SET, &ret_val );
+            result = acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_TYPE_ID, SCALER, COMMAND_SET, &ret_val );
             if ( result ) {
                 LOG( LOG_CRIT, "Failed to set resize_type, ret_value: %d.", result );
                 return result;
             }
 
-            result = acamera_command( TIMAGE, IMAGE_RESIZE_WIDTH_ID, w, COMMAND_SET, &ret_val );
+            result = acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_WIDTH_ID, w, COMMAND_SET, &ret_val );
             if ( result ) {
                 LOG( LOG_CRIT, "Failed to set resize_width, ret_value: %d.", result );
                 return result;
             }
-            result = acamera_command( TIMAGE, IMAGE_RESIZE_HEIGHT_ID, h, COMMAND_SET, &ret_val );
+            result = acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_HEIGHT_ID, h, COMMAND_SET, &ret_val );
             if ( result ) {
                 LOG( LOG_CRIT, "Failed to set resize_height, ret_value: %d.", result );
                 return result;
             }
 
-            result = acamera_command( TIMAGE, IMAGE_RESIZE_ENABLE_ID, RUN, COMMAND_SET, &ret_val );
+            result = acamera_command( ctx_id, TIMAGE, IMAGE_RESIZE_ENABLE_ID, RUN, COMMAND_SET, &ret_val );
             if ( result ) {
                 LOG( LOG_CRIT, "Failed to set resize_enable, ret_value: %d.", result );
                 return result;
@@ -555,12 +595,12 @@ int fw_intf_stream_set_resolution( const isp_v4l2_sensor_info *sensor_info,
 
         uint32_t width_cur, height_cur;
         //check if we need to change sensor preset
-        acamera_command( TAML_SCALER, SCALER_WIDTH, 0, COMMAND_GET, &width_cur );
-        acamera_command( TAML_SCALER, SCALER_HEIGHT, 0, COMMAND_GET, &height_cur );
+        acamera_command( ctx_id, TAML_SCALER, SCALER_WIDTH, 0, COMMAND_GET, &width_cur );
+        acamera_command( ctx_id, TAML_SCALER, SCALER_HEIGHT, 0, COMMAND_GET, &height_cur );
         LOG( LOG_ERR, "target (width = %d, height = %d) current (w=%d h=%d)", w, h, width_cur, height_cur );
         if ( w != width_cur || h != height_cur ) {
-            acamera_command( TAML_SCALER, SCALER_WIDTH, w, COMMAND_SET, &ret_val );
-            acamera_command( TAML_SCALER, SCALER_HEIGHT, h, COMMAND_SET, &ret_val );
+            acamera_command(ctx_id, TAML_SCALER, SCALER_WIDTH, w, COMMAND_SET, &ret_val );
+            acamera_command(ctx_id,  TAML_SCALER, SCALER_HEIGHT, h, COMMAND_SET, &ret_val );
         } else {
             LOG(LOG_ERR, "target resolution equal current resolution");
         }
@@ -570,7 +610,7 @@ int fw_intf_stream_set_resolution( const isp_v4l2_sensor_info *sensor_info,
     return 0;
 }
 
-int fw_intf_stream_set_output_format( isp_v4l2_stream_type_t streamType, uint32_t format )
+int fw_intf_stream_set_output_format( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, uint32_t format )
 {
 
 #if defined( TIMAGE ) && defined( FR_FORMAT_BASE_PLANE_ID )
@@ -648,7 +688,7 @@ int fw_intf_stream_set_output_format( isp_v4l2_stream_type_t streamType, uint32_
         uint8_t result;
         uint32_t ret_val;
 
-        result = acamera_command( TIMAGE, FR_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
+        result = acamera_command( ctx_id, TIMAGE, FR_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
         LOG( LOG_INFO, "set format for stream %d to %d (0x%x)", streamType, value, format );
         if ( result ) {
             LOG( LOG_ERR, "TIMAGE - FR_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
@@ -660,7 +700,7 @@ int fw_intf_stream_set_output_format( isp_v4l2_stream_type_t streamType, uint32_
         uint8_t result;
         uint32_t ret_val;
 
-        result = acamera_command( TIMAGE, DS1_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
+        result = acamera_command( ctx_id, TIMAGE, DS1_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
         LOG( LOG_INFO, "set format for stream %d to %d (0x%x)", streamType, value, format );
         if ( result ) {
             LOG( LOG_ERR, "TIMAGE - DS1_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
@@ -674,7 +714,7 @@ int fw_intf_stream_set_output_format( isp_v4l2_stream_type_t streamType, uint32_
         uint8_t result;
         uint32_t ret_val;
 
-        result = acamera_command( TAML_SCALER, SCALER_OUTPUT_MODE, value, COMMAND_SET, &ret_val );
+        result = acamera_command( ctx_id, TAML_SCALER, SCALER_OUTPUT_MODE, value, COMMAND_SET, &ret_val );
         LOG( LOG_ERR, "set format for stream %d to %d (0x%x)", streamType, value, format );
         if ( result ) {
             LOG( LOG_ERR, "TIMAGE - DS2_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
@@ -690,11 +730,11 @@ int fw_intf_stream_set_output_format( isp_v4l2_stream_type_t streamType, uint32_
     return 0;
 }
 
-static int fw_intf_set_fr_fps(uint32_t fps)
+static int fw_intf_set_fr_fps(uint32_t ctx_id, uint32_t fps)
 {
     uint32_t cur_fps = 0;
 
-    acamera_command(TSENSOR, SENSOR_FPS, 0, COMMAND_GET, &cur_fps);
+    acamera_command(ctx_id, TSENSOR, SENSOR_FPS, 0, COMMAND_GET, &cur_fps);
     if (cur_fps == 0) {
         LOG(LOG_ERR, "Error input param\n");
         return -1;
@@ -702,16 +742,16 @@ static int fw_intf_set_fr_fps(uint32_t fps)
 
     cur_fps = cur_fps / 256;
 
-    acamera_api_set_fps(dma_fr, cur_fps, fps);
+    acamera_api_set_fps(ctx_id, dma_fr, cur_fps, fps);
 
     return 0;
 }
 
-static int fw_intf_set_sensor_testpattern(uint32_t val)
+static int fw_intf_set_sensor_testpattern(uint32_t ctx_id, uint32_t val)
 {
     uint32_t mode = val;
     uint32_t ret_val;
-    acamera_command(TSENSOR, SENSOR_TESTPATTERN, mode, COMMAND_SET, &ret_val);
+    acamera_command(ctx_id, TSENSOR, SENSOR_TESTPATTERN, mode, COMMAND_SET, &ret_val);
     if (mode <= 0) {
         LOG(LOG_ERR, "Error input param\n");
         return -1;
@@ -719,18 +759,18 @@ static int fw_intf_set_sensor_testpattern(uint32_t val)
     return 0;
 }
 
-static int fw_intf_set_sensor_ir_cut_set(uint32_t ctrl_val)
+static int fw_intf_set_sensor_ir_cut_set(uint32_t ctx_id, uint32_t ctrl_val)
 {
     uint32_t ir_cut_state = ctrl_val;
-    acamera_command(TSENSOR, SENSOR_IR_CUT, 0, COMMAND_SET, &ir_cut_state);
+    acamera_command(ctx_id, TSENSOR, SENSOR_IR_CUT, 0, COMMAND_SET, &ir_cut_state);
     return 0;
 }
 
-static int fw_intf_set_ds1_fps(uint32_t fps)
+static int fw_intf_set_ds1_fps(uint32_t ctx_id, uint32_t fps)
 {
     uint32_t cur_fps = 0;
 
-    acamera_command(TSENSOR, SENSOR_FPS, 0, COMMAND_GET, &cur_fps);
+    acamera_command(ctx_id, TSENSOR, SENSOR_FPS, 0, COMMAND_GET, &cur_fps);
     if (cur_fps == 0) {
         LOG(LOG_ERR, "Error input param\n");
         return -1;
@@ -738,55 +778,79 @@ static int fw_intf_set_ds1_fps(uint32_t fps)
 
     cur_fps = cur_fps / 256;
 
-    acamera_api_set_fps(dma_ds1, cur_fps, fps);
+    acamera_api_set_fps(ctx_id, dma_ds1, cur_fps, fps);
 
     return 0;
 }
 
 
-static int fw_intf_set_ae_zone_weight(unsigned long ctrl_val)
+static int fw_intf_set_ae_zone_weight(uint32_t ctx_id, unsigned long ctrl_val)
 {
-    acamera_command(TALGORITHMS, AE_ZONE_WEIGHT, 0, COMMAND_SET, (uint32_t *)ctrl_val);
+    acamera_command(ctx_id, TALGORITHMS, AE_ZONE_WEIGHT, 0, COMMAND_SET, (uint32_t *)ctrl_val);
 
     return 0;
 }
 
-static int fw_intf_set_awb_zone_weight(unsigned long ctrl_val)
+static int fw_intf_set_awb_zone_weight(uint32_t ctx_id, unsigned long ctrl_val)
 {
-    acamera_command(TALGORITHMS, AWB_ZONE_WEIGHT, 0, COMMAND_SET, (uint32_t *)ctrl_val);
+    acamera_command(ctx_id, TALGORITHMS, AWB_ZONE_WEIGHT, 0, COMMAND_SET, (uint32_t *)ctrl_val);
 
     return 0;
 }
 
-static int fw_intf_set_sensor_integration_time(uint32_t ctrl_val)
+static int fw_intf_set_sensor_integration_time(uint32_t ctx_id, uint32_t ctrl_val)
 {
     uint32_t manual_sensor_integration_time = ctrl_val;
-    acamera_command(TSYSTEM, SYSTEM_INTEGRATION_TIME, manual_sensor_integration_time, COMMAND_SET, &ctrl_val );
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_INTEGRATION_TIME, manual_sensor_integration_time, COMMAND_SET, &ctrl_val );
 
     return 0;
 }
 
-static int fw_intf_set_sensor_analog_gain(uint32_t ctrl_val)
+static int fw_intf_set_sensor_analog_gain(uint32_t ctx_id, uint32_t ctrl_val)
 {
     uint32_t manual_sensor_analog_gain = ctrl_val;
-    acamera_command(TSYSTEM, SYSTEM_SENSOR_ANALOG_GAIN, manual_sensor_analog_gain, COMMAND_SET, &ctrl_val );
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_SENSOR_ANALOG_GAIN, manual_sensor_analog_gain, COMMAND_SET, &ctrl_val );
 
     return 0;
 }
 
-static int fw_intf_set_isp_digital_gain(uint32_t ctrl_val)
+static int fw_intf_set_isp_digital_gain(uint32_t ctx_id, uint32_t ctrl_val)
 {
     uint32_t manual_isp_digital_gain = ctrl_val;
-    acamera_command(TSYSTEM, SYSTEM_ISP_DIGITAL_GAIN, manual_isp_digital_gain, COMMAND_SET, &ctrl_val );
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_ISP_DIGITAL_GAIN, manual_isp_digital_gain, COMMAND_SET, &ctrl_val );
 
     return 0;
 }
 
-static int fw_intf_set_stop_sensor_update(uint32_t ctrl_val)
+static int fw_intf_set_stop_sensor_update(uint32_t ctx_id, uint32_t ctrl_val)
 {
     uint32_t stop_sensor_update = ctrl_val;
     LOG(LOG_ERR, "stop_sensor_update = %d\n", stop_sensor_update);
-    acamera_command(TSYSTEM, SYSTEM_FREEZE_FIRMWARE, stop_sensor_update, COMMAND_SET, &ctrl_val);
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_FREEZE_FIRMWARE, stop_sensor_update, COMMAND_SET, &ctrl_val);
+    return 0;
+}
+
+static int fw_intf_set_sensor_digital_gain(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    uint32_t manual_sensor_digital_gain = ctrl_val;
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_SENSOR_DIGITAL_GAIN, manual_sensor_digital_gain, COMMAND_SET, &ctrl_val );
+
+    return 0;
+}
+
+static int fw_intf_set_awb_red_gain(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    uint32_t awb_red_gain = ctrl_val;
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_AWB_RED_GAIN, awb_red_gain, COMMAND_SET, &ctrl_val );
+
+    return 0;
+}
+
+static int fw_intf_set_awb_blue_gain(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    uint32_t awb_blue_gain = ctrl_val;
+    acamera_command(ctx_id, TSYSTEM, SYSTEM_AWB_BLUE_GAIN, awb_blue_gain, COMMAND_SET, &ctrl_val );
+
     return 0;
 }
 
@@ -798,7 +862,7 @@ static bool isp_fw_do_validate_control( uint32_t id )
     return 1;
 }
 
-static int isp_fw_do_set_test_pattern( int enable )
+static int isp_fw_do_set_test_pattern( uint32_t ctx_id, int enable )
 {
 #if defined( TSYSTEM ) && defined( TEST_PATTERN_ENABLE_ID )
     int result;
@@ -824,7 +888,7 @@ static int isp_fw_do_set_test_pattern( int enable )
     return 0;
 }
 
-static int isp_fw_do_set_test_pattern_type( int pattern_type )
+static int isp_fw_do_set_test_pattern_type( uint32_t ctx_id, int pattern_type )
 {
 #if defined( TSYSTEM ) && defined( TEST_PATTERN_MODE_ID )
     int result;
@@ -837,7 +901,7 @@ static int isp_fw_do_set_test_pattern_type( int pattern_type )
         return -EBUSY;
     }
 
-    result = acamera_command( TSYSTEM, TEST_PATTERN_MODE_ID, pattern_type, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSYSTEM, TEST_PATTERN_MODE_ID, pattern_type, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set TEST_PATTERN_MODE_ID to %d, ret_value: %d.", pattern_type, result );
         return result;
@@ -848,13 +912,13 @@ static int isp_fw_do_set_test_pattern_type( int pattern_type )
 }
 
 
-static int isp_fw_do_set_af_refocus( int val )
+static int isp_fw_do_set_af_refocus( uint32_t ctx_id, int val )
 {
 #if defined( TALGORITHMS ) && defined( AF_MODE_ID )
     int result;
     u32 ret_val;
 
-    result = acamera_command( TALGORITHMS, AF_MODE_ID, AF_AUTO_SINGLE, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AF_MODE_ID, AF_AUTO_SINGLE, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AF_MODE_ID to AF_AUTO_SINGLE, ret_value: %u.", ret_val );
         return result;
@@ -864,13 +928,13 @@ static int isp_fw_do_set_af_refocus( int val )
     return 0;
 }
 
-static int isp_fw_do_set_af_roi( int val )
+static int isp_fw_do_set_af_roi( uint32_t ctx_id, int val )
 {
 #if defined( TALGORITHMS ) && defined( AF_ROI_ID )
     int result;
     u32 ret_val;
 
-    result = acamera_command( TALGORITHMS, AF_ROI_ID, (uint32_t)val, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AF_ROI_ID, (uint32_t)val, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AF_MODE_ID to AF_AUTO_SINGLE, ret_value: %u.", ret_val );
         return result;
@@ -880,7 +944,7 @@ static int isp_fw_do_set_af_roi( int val )
     return 0;
 }
 
-static int isp_fw_do_set_brightness( int brightness )
+static int isp_fw_do_set_brightness( uint32_t ctx_id, int brightness )
 {
 #if defined( TSCENE_MODES ) && defined( BRIGHTNESS_STRENGTH_ID )
     int result;
@@ -896,7 +960,7 @@ static int isp_fw_do_set_brightness( int brightness )
         return -EBUSY;
     }
 
-    result = acamera_command( TSCENE_MODES, BRIGHTNESS_STRENGTH_ID, brightness, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, BRIGHTNESS_STRENGTH_ID, brightness, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set BRIGHTNESS_STRENGTH_ID to %d, ret_value: %d.", brightness, result );
         return result;
@@ -906,7 +970,7 @@ static int isp_fw_do_set_brightness( int brightness )
     return 0;
 }
 
-static int isp_fw_do_set_contrast( int contrast )
+static int isp_fw_do_set_contrast( uint32_t ctx_id, int contrast )
 {
 #if defined( TSCENE_MODES ) && defined( CONTRAST_STRENGTH_ID )
     int result;
@@ -922,7 +986,7 @@ static int isp_fw_do_set_contrast( int contrast )
         return -EBUSY;
     }
 
-    result = acamera_command( TSCENE_MODES, CONTRAST_STRENGTH_ID, contrast, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, CONTRAST_STRENGTH_ID, contrast, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set CONTRAST_STRENGTH_ID to %d, ret_value: %d.", contrast, result );
         return result;
@@ -932,7 +996,7 @@ static int isp_fw_do_set_contrast( int contrast )
     return 0;
 }
 
-static int isp_fw_do_set_saturation( int saturation )
+static int isp_fw_do_set_saturation( uint32_t ctx_id, int saturation )
 {
 #if defined( TSCENE_MODES ) && defined( SATURATION_STRENGTH_ID )
     int result;
@@ -948,7 +1012,7 @@ static int isp_fw_do_set_saturation( int saturation )
         return -EBUSY;
     }
 
-    result = acamera_command( TSCENE_MODES, SATURATION_STRENGTH_ID, saturation, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, SATURATION_STRENGTH_ID, saturation, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set SATURATION_STRENGTH_ID to %d, ret_value: %d.", saturation, result );
         return result;
@@ -958,7 +1022,7 @@ static int isp_fw_do_set_saturation( int saturation )
     return 0;
 }
 
-static int isp_fw_do_set_hue( int hue )
+static int isp_fw_do_set_hue( uint32_t ctx_id, int hue )
 {
 #if defined( TSCENE_MODES ) && defined( HUE_THETA_ID )
     int result;
@@ -974,7 +1038,7 @@ static int isp_fw_do_set_hue( int hue )
         return -EBUSY;
     }
 
-    result = acamera_command( TSCENE_MODES, HUE_THETA_ID, hue, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, HUE_THETA_ID, hue, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set HUE_THETA_ID to %d, ret_value: %d.", hue, result );
         return result;
@@ -984,7 +1048,7 @@ static int isp_fw_do_set_hue( int hue )
     return 0;
 }
 
-static int isp_fw_do_set_sharpness( int sharpness )
+static int isp_fw_do_set_sharpness( uint32_t ctx_id, int sharpness )
 {
 #if defined( TSCENE_MODES ) && defined( SHARPENING_STRENGTH_ID )
     int result;
@@ -1000,7 +1064,7 @@ static int isp_fw_do_set_sharpness( int sharpness )
         return -EBUSY;
     }
 
-    result = acamera_command( TSCENE_MODES, SHARPENING_STRENGTH_ID, sharpness, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, SHARPENING_STRENGTH_ID, sharpness, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set SHARPENING_STRENGTH_ID to %d, ret_value: %d.", sharpness, result );
         return result;
@@ -1010,7 +1074,7 @@ static int isp_fw_do_set_sharpness( int sharpness )
     return 0;
 }
 
-static int isp_fw_do_set_color_fx( int idx )
+static int isp_fw_do_set_color_fx( uint32_t ctx_id, int idx )
 {
 #if defined( TSCENE_MODES ) && defined( COLOR_MODE_ID )
     int result;
@@ -1048,7 +1112,7 @@ static int isp_fw_do_set_color_fx( int idx )
         return -EBUSY;
     }
 
-    result = acamera_command( TSCENE_MODES, COLOR_MODE_ID, color_idx, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, COLOR_MODE_ID, color_idx, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set SYSTEM_ISP_DIGITAL_GAIN to %d, ret_value: %d.", color_idx, result );
         return result;
@@ -1058,7 +1122,7 @@ static int isp_fw_do_set_color_fx( int idx )
     return 0;
 }
 
-static int isp_fw_do_set_hflip( bool enable )
+static int isp_fw_do_set_hflip( uint32_t ctx_id, bool enable )
 {
 #if defined( TIMAGE ) && defined( ORIENTATION_HFLIP_ID )
     int result;
@@ -1074,7 +1138,7 @@ static int isp_fw_do_set_hflip( bool enable )
         return -EBUSY;
     }
 
-    result = acamera_command( TIMAGE, ORIENTATION_HFLIP_ID, enable ? ENABLE : DISABLE, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TIMAGE, ORIENTATION_HFLIP_ID, enable ? ENABLE : DISABLE, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set ORIENTATION_HFLIP_ID to %d, ret_value: %d.", enable, result );
         return result;
@@ -1084,7 +1148,7 @@ static int isp_fw_do_set_hflip( bool enable )
     return 0;
 }
 
-static int isp_fw_do_set_vflip( bool enable )
+static int isp_fw_do_set_vflip( uint32_t ctx_id, bool enable )
 {
 #if defined( TIMAGE ) && defined( ORIENTATION_VFLIP_ID )
     int result;
@@ -1100,7 +1164,7 @@ static int isp_fw_do_set_vflip( bool enable )
         return -EBUSY;
     }
 
-    result = acamera_command( TIMAGE, ORIENTATION_VFLIP_ID, enable ? ENABLE : DISABLE, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TIMAGE, ORIENTATION_VFLIP_ID, enable ? ENABLE : DISABLE, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set ORIENTATION_VFLIP_ID to %d, ret_value: %d.", enable, result );
         return result;
@@ -1110,7 +1174,7 @@ static int isp_fw_do_set_vflip( bool enable )
     return 0;
 }
 
-static int isp_fw_do_set_manual_gain( bool enable )
+static int isp_fw_do_set_manual_gain( uint32_t ctx_id, bool enable )
 {
 #if defined( TALGORITHMS ) && defined( AE_MODE_ID )
     int result;
@@ -1127,7 +1191,7 @@ static int isp_fw_do_set_manual_gain( bool enable )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
     LOG( LOG_INFO, "AE_MODE_ID = %d", ret_val );
     if ( enable ) {
         if ( ret_val == AE_AUTO ) {
@@ -1149,7 +1213,7 @@ static int isp_fw_do_set_manual_gain( bool enable )
         }
     }
 
-    result = acamera_command( TALGORITHMS, AE_MODE_ID, mode, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, mode, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AE_MODE_ID to %u, ret_value: %d.", mode, result );
         return result;
@@ -1159,7 +1223,7 @@ static int isp_fw_do_set_manual_gain( bool enable )
     return 0;
 }
 
-static int isp_fw_do_set_gain( int gain )
+static int isp_fw_do_set_gain( uint32_t ctx_id, int gain )
 {
 #if defined( TALGORITHMS ) && defined( AE_GAIN_ID )
     int result;
@@ -1176,7 +1240,7 @@ static int isp_fw_do_set_gain( int gain )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
     LOG( LOG_INFO, "AE_MODE_ID = %d", ret_val );
     if ( ret_val != AE_FULL_MANUAL && ret_val != AE_MANUAL_GAIN ) {
         LOG( LOG_ERR, "Cannot set gain while AE_MODE is %d", ret_val );
@@ -1186,7 +1250,7 @@ static int isp_fw_do_set_gain( int gain )
     gain_frac = gain / 100;
     gain_frac += ( gain % 100 ) * 256 / 100;
 
-    result = acamera_command( TALGORITHMS, AE_GAIN_ID, gain_frac, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_GAIN_ID, gain_frac, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AE_GAIN_ID to %d, ret_value: %d.", gain, result );
         return result;
@@ -1196,7 +1260,7 @@ static int isp_fw_do_set_gain( int gain )
     return 0;
 }
 
-static int isp_fw_do_set_exposure_auto( int enable )
+static int isp_fw_do_set_exposure_auto( uint32_t ctx_id, int enable )
 {
 #if defined( TALGORITHMS ) && defined( AE_MODE_ID )
     int result;
@@ -1213,7 +1277,7 @@ static int isp_fw_do_set_exposure_auto( int enable )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
     LOG( LOG_CRIT, "AE_MODE_ID = %d", ret_val );
     switch ( enable ) {
     case true:
@@ -1238,7 +1302,7 @@ static int isp_fw_do_set_exposure_auto( int enable )
         break;
     }
 
-    result = acamera_command( TALGORITHMS, AE_MODE_ID, mode, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, mode, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AE_MODE_ID to %u, ret_value: %d.", mode, result );
         return result;
@@ -1248,10 +1312,10 @@ static int isp_fw_do_set_exposure_auto( int enable )
     return 0;
 }
 
-static int isp_fw_do_set_manual_exposure( int enable )
+static int isp_fw_do_set_manual_exposure( uint32_t ctx_id, int enable )
 {
 #if defined( TALGORITHMS ) && defined( AE_MODE_ID )
-    int result_integration_time, result_sensor_analog_gain, result_isp_digital_gain;
+    int result_integration_time, result_sensor_analog_gain, result_sensor_digital_gain, result_isp_digital_gain;
     uint32_t ret_val;
 
     LOG( LOG_ERR, "manual exposure enable: %d.", enable );
@@ -1264,19 +1328,25 @@ static int isp_fw_do_set_manual_exposure( int enable )
         return -EBUSY;
     }
 
-    result_integration_time = acamera_command( TSYSTEM, SYSTEM_MANUAL_INTEGRATION_TIME, enable, COMMAND_SET, &ret_val );
+    result_integration_time = acamera_command( ctx_id, TSYSTEM, SYSTEM_MANUAL_INTEGRATION_TIME, enable, COMMAND_SET, &ret_val );
     if ( result_integration_time ) {
         LOG( LOG_ERR, "Failed to set manual_integration_time to manual mode, ret_value: %d", result_integration_time );
         return ( result_integration_time );
     }
 
-    result_sensor_analog_gain = acamera_command( TSYSTEM, SYSTEM_MANUAL_SENSOR_ANALOG_GAIN, enable, COMMAND_SET, &ret_val );
+    result_sensor_analog_gain = acamera_command( ctx_id, TSYSTEM, SYSTEM_MANUAL_SENSOR_ANALOG_GAIN, enable, COMMAND_SET, &ret_val );
     if ( result_sensor_analog_gain ) {
         LOG( LOG_ERR, "Failed to set manual_sensor_analog_gain to manual mode, ret_value: %d", result_sensor_analog_gain );
         return ( result_sensor_analog_gain );
     }
 
-    result_isp_digital_gain = acamera_command( TSYSTEM, SYSTEM_MANUAL_ISP_DIGITAL_GAIN, enable, COMMAND_SET, &ret_val );
+    result_sensor_digital_gain = acamera_command( ctx_id, TSYSTEM, SYSTEM_MANUAL_SENSOR_DIGITAL_GAIN, enable, COMMAND_SET, &ret_val );
+    if ( result_sensor_analog_gain ) {
+        LOG( LOG_ERR, "Failed to set manual_sensor_digital_gain to manual mode, ret_value: %d", result_sensor_digital_gain );
+        return ( result_sensor_digital_gain );
+    }
+
+    result_isp_digital_gain = acamera_command( ctx_id, TSYSTEM, SYSTEM_MANUAL_ISP_DIGITAL_GAIN, enable, COMMAND_SET, &ret_val );
     if ( result_isp_digital_gain ) {
         LOG( LOG_ERR, "Failed to set manual_isp_digital_gain to manual mode, ret_value: %d", result_isp_digital_gain );
         return ( result_isp_digital_gain );
@@ -1288,7 +1358,7 @@ static int isp_fw_do_set_manual_exposure( int enable )
 }
 
 /* set exposure in us unit */
-static int isp_fw_do_set_exposure( int exp )
+static int isp_fw_do_set_exposure( uint32_t ctx_id, int exp )
 {
 #if defined( TALGORITHMS ) && defined( AE_EXPOSURE_ID )
     int result;
@@ -1304,7 +1374,7 @@ static int isp_fw_do_set_exposure( int exp )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AE_EXPOSURE_ID, exp * 1000, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AE_EXPOSURE_ID, exp * 1000, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AE_EXPOSURE_ID to %d, ret_value: %d.", exp, result );
         return result;
@@ -1313,13 +1383,13 @@ static int isp_fw_do_set_exposure( int exp )
     return 0;
 }
 
-static int isp_fw_do_set_variable_frame_rate( int enable )
+static int isp_fw_do_set_variable_frame_rate( uint32_t ctx_id, int enable )
 {
     // SYSTEM_EXPOSURE_PRIORITY ??
     return 0;
 }
 
-static int isp_fw_do_set_white_balance_mode( int wb_mode )
+static int isp_fw_do_set_white_balance_mode( uint32_t ctx_id, int wb_mode )
 {
 #if defined( TALGORITHMS ) && defined( AWB_MODE_ID )
 #if defined( ISP_HAS_AWB_MESH_FSM ) || defined( ISP_HAS_AWB_MESH_NBP_FSM ) || defined( ISP_HAS_AWB_MANUAL_FSM )
@@ -1341,7 +1411,7 @@ static int isp_fw_do_set_white_balance_mode( int wb_mode )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AWB_MODE_ID, 0, COMMAND_GET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AWB_MODE_ID, 0, COMMAND_GET, &ret_val );
     LOG( LOG_CRIT, "AWB_MODE_ID = %d", ret_val );
     switch ( wb_mode ) {
     case AWB_MANUAL:
@@ -1379,7 +1449,7 @@ static int isp_fw_do_set_white_balance_mode( int wb_mode )
         return -EINVAL;
     }
 
-    result = acamera_command( TALGORITHMS, AWB_MODE_ID, mode, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AWB_MODE_ID, mode, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AWB_MODE_ID to %u, ret_value: %d.", mode, result );
         return result;
@@ -1388,7 +1458,7 @@ static int isp_fw_do_set_white_balance_mode( int wb_mode )
     return 0;
 }
 
-static int isp_fw_do_set_focus_auto( int enable )
+static int isp_fw_do_set_focus_auto( uint32_t ctx_id, int enable )
 {
 #if defined( TALGORITHMS ) && defined( AF_MODE_ID )
     int result;
@@ -1405,7 +1475,7 @@ static int isp_fw_do_set_focus_auto( int enable )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AF_MODE_ID, 0, COMMAND_GET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AF_MODE_ID, 0, COMMAND_GET, &ret_val );
     LOG( LOG_CRIT, "AF_MODE_ID = %d", ret_val );
     switch ( enable ) {
     case 1:
@@ -1430,7 +1500,7 @@ static int isp_fw_do_set_focus_auto( int enable )
         return -EINVAL;
     }
 
-    result = acamera_command( TALGORITHMS, AF_MODE_ID, mode, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AF_MODE_ID, mode, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AF_MODE_ID to %u, ret_value: %d.", mode, result );
         return result;
@@ -1440,7 +1510,7 @@ static int isp_fw_do_set_focus_auto( int enable )
     return 0;
 }
 
-static int isp_fw_do_set_focus( int focus )
+static int isp_fw_do_set_focus( uint32_t ctx_id, int focus )
 {
 #if defined( TALGORITHMS ) && defined( AF_MANUAL_CONTROL_ID )
     int result;
@@ -1456,12 +1526,58 @@ static int isp_fw_do_set_focus( int focus )
         return -EBUSY;
     }
 
-    result = acamera_command( TALGORITHMS, AF_MANUAL_CONTROL_ID, focus, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TALGORITHMS, AF_MANUAL_CONTROL_ID, focus, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set AF_MANUAL_CONTROL_ID to %d, ret_value: %d.", focus, result );
         return result;
     }
 #endif
+    return 0;
+}
+
+static int isp_fw_do_set_ae_compensation( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+
+    LOG( LOG_INFO, "ae_compensation: %d.", val );
+
+    if ( val < 0 )
+        return -EIO;
+
+    if ( !isp_started ) {
+        LOG( LOG_NOTICE, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TALGORITHMS, AE_COMPENSATION_ID, val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set AE_COMPENSATION to %u, ret_value: %d.", val, result );
+        return result;
+    }
+    return 0;
+}
+
+static int isp_fw_do_set_max_integration_time( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+
+    LOG( LOG_INFO, "_max_integration_time: %d.", val );
+
+    if ( val < 0 )
+        return -EIO;
+
+    if ( !isp_started ) {
+        LOG( LOG_NOTICE, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSYSTEM, SYSTEM_MAX_INTEGRATION_TIME, val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set max_integration_time to %u, ret_value: %d.", val, result );
+        return result;
+    }
     return 0;
 }
 
@@ -1474,95 +1590,95 @@ bool fw_intf_validate_control( uint32_t id )
     return isp_fw_do_validate_control( id );
 }
 
-int fw_intf_set_test_pattern( int val )
+int fw_intf_set_test_pattern( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_test_pattern( val );
+    return isp_fw_do_set_test_pattern( ctx_id, val );
 }
 
-int fw_intf_set_test_pattern_type( int val )
+int fw_intf_set_test_pattern_type( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_test_pattern_type( val );
+    return isp_fw_do_set_test_pattern_type( ctx_id, val );
 }
 
-int fw_intf_set_af_refocus( int val )
+int fw_intf_set_af_refocus( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_af_refocus( val );
+    return isp_fw_do_set_af_refocus( ctx_id, val );
 }
 
-int fw_intf_set_af_roi( int val )
+int fw_intf_set_af_roi( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_af_roi( val );
+    return isp_fw_do_set_af_roi( ctx_id, val );
 }
 
-int fw_intf_set_brightness( int val )
+int fw_intf_set_brightness( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_brightness( val );
+    return isp_fw_do_set_brightness( ctx_id, val );
 }
 
-int fw_intf_set_contrast( int val )
+int fw_intf_set_contrast( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_contrast( val );
+    return isp_fw_do_set_contrast( ctx_id, val );
 }
 
-int fw_intf_set_saturation( int val )
+int fw_intf_set_saturation( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_saturation( val );
+    return isp_fw_do_set_saturation( ctx_id, val );
 }
 
-int fw_intf_set_hue( int val )
+int fw_intf_set_hue( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_hue( val );
+    return isp_fw_do_set_hue( ctx_id, val );
 }
 
-int fw_intf_set_sharpness( int val )
+int fw_intf_set_sharpness( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_sharpness( val );
+    return isp_fw_do_set_sharpness( ctx_id, val );
 }
 
-int fw_intf_set_color_fx( int val )
+int fw_intf_set_color_fx( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_color_fx( val );
+    return isp_fw_do_set_color_fx( ctx_id, val );
 }
 
-int fw_intf_set_hflip( int val )
+int fw_intf_set_hflip( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_hflip( val ? 1 : 0 );
+    return isp_fw_do_set_hflip( ctx_id, val ? 1 : 0 );
 }
 
-int fw_intf_set_vflip( int val )
+int fw_intf_set_vflip( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_vflip( val ? 1 : 0 );
+    return isp_fw_do_set_vflip( ctx_id, val ? 1 : 0 );
 }
 
-int fw_intf_set_autogain( int val )
+int fw_intf_set_autogain( uint32_t ctx_id, int val )
 {
     /* autogain enable: disable manual gain.
      * autogain disable: enable manual gain.
      */
-    return isp_fw_do_set_manual_gain( val ? 0 : 1 );
+    return isp_fw_do_set_manual_gain( ctx_id, val ? 0 : 1 );
 }
 
-int fw_intf_set_gain( int val )
+int fw_intf_set_gain( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_gain( val );
+    return isp_fw_do_set_gain( ctx_id, val );
 }
 
-int fw_intf_set_exposure_auto( int val )
+int fw_intf_set_exposure_auto( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_exposure_auto( val );
+    return isp_fw_do_set_exposure_auto( ctx_id, val );
 }
 
-int fw_intf_set_exposure( int val )
+int fw_intf_set_exposure( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_exposure( val );
+    return isp_fw_do_set_exposure( ctx_id, val );
 }
 
-int fw_intf_set_variable_frame_rate( int val )
+int fw_intf_set_variable_frame_rate( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_variable_frame_rate( val );
+    return isp_fw_do_set_variable_frame_rate( ctx_id, val );
 }
 
-int fw_intf_set_white_balance_auto( int val )
+int fw_intf_set_white_balance_auto( uint32_t ctx_id, int val )
 {
 #ifdef AWB_MODE_ID
     int mode;
@@ -1572,14 +1688,14 @@ int fw_intf_set_white_balance_auto( int val )
     else
         mode = AWB_MANUAL;
 
-    return isp_fw_do_set_white_balance_mode( mode );
+    return isp_fw_do_set_white_balance_mode( ctx_id, mode );
 #endif
 
     // return SUCCESS for compatibility verfication issue
     return 0;
 }
 
-int fw_intf_set_white_balance( int val )
+int fw_intf_set_white_balance( uint32_t ctx_id, int val )
 {
     int mode = 0;
 
@@ -1612,100 +1728,106 @@ int fw_intf_set_white_balance( int val )
         return 0;
     }
 
-    return isp_fw_do_set_white_balance_mode( mode );
+    return isp_fw_do_set_white_balance_mode( ctx_id, mode );
 }
 
-int fw_intf_set_focus_auto( int val )
+int fw_intf_set_focus_auto( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_focus_auto( val );
+    return isp_fw_do_set_focus_auto( ctx_id, val );
 }
 
-int fw_intf_set_focus( int val )
+int fw_intf_set_focus( uint32_t ctx_id, int val )
 {
-    return isp_fw_do_set_focus( val );
+    return isp_fw_do_set_focus( ctx_id, val );
 }
 
-int fw_intf_set_output_fr_on_off( uint32_t ctrl_val )
+int fw_intf_set_output_fr_on_off( uint32_t ctx_id, uint32_t ctrl_val )
 {
-    return fw_intf_stream_set_output_format( V4L2_STREAM_TYPE_FR, ctrl_val );
+    return fw_intf_stream_set_output_format( ctx_id, V4L2_STREAM_TYPE_FR, ctrl_val );
 }
 
-int fw_intf_set_output_ds1_on_off( uint32_t ctrl_val )
+int fw_intf_set_output_ds1_on_off( uint32_t ctx_id, uint32_t ctrl_val )
 {
 #if ISP_HAS_DS1
-    return fw_intf_stream_set_output_format( V4L2_STREAM_TYPE_DS1, ctrl_val );
+    return fw_intf_stream_set_output_format( ctx_id, V4L2_STREAM_TYPE_DS1, ctrl_val );
 #else
     return 0;
 #endif
 }
 
-int fw_intf_set_custom_sensor_wdr_mode(uint32_t ctrl_val)
+int fw_intf_set_custom_sensor_wdr_mode(uint32_t ctx_id, uint32_t ctrl_val)
 {
     custom_wdr_mode = ctrl_val;
     return 0;
 }
 
-int fw_intf_set_custom_sensor_exposure(uint32_t ctrl_val)
+int fw_intf_set_custom_sensor_exposure(uint32_t ctx_id, uint32_t ctrl_val)
 {
     custom_exp = ctrl_val;
     return 0;
 }
 
-int fw_intf_set_custom_fr_fps(uint32_t ctrl_val)
+int fw_intf_set_custom_sensor_fps(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    custom_fps = ctrl_val;
+    return 0;
+}
+
+int fw_intf_set_custom_fr_fps(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
-    rtn = fw_intf_set_fr_fps(ctrl_val);
+    rtn = fw_intf_set_fr_fps(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_custom_ds1_fps(uint32_t ctrl_val)
+int fw_intf_set_custom_ds1_fps(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
-    rtn = fw_intf_set_ds1_fps(ctrl_val);
+    rtn = fw_intf_set_ds1_fps(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_custom_sensor_testpattern(uint32_t ctrl_val)
+int fw_intf_set_custom_sensor_testpattern(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
-    rtn = fw_intf_set_sensor_testpattern(ctrl_val);
+    rtn = fw_intf_set_sensor_testpattern(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_sensor_ir_cut(uint32_t ctrl_val)
+int fw_intf_set_customer_sensor_ir_cut(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
-    rtn = fw_intf_set_sensor_ir_cut_set(ctrl_val);
+    rtn = fw_intf_set_sensor_ir_cut_set(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_ae_zone_weight(unsigned long ctrl_val)
+int fw_intf_set_customer_ae_zone_weight(uint32_t ctx_id, unsigned long ctrl_val)
 {
     int rtn = -1;
 
-    rtn = fw_intf_set_ae_zone_weight(ctrl_val);
+    rtn = fw_intf_set_ae_zone_weight(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_awb_zone_weight(unsigned long ctrl_val)
+int fw_intf_set_customer_awb_zone_weight(uint32_t ctx_id, unsigned long ctrl_val)
 {
     int rtn = -1;
 
-    rtn = fw_intf_set_awb_zone_weight(ctrl_val);
+    rtn = fw_intf_set_awb_zone_weight(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_manual_exposure( int val )
+int fw_intf_set_customer_manual_exposure( uint32_t ctx_id, int val )
 {
     int rtn = -1;
 
@@ -1713,12 +1835,12 @@ int fw_intf_set_customer_manual_exposure( int val )
        return 0;
     }
 
-    rtn = isp_fw_do_set_manual_exposure( val );
+    rtn = isp_fw_do_set_manual_exposure( ctx_id, val );
 
     return rtn;
 }
 
-int fw_intf_set_customer_sensor_integration_time(uint32_t ctrl_val)
+int fw_intf_set_customer_sensor_integration_time(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
@@ -1726,12 +1848,12 @@ int fw_intf_set_customer_sensor_integration_time(uint32_t ctrl_val)
        return 0;
     }
 
-    rtn = fw_intf_set_sensor_integration_time(ctrl_val);
+    rtn = fw_intf_set_sensor_integration_time(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_sensor_analog_gain(uint32_t ctrl_val)
+int fw_intf_set_customer_sensor_analog_gain(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
@@ -1739,12 +1861,12 @@ int fw_intf_set_customer_sensor_analog_gain(uint32_t ctrl_val)
        return 0;
     }
 
-    rtn = fw_intf_set_sensor_analog_gain(ctrl_val);
+    rtn = fw_intf_set_sensor_analog_gain(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_isp_digital_gain(uint32_t ctrl_val)
+int fw_intf_set_customer_isp_digital_gain(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
@@ -1752,12 +1874,12 @@ int fw_intf_set_customer_isp_digital_gain(uint32_t ctrl_val)
        return 0;
     }
 
-    rtn = fw_intf_set_isp_digital_gain(ctrl_val);
+    rtn = fw_intf_set_isp_digital_gain(ctx_id, ctrl_val);
 
     return rtn;
 }
 
-int fw_intf_set_customer_stop_sensor_update(uint32_t ctrl_val)
+int fw_intf_set_customer_stop_sensor_update(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
 
@@ -1765,8 +1887,59 @@ int fw_intf_set_customer_stop_sensor_update(uint32_t ctrl_val)
        return 0;
     }
 
-    rtn = fw_intf_set_stop_sensor_update(ctrl_val);
+    rtn = fw_intf_set_stop_sensor_update(ctx_id, ctrl_val);
 
     return rtn;
 }
 
+int fw_intf_set_ae_compensation( uint32_t ctx_id, int val )
+{
+    return isp_fw_do_set_ae_compensation( ctx_id, val );
+}
+
+int fw_intf_set_customer_sensor_digital_gain(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    int rtn = -1;
+
+    if ( ctrl_val == -1) {
+       return 0;
+    }
+
+    rtn = fw_intf_set_sensor_digital_gain(ctx_id, ctrl_val);
+
+    return rtn;
+}
+
+int fw_intf_set_customer_awb_red_gain(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    int rtn = -1;
+
+    if ( ctrl_val == -1) {
+       return 0;
+    }
+
+    rtn = fw_intf_set_awb_red_gain(ctx_id, ctrl_val);
+
+    return rtn;
+}
+
+int fw_intf_set_customer_awb_blue_gain(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    int rtn = -1;
+
+    if ( ctrl_val == -1) {
+       return 0;
+    }
+
+    rtn = fw_intf_set_awb_blue_gain(ctx_id, ctrl_val);
+
+    return rtn;
+}
+
+int fw_intf_set_customer_max_integration_time(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    if ( ctrl_val == -1) {
+       return 0;
+    }
+    return isp_fw_do_set_max_integration_time(ctx_id, ctrl_val);
+}

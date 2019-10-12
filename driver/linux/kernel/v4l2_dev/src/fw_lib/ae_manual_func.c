@@ -32,8 +32,9 @@
 
 #include <linux/vmalloc.h>
 #include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
-#define DEFAULT_AE_EXPOSURE_LOG2 3390000
+#define DEFAULT_AE_EXPOSURE_LOG2 2250000 //3390000
 
 #ifdef LOG_MODULE
 #undef LOG_MODULE
@@ -56,28 +57,28 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
 
     uint8_t zone_size_x = x_end - x_start;
     uint8_t zone_size_y = y_end - y_start;
-    uint32_t middle_x = zone_size_x * 256 / 2;
-    uint32_t middle_y = zone_size_y * 256 / 2;
+    uint32_t middle_x = zone_size_x * 256 / 2 + x_start * 256;
+    uint32_t middle_y = zone_size_y * 256 / 2 + y_start * 256;
     uint16_t scale_x = 0;
     uint16_t scale_y = 0;
     uint32_t ae_zone_wght_hor_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_HOR );
     uint32_t ae_zone_wght_ver_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER );
 
     if ( ae_zone_wght_hor_len ) {
-        scale_x = ( horz_zones - 1 ) / ae_zone_wght_hor_len + 1;
+        scale_x = ( horz_zones - 1 ) * 256 / ae_zone_wght_hor_len + 1;
     } else {
-        LOG( LOG_CRIT, "ae_zone_wght_hor_len is zero" );
+        LOG( LOG_ERR, "ae_zone_wght_hor_len is zero" );
         return;
     }
     if ( ae_zone_wght_ver_len ) {
-        scale_y = ( vert_zones - 1 ) / ae_zone_wght_ver_len + 1;
+        scale_y = ( vert_zones - 1 ) * 256 / ae_zone_wght_ver_len + 1;
     } else {
-        LOG( LOG_CRIT, "ae_zone_wght_ver_len is zero" );
+        LOG( LOG_ERR, "ae_zone_wght_ver_len is zero" );
         return;
     }
 
-    uint16_t gaus_center_x = ( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_HOR ) * 256 / 2 ) * scale_x;
-    uint16_t gaus_center_y = ( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER ) * 256 / 2 ) * scale_y;
+    uint16_t gaus_center_x = ( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_HOR ) * scale_x / 2 );
+    uint16_t gaus_center_y = ( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER ) * scale_y / 2 );
 
     for ( y = 0; y < vert_zones; y++ ) {
         uint8_t ae_coeff = 0;
@@ -96,15 +97,15 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
                      ( y == y_end && y_start != y_end ) ) {
                     ae_coeff = 0;
                 } else {
-                    coeff_x = ( gaus_center_x + distance_x ) / 256;
+                    coeff_x = ( gaus_center_x + distance_x * scale_x / 256 ) / 256;
                     if ( distance_x > 0 && ( distance_x & 0x80 ) )
                         coeff_x--;
-                    coeff_y = ( gaus_center_y + distance_y ) / 256;
+                    coeff_y = ( gaus_center_y + distance_y * scale_y / 256 ) / 256;
                     if ( distance_y > 0 && ( distance_y & 0x80 ) )
                         coeff_y--;
 
-                    coeff_x = ptr_ae_zone_whgh_h[coeff_x / scale_x];
-                    coeff_y = ptr_ae_zone_whgh_v[coeff_y / scale_y];
+                    coeff_x = ptr_ae_zone_whgh_h[coeff_x * 256 / scale_x];
+                    coeff_y = ptr_ae_zone_whgh_v[coeff_y * 256 / scale_y];
 
                     ae_coeff = ( coeff_x * coeff_y ) >> 4;
                     if ( ae_coeff > 1 )
@@ -117,6 +118,7 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
         }
     }
 }
+
 
 int ae_set_zone_weight(AE_fsm_ptr_t p_fsm, void *u_wg_ptr)
 {
@@ -180,7 +182,7 @@ void ae_initialize( AE_fsm_ptr_t p_fsm )
     ae_roi_update( p_fsm );
 
 
-    p_fsm->new_exposure_log2 = DEFAULT_AE_EXPOSURE_LOG2;
+    //p_fsm->new_exposure_log2 = DEFAULT_AE_EXPOSURE_LOG2;
 
     p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_AE_STATS );
     AE_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );

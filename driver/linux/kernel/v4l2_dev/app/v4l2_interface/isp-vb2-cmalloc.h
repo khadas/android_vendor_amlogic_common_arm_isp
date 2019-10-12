@@ -23,7 +23,11 @@ struct vb2_cmalloc_buf {
 	struct frame_vector		*vec;
 	enum dma_data_direction		dma_dir;
 	unsigned long			size;
-	atomic_t			refcount;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+	refcount_t		    refcount;
+#else
+    atomic_t			refcount;
+#endif
 	struct vb2_vmarea_handler	handler;
 	struct dma_buf			*dbuf;
 };

@@ -32,6 +32,7 @@
 
 typedef struct _isp_v4l2_dev {
     /* device */
+    uint32_t ctx_id;
     struct v4l2_device *v4l2_dev;
     struct video_device video_dev;
 	struct device *pdev;
@@ -39,6 +40,7 @@ typedef struct _isp_v4l2_dev {
     /* lock */
     struct mutex mlock;
     struct mutex notify_lock;
+    struct mutex file_lock;
 
     /* file handle array for event notify */
     struct v4l2_fh *fh_ptr[V4L2_STREAM_TYPE_MAX];
@@ -54,20 +56,20 @@ typedef struct _isp_v4l2_dev {
     /* open counter for stream id */
     atomic_t opened;
     unsigned int stream_mask;
+    unsigned int temper_buf_size;
 } isp_v4l2_dev_t;
 
 
 /* V4L2 external interface for probe */
-int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_device *pdev);
+int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_device *pdev, uint32_t hw_isp_addr );
 void isp_v4l2_destroy_instance( struct platform_device *pdev );
 
 /* Stream finder */
 int isp_v4l2_find_stream( isp_v4l2_stream_t **ppstream,
                           int ctx_number, isp_v4l2_stream_type_t stream_type );
+isp_v4l2_dev_t *isp_v4l2_get_dev( uint32_t ctx_number );
 
 /* Frame ready event */
-int isp_v4l2_notify_event( int stream_id, uint32_t event_type );
-int32_t isp_hw_enable(void);
-void isp_hw_disable(void);
+int isp_v4l2_notify_event( int ctx_num, int stream_id, uint32_t event_type );
 
 #endif

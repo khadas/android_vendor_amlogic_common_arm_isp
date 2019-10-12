@@ -248,43 +248,44 @@ void crop_resolution_changed( crop_fsm_ptr_t p_fsm )
 
 void crop_initialize( crop_fsm_ptr_t p_fsm )
 {
+#if FW_DO_INITIALIZATION
+
 #if ISP_HAS_DS1
     int i;
 #endif
 
-#if FW_DO_INITIALIZATION
-
+    if(p_fsm->p_fsm_mgr->isp_seamless == 0){
 #if ISP_HAS_DS1
-    acamera_isp_top_bypass_ds1_scaler_write( p_fsm->cmn.isp_base, 0 );
-    //  SCALER
+	    acamera_isp_top_bypass_ds1_scaler_write( p_fsm->cmn.isp_base, 0 );
+	    //  SCALER
 
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER ); i++ ) {
-        acamera_ds1_scaler_hfilt_coefmem_array_data_write( p_fsm->cmn.isp_base, i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] );
-    }
+	    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER ); i++ ) {
+	        acamera_ds1_scaler_hfilt_coefmem_array_data_write( p_fsm->cmn.isp_base, i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] );
+	    }
 
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER ); i++ ) {
-        acamera_ds1_scaler_vfilt_coefmem_array_data_write( p_fsm->cmn.isp_base, i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] );
-    }
+	    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER ); i++ ) {
+	        acamera_ds1_scaler_vfilt_coefmem_array_data_write( p_fsm->cmn.isp_base, i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] );
+	    }
 
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER ); i++ ) {
-        if ( _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] != acamera_ds1_scaler_hfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ) ) {
-            LOG( LOG_ERR, "Wrong Scaler Coefficient %d read %X write %X",
-                 i,
-                 (unsigned int)acamera_ds1_scaler_hfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ),
-                 (unsigned int)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] );
-            break;
-        }
-    }
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER ); i++ ) {
-        if ( _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] != acamera_ds1_scaler_vfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ) ) {
-            LOG( LOG_ERR, "Wrong Scaler Coefficient %d read %X write %X",
-                 i,
-                 (unsigned int)acamera_ds1_scaler_vfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ),
-                 (unsigned int)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] );
-            break;
-        }
-    }
-
+	    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER ); i++ ) {
+	        if ( _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] != acamera_ds1_scaler_hfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ) ) {
+	            LOG( LOG_ERR, "Wrong Scaler Coefficient %d read %X write %X",
+	                 i,
+	                 (unsigned int)acamera_ds1_scaler_hfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ),
+	                 (unsigned int)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] );
+	            break;
+	        }
+	    }
+	    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER ); i++ ) {
+	        if ( _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] != acamera_ds1_scaler_vfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ) ) {
+	            LOG( LOG_ERR, "Wrong Scaler Coefficient %d read %X write %X",
+	                 i,
+	                 (unsigned int)acamera_ds1_scaler_vfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ),
+	                 (unsigned int)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] );
+	            break;
+	        }
+	    }
+   	}
 #endif
 
 

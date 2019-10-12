@@ -155,7 +155,7 @@ int cmos_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t inpu
         corr = *(int32_t *)input;
 
         // adjust exposure
-        for ( i = 0; i < array_size( p_fsm->exposure_hist ); i++ ) {
+        for ( i = 0; i < array_size_s( p_fsm->exposure_hist ); i++ ) {
             exposure_info_set_t *info = &cmos_get_frame_exposure_set( p_fsm, i )->info;
             info->exposure_log2 += corr;
             if ( info->exposure_log2 < 0 )

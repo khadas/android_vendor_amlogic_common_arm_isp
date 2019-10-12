@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#include <linux/vmalloc.h>
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_firmware_config.h"
@@ -77,39 +77,63 @@ void acamera_frame_buffer_update( dma_writer_fsm_const_ptr_t p_fsm )
     crop_info.height_ds = crop_info.height_fr;
 #endif
 #endif
-    dma_pipe_settings set_fr;
-    dma_writer_get_settings( p_fsm->handle, dma_fr, &set_fr );
+    dma_pipe_settings *set_fr = NULL;
+    set_fr = vmalloc(sizeof(dma_pipe_settings));
+	if(set_fr == NULL){
+        LOG(LOG_ERR, "Failed to malloc mem");
+        return;
+    }
+		
+    dma_writer_get_settings( p_fsm->handle, dma_fr, set_fr );
 
-    set_fr.height = crop_info.height_fr;
-    set_fr.width = crop_info.width_fr;
-    set_fr.callback = p_fsm->fr_buf.callback; //callback might have been updated
+    set_fr->height = crop_info.height_fr;
+    set_fr->width = crop_info.width_fr;
+    set_fr->callback = p_fsm->fr_buf.callback; //callback might have been updated
 
-    set_fr.active = ( p_fsm->dma_reader_out == dma_fr );
-    set_fr.vflip = p_fsm->vflip;
+    set_fr->active = ( p_fsm->dma_reader_out == dma_fr );
+    set_fr->vflip = p_fsm->vflip;
     LOG( LOG_INFO, "fr update crop %d x %d", (int)crop_info.width_fr, (int)crop_info.height_fr );
-    result |= dma_writer_set_settings( p_fsm->handle, dma_fr, &set_fr );
+    result |= dma_writer_set_settings( p_fsm->handle, dma_fr, set_fr );
 
     if ( result == edma_ok )
         dma_writer_set_initialized( p_fsm->handle, dma_fr, 1 );
     else
         dma_writer_set_initialized( p_fsm->handle, dma_fr, 0 );
+
+    if(set_fr)
+	{
+	    vfree(set_fr);
+		set_fr = NULL;
+    }
+	
 #if ISP_HAS_DS1
     result = edma_ok;
-    dma_pipe_settings set_ds1;
-    dma_writer_get_settings( p_fsm->handle, dma_ds1, &set_ds1 );
-    set_ds1.height = crop_info.height_ds;
-    set_ds1.width = crop_info.width_ds;
-    set_ds1.callback = p_fsm->ds_buf.callback;
+    dma_pipe_settings *set_ds1 = NULL;
+    set_ds1 = vmalloc(sizeof(dma_pipe_settings));
+	if(set_ds1 == NULL){
+        LOG(LOG_ERR, "Failed to malloc mem");
+        return;
+    }
 
-    set_ds1.active = ( p_fsm->dma_reader_out == dma_ds1 );
-    set_ds1.vflip = p_fsm->vflip;
-    LOG( LOG_INFO, "ds updated crop %d x %d", (int)set_ds1.width, (int)set_ds1.height );
-    result |= dma_writer_set_settings( p_fsm->handle, dma_ds1, &set_ds1 );
+    dma_writer_get_settings( p_fsm->handle, dma_ds1, set_ds1 );
+    set_ds1->height = crop_info.height_ds;
+    set_ds1->width = crop_info.width_ds;
+    set_ds1->callback = p_fsm->ds_buf.callback;
+
+    set_ds1->active = ( p_fsm->dma_reader_out == dma_ds1 );
+    set_ds1->vflip = p_fsm->vflip;
+    LOG( LOG_INFO, "ds updated crop %d x %d", (int)set_ds1->width, (int)set_ds1->height );
+    result |= dma_writer_set_settings( p_fsm->handle, dma_ds1, set_ds1 );
 
     if ( result == edma_ok )
         dma_writer_set_initialized( p_fsm->handle, dma_ds1, 1 );
     else
         dma_writer_set_initialized( p_fsm->handle, dma_ds1, 0 );
+    if(set_ds1)
+	{
+	    vfree(set_ds1);
+		set_ds1 = NULL;
+    }
 #endif
 }
 
@@ -152,7 +176,12 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
 #endif
 
         // initialize fr pipe
-        dma_pipe_settings set_fr;
+        dma_pipe_settings *set_fr = NULL;
+        set_fr = vmalloc(sizeof(dma_pipe_settings));
+		if(set_fr == NULL){
+			LOG(LOG_ERR, "Failed to malloc mem");
+			return;
+		}
         dma_api api_fr;
         // api
         api_fr.p_acamera_isp_dma_writer_format_read = acamera_isp_fr_dma_writer_format_read;
@@ -192,20 +221,20 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         api_fr.p_acamera_fpga_frame_reader_rbase_load_write_uv = acamera_fpga_frame_reader_uv_rbase_load_write;
 #endif
         // settings
-        dma_writer_get_settings( p_fsm->handle, dma_fr, &set_fr );
-        set_fr.p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm ); //back reference
+        dma_writer_get_settings( p_fsm->handle, dma_fr, set_fr );
+        set_fr->p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm ); //back reference
 
-        set_fr.height = crop_info.height_fr;
-        set_fr.width = crop_info.width_fr;
+        set_fr->height = crop_info.height_fr;
+        set_fr->width = crop_info.width_fr;
 
-        set_fr.callback = p_fsm->fr_buf.callback;
-        set_fr.isp_base = p_fsm->cmn.isp_base;
-        set_fr.ctx_id = ACAMERA_FSM2CTX_PTR( p_fsm )->context_id;
+        set_fr->callback = p_fsm->fr_buf.callback;
+        set_fr->isp_base = p_fsm->cmn.isp_base;
+        set_fr->ctx_id = ACAMERA_FSM2CTX_PTR( p_fsm )->context_id;
 
-        set_fr.active = ( p_fsm->dma_reader_out == dma_fr );
-        set_fr.vflip = p_fsm->vflip;
+        set_fr->active = ( p_fsm->dma_reader_out == dma_fr );
+        set_fr->vflip = p_fsm->vflip;
         LOG( LOG_INFO, "fr init crop %d x %d", (int)crop_info.width_fr, (int)crop_info.height_fr );
-        result |= dma_writer_init( p_fsm->handle, dma_fr, &set_fr, &api_fr );
+        result |= dma_writer_init( p_fsm->handle, dma_fr, set_fr, &api_fr );
 
 
         if ( result == edma_ok )
@@ -213,11 +242,21 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         else
             dma_writer_set_initialized( p_fsm->handle, dma_fr, 0 );
 
-
+		if(set_fr)
+		{
+			vfree(set_fr);
+			set_fr = NULL;
+		}
+		
 #if ISP_HAS_DS1
         // initialize ds pipe
         result = edma_ok;
-        dma_pipe_settings set_ds1;
+        dma_pipe_settings *set_ds1 = NULL;
+		set_ds1 = vmalloc(sizeof(dma_pipe_settings));
+		if(set_ds1 == NULL){
+		    LOG(LOG_ERR, "Failed to malloc mem");
+		    return;
+		}
         dma_api api_ds1;
         // api
         api_ds1.p_acamera_isp_dma_writer_format_read = acamera_isp_ds1_dma_writer_format_read;
@@ -257,24 +296,30 @@ void frame_buffer_initialize( dma_writer_fsm_ptr_t p_fsm )
         api_ds1.p_acamera_fpga_frame_reader_rbase_load_write_uv = acamera_fpga_frame_reader_uv_rbase_load_write;
 #endif
         // settings
-        dma_writer_get_settings( p_fsm->handle, dma_ds1, &set_ds1 );
-        set_ds1.p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm ); //back reference
-        set_ds1.height = crop_info.height_ds;
-        set_ds1.width = crop_info.width_ds;
+        dma_writer_get_settings( p_fsm->handle, dma_ds1, set_ds1 );
+        set_ds1->p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm ); //back reference
+        set_ds1->height = crop_info.height_ds;
+        set_ds1->width = crop_info.width_ds;
 
-        set_ds1.callback = p_fsm->ds_buf.callback;
-        set_ds1.isp_base = p_fsm->cmn.isp_base;
-        set_ds1.ctx_id = ACAMERA_FSM2CTX_PTR( p_fsm )->context_id;
-        LOG( LOG_INFO, "ds init crop %d x %d ", (int)set_ds1.width, (int)set_ds1.height );
+        set_ds1->callback = p_fsm->ds_buf.callback;
+        set_ds1->isp_base = p_fsm->cmn.isp_base;
+        set_ds1->ctx_id = ACAMERA_FSM2CTX_PTR( p_fsm )->context_id;
+        LOG( LOG_INFO, "ds init crop %d x %d ", (int)set_ds1->width, (int)set_ds1->height );
 
-        set_ds1.active = ( p_fsm->dma_reader_out == dma_ds1 );
-        set_ds1.vflip = p_fsm->vflip;
+        set_ds1->active = ( p_fsm->dma_reader_out == dma_ds1 );
+        set_ds1->vflip = p_fsm->vflip;
 
-        result |= dma_writer_init( p_fsm->handle, dma_ds1, &set_ds1, &api_ds1 );
+        result |= dma_writer_init( p_fsm->handle, dma_ds1, set_ds1, &api_ds1 );
         if ( result == edma_ok )
             dma_writer_set_initialized( p_fsm->handle, dma_ds1, 1 );
         else
             dma_writer_set_initialized( p_fsm->handle, dma_ds1, 0 );
+
+		if(set_ds1)
+		{
+			vfree(set_ds1);
+			set_ds1 = NULL;
+		}
 #endif
     }
 }

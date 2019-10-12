@@ -277,6 +277,7 @@ enum SocCamera_ioctl {
     // input: ir cut mode
     // output: val_out - ir cut mode
     SOC_SENSOR_IR_CUT_SET,
+    SOC_SENSOR_GET_ID,
 };
 
 

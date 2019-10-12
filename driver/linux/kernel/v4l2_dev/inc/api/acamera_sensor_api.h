@@ -59,6 +59,7 @@ typedef struct _sensor_name_t {
 typedef struct _isp_context_seq {
     const acam_reg_t **sequence;
     uint32_t seq_num;
+    uint32_t seq_table_max;
 } isp_context_seq;
 
 // sensor parameters structure keeps information about the current

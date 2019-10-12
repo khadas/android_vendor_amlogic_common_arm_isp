@@ -17,4 +17,4 @@
 *
 */
 
-#define FIRMWARE_REVISION 0xb5c6bd4
+#define FIRMWARE_REVISION 0x414D3230

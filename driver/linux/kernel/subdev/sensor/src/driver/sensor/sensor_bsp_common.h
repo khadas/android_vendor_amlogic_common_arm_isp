@@ -27,4 +27,5 @@ int pwr_ir_cut_enable(sensor_bringup_t* sensor_bp, int propname, int val);
 int reset_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int val);
 int reset_am_disable(sensor_bringup_t *sensor_bp);
 int clk_am_enable(sensor_bringup_t* sensor_bp, const char* propname);
+int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t rate);
 int clk_am_disable(sensor_bringup_t *sensor_bp);

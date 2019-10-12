@@ -167,13 +167,15 @@
 #define CALIBRATION_AF_ZONE_WGHT_VER                      0x00000075
 #define CALIBRATION_AE_CONTROL_HDR_TARGET                 0x00000076
 #define CALIBRATION_AE_CONTROL                            0x00000077
-
+#define CALIBRATION_GAMMA_EV1                             0x00000078
+#define CALIBRATION_GAMMA_EV2                             0x00000079
+#define CALIBRATION_GAMMA_THRESHOLD                       0x0000007A
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 120
+#define CALIBRATION_TOTAL_SIZE 123
 //------------------FILE TRANSFER-------------------
 
 

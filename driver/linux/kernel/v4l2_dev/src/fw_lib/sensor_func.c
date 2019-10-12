@@ -102,24 +102,54 @@ uint32_t sensor_boot_init( sensor_fsm_ptr_t p_fsm )
 
 void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 {
-
+    struct timeval  txs,txe; 
+    do_gettimeofday(&txs);
+    
 #if FW_DO_INITIALIZATION
-    acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP ); // urgent stop
+	if(p_fsm->p_fsm_mgr->isp_seamless == 0)
+		acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP ); // urgent stop
 #endif                                                                                                               //FW_DO_INITIALIZATION
 
-    if (p_fsm->preset_mode != 0xFF) {
     // 1): set sensor to preset_mode as required.
-        p_fsm->ctrl.set_mode( p_fsm->sensor_ctx, p_fsm->preset_mode );
-        p_fsm->ctrl.disable_sensor_isp( p_fsm->sensor_ctx );
+	if(p_fsm->p_fsm_mgr->isp_seamless)
+	{
+		if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+			p_fsm->ctrl.set_mode( p_fsm->sensor_ctx, p_fsm->preset_mode );
+	}
+	else
+		p_fsm->ctrl.set_mode( p_fsm->sensor_ctx, p_fsm->preset_mode );
+    p_fsm->ctrl.disable_sensor_isp( p_fsm->sensor_ctx );
+    do_gettimeofday(&txe);
+
+	LOG( LOG_INFO, "sensor_hw_init:%d", (txe.tv_sec*1000000+txe.tv_usec) -  (txs.tv_sec*1000000+txs.tv_usec));
 
     // 2): set to wdr_mode through general router (wdr_mode changed in sensor param in 1st step).
-        const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+    const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
 
-        fsm_param_set_wdr_param_t set_wdr_param;
-        set_wdr_param.wdr_mode = param->modes_table[param->mode].wdr_mode;
-        set_wdr_param.exp_number = param->modes_table[param->mode].exposures;
-        acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_WDR_MODE, &set_wdr_param, sizeof( set_wdr_param ) );
-    }
+    fsm_param_set_wdr_param_t set_wdr_param;
+    set_wdr_param.wdr_mode = param->modes_table[param->mode].wdr_mode;
+    set_wdr_param.exp_number = param->modes_table[param->mode].exposures;
+	if(p_fsm->p_fsm_mgr->isp_seamless)
+	{
+		if(acamera_isp_input_port_mode_status_read( 0 ) == ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+		{
+			if((param->modes_table[p_fsm->preset_mode].exposures == 2 && set_wdr_param.exp_number == 1) ||
+				(param->modes_table[p_fsm->preset_mode].exposures == 1 && set_wdr_param.exp_number == 2) ||
+				(param->modes_table[p_fsm->preset_mode].exposures == 1 && set_wdr_param.exp_number == 3))
+			{
+					LOG(LOG_CRIT, "preset not match user mode, execute switch and close seamless");
+					p_fsm->ctrl.set_mode( p_fsm->sensor_ctx, p_fsm->preset_mode );
+					p_fsm->p_fsm_mgr->isp_seamless = 0;
+			}		
+			if(param->modes_table[p_fsm->preset_mode].exposures != set_wdr_param.exp_number)
+			{
+				set_wdr_param.wdr_mode = param->modes_table[p_fsm->preset_mode].wdr_mode;
+				set_wdr_param.exp_number = param->modes_table[p_fsm->preset_mode].exposures;
+			}
+		}
+	}
+    acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_WDR_MODE, &set_wdr_param, sizeof( set_wdr_param ) );
+
     // 3): Init or update the calibration data.
     acamera_init_calibrations( ACAMERA_FSM2CTX_PTR( p_fsm ) );
 
@@ -205,33 +235,44 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
     const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
 
 #if FW_DO_INITIALIZATION
-    /* sensor resolution */
-    acamera_isp_top_active_width_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_top_active_height_write( p_fsm->cmn.isp_base, param->active.height );
+	if(p_fsm->p_fsm_mgr->isp_seamless == 0){
+	    /* sensor resolution */
+	    acamera_isp_top_active_width_write( p_fsm->cmn.isp_base, param->active.width );
+	    acamera_isp_top_active_height_write( p_fsm->cmn.isp_base, param->active.height );
 
-    acamera_isp_metering_af_active_width_write(p_fsm->cmn.isp_base, param->active.width);
-    acamera_isp_metering_af_active_height_write(p_fsm->cmn.isp_base, param->active.height);
+	    acamera_isp_metering_af_active_width_write(p_fsm->cmn.isp_base, param->active.width);
+	    acamera_isp_metering_af_active_height_write(p_fsm->cmn.isp_base, param->active.height);
 
-    acamera_isp_lumvar_active_width_write(p_fsm->cmn.isp_base, param->active.width);
-    acamera_isp_lumvar_active_height_write(p_fsm->cmn.isp_base, param->active.height);
+		acamera_isp_lumvar_active_width_write(p_fsm->cmn.isp_base, param->active.width);
+		acamera_isp_lumvar_active_height_write(p_fsm->cmn.isp_base, param->active.height);
 
-    acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_input_port_hc_size1_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_input_port_vc_size_write( p_fsm->cmn.isp_base, param->active.height );
+		acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param->active.width );
+		acamera_isp_input_port_hc_size1_write( p_fsm->cmn.isp_base, param->active.width );
+		acamera_isp_input_port_vc_size_write( p_fsm->cmn.isp_base, param->active.height );
 
-    sensor_init_output( p_fsm, p_fsm->isp_output_mode );
+	    sensor_init_output( p_fsm, p_fsm->isp_output_mode );
+	}
 #endif //FW_DO_INITIALIZATION
 
-    acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+    //acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
     sensor_update_black( p_fsm );
 
     sensor_update_bayer_bits(p_fsm);
 
-    acamera_reset_ping_pong_port();
-
-    acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
-
+	if(p_fsm->p_fsm_mgr->isp_seamless)
+	{
+		if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+		{
+			acamera_reset_ping_pong_port();
+			acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+		}
+	}
+	else
+	{
+		acamera_reset_ping_pong_port();
+		acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+	}
     LOG( LOG_NOTICE, "Sensor initialization is complete, ID 0x%04X resolution %dx%d", p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height );
 }
 

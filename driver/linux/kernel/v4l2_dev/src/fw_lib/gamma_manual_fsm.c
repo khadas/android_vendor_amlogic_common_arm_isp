@@ -19,6 +19,7 @@
 
 #include "acamera_fw.h"
 #include "gamma_manual_fsm.h"
+#include "acamera_3aalg_preset.h"
 
 #ifdef LOG_MODULE
 #undef LOG_MODULE
@@ -33,8 +34,8 @@ void gamma_manual_fsm_clear( gamma_manual_fsm_t *p_fsm )
     p_fsm->nodes_avg = 0;
 
     p_fsm->cur_frame_id_tracking = 0;
-    p_fsm->gamma_gain = 256;
-    p_fsm->gamma_offset = 0;
+    p_fsm->gamma_gain = 340;
+    p_fsm->gamma_offset = 15;
 }
 
 void gamma_manual_request_interrupt( gamma_manual_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -73,6 +74,19 @@ int gamma_manual_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint3
         gamma_manual_set_new_param( p_fsm, (sbuf_gamma_t *)input );
 
         break;
+	case FSM_PARAM_SET_GAMMA_PRESET:
+		if ( !input || input_size != sizeof( isp_gamma_preset_t ) ) {
+			LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+			rc = -1;
+			break;
+		}
+		
+		isp_gamma_preset_t *p_new = (isp_gamma_preset_t *)input;
+		//p_fsm->skip_cnt = p_new->skip_cnt;
+		p_fsm->gamma_gain = p_new->gamma_gain;
+		p_fsm->gamma_offset = p_new->gamma_offset; 	   
+		gamma_manual_update(p_fsm);
+		break;	
 
     default:
         rc = -1;

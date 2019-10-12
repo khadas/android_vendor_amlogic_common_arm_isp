@@ -33,3 +33,10 @@ EXTRA_CFLAGS := -I$(M_PATH)/app -I$(M_PATH)/inc -I$(M_PATH)/app/control \
                 -I$(M_PATH)/src/driver/sensor -I$(M_PATH)/src/driver/lens
 
 EXTRA_CFLAGS += -Wno-declaration-after-statement -Idrivers/staging/android/
+
+ifeq ($(PLATFORM_VERSION),)  
+    ccflags-y += -DCONFIG_G12B
+else
+    ccflags-y += -DCONFIG_$(PLATFORM_VERSION)
+endif
+

@@ -29,10 +29,10 @@
 #include "acamera_ctrl_channel.h"
 #endif
 
-extern void * acamera_get_api_ctx_ptr(void);
+extern void * acamera_get_ctx_ptr( uint32_t ctx_id );
 
-uint8_t acamera_command( uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value){
-acamera_fsm_mgr_t *instance = &((acamera_context_ptr_t)acamera_get_api_ctx_ptr())->fsm_mgr;
+uint8_t acamera_command( uint32_t ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value){
+acamera_fsm_mgr_t *instance = &((acamera_context_ptr_t)acamera_get_ctx_ptr(ctx_id))->fsm_mgr;
 uint8_t ret = NOT_EXISTS;
 switch (command_type){
 case  TGENERAL:
@@ -105,6 +105,10 @@ case  TSENSOR:
 		case  SENSOR_IR_CUT:
 			ret = sensor_ir_cut_set(instance, value, direction, ret_value);
 			break;
+		case  SENSOR_HWID:
+			ret = sensor_hw_id(instance, value, direction, ret_value);
+			break;
+
 	}//switch (command)
 	break;
 case  TSYSTEM:
@@ -384,6 +388,9 @@ case  TSCENE_MODES:
 		case  SHARPENING_STRENGTH_ID:
 			ret = sharpening_strength(instance, value, direction, ret_value);
 			break;
+		case  HUE_THETA_ID:
+			ret = hue_theta(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TREGISTERS:
@@ -432,7 +439,7 @@ case TAML_SCALER:
 }//switch (command_type)
 
 #if FW_HAS_CONTROL_CHANNEL
-	ctrl_channel_handle_command( command_type, command, value, direction );
+	ctrl_channel_handle_command( ctx_id, command_type, command, value, direction );
 #endif
 
 if(ret!=SUCCESS)

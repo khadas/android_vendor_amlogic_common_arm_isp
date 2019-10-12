@@ -22,6 +22,7 @@
 #include <linux/mm.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
+#include <linux/uaccess.h>
 #include <linux/kfifo.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
@@ -29,6 +30,7 @@
 #include "system_stdlib.h"
 #include "acamera_command_api.h"
 #include "acamera_ctrl_channel.h"
+#include "acamera_3aalg_preset.h"
 
 #define CTRL_CHANNEL_FIFO_INPUT_SIZE ( 4 * 1024 )
 #define CTRL_CHANNEL_FIFO_OUTPUT_SIZE ( 8 * 1024 )
@@ -46,6 +48,11 @@ struct ctrl_channel_dev_context {
     struct kfifo ctrl_kfifo_out;
 
     struct ctrl_cmd_item cmd_item;
+
+	isp_ae_preset_t ae_param;
+	isp_awb_preset_t awb_param;
+	isp_gamma_preset_t gamma_param;
+	isp_iridix_preset_t iridix_param;
 };
 
 static struct ctrl_channel_dev_context ctrl_channel_ctx;
@@ -170,12 +177,63 @@ static ssize_t ctrl_channel_fops_read( struct file *file, char __user *buf, size
     return rc ? rc : copied;
 }
 
+long ctrl_channel_fops_ioctl (struct file *pfile, unsigned int cmd, unsigned long args)
+{
+    int rc;
+
+	switch (cmd)
+	{
+		case IOCTL_3AALG_AEPRE:
+			rc = copy_to_user((void *)args, &ctrl_channel_ctx.ae_param, sizeof(isp_ae_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "ae copy_to_user failed, rc: %d.", rc );
+            }
+			break;
+		case IOCTL_3AALG_AWBPRE:
+			rc = copy_to_user((void *)args, &ctrl_channel_ctx.awb_param, sizeof(isp_awb_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "awb copy_to_user failed, rc: %d.", rc );
+            }			
+			break;
+		case IOCTL_3AALG_GAMMAPRE:
+			rc = copy_to_user((void *)args, &ctrl_channel_ctx.gamma_param, sizeof(isp_gamma_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "gamma copy_to_user failed, rc: %d.", rc );
+            }
+			break;
+		case IOCTL_3AALG_IRIDIXPRE:
+			rc = copy_to_user((void *)args, &ctrl_channel_ctx.iridix_param, sizeof(isp_iridix_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "iridix copy_to_user failed, rc: %d.", rc );
+            }
+			break;			
+		default:
+		    LOG(LOG_CRIT, "invalid cmd");
+		    break;
+	}
+    return 0;  
+}
+
+int ctrl_channel_3aalg_param_init(isp_ae_preset_t *ae, isp_awb_preset_t *awb, isp_gamma_preset_t *gamma, isp_iridix_preset_t *iridix)
+{
+    system_memcpy(&ctrl_channel_ctx.ae_param, ae, sizeof(isp_ae_preset_t));
+	system_memcpy(&ctrl_channel_ctx.awb_param, awb, sizeof(isp_awb_preset_t));
+	system_memcpy(&ctrl_channel_ctx.gamma_param, gamma, sizeof(isp_gamma_preset_t));
+	system_memcpy(&ctrl_channel_ctx.iridix_param, iridix, sizeof(isp_iridix_preset_t));
+
+	LOG(LOG_INFO, "ctrl_channel_3aalg_param_init: %d,%d,%d,%d,%d",ctrl_channel_ctx.ae_param.exposure_log2,\
+		ctrl_channel_ctx.ae_param.integrator,ctrl_channel_ctx.ae_param.error_log2,ctrl_channel_ctx.iridix_param.strength_target,ctrl_channel_ctx.iridix_param.iridix_global_DG);
+
+	return 0;
+}
+
 static struct file_operations isp_fops = {
     .owner = THIS_MODULE,
     .open = ctrl_channel_fops_open,
     .release = ctrl_channel_fops_release,
     .read = ctrl_channel_fops_read,
     .write = ctrl_channel_fops_write,
+    .unlocked_ioctl = ctrl_channel_fops_ioctl,
     .llseek = noop_llseek,
 };
 
@@ -354,7 +412,7 @@ static uint8_t is_uf_needed_command( uint8_t command_type, uint8_t command, uint
     return rc;
 }
 
-void ctrl_channel_handle_command( uint8_t type, uint8_t command, uint32_t value, uint8_t direction )
+void ctrl_channel_handle_command( uint32_t cmd_ctx_id, uint8_t type, uint8_t command, uint32_t value, uint8_t direction )
 {
     struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx.cmd_item;
 
@@ -375,7 +433,9 @@ void ctrl_channel_handle_command( uint8_t type, uint8_t command, uint32_t value,
 
     p_cmd->cmd_category = CTRL_CMD_CATEGORY_API_COMMAND;
     p_cmd->cmd_len = sizeof( struct ctrl_cmd_item );
-    ;
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    p_cmd->cmd_ctx_id = cmd_ctx_id;
+#endif
     p_cmd->cmd_type = type;
     p_cmd->cmd_id = command;
     p_cmd->cmd_direction = direction;
@@ -386,7 +446,7 @@ void ctrl_channel_handle_command( uint8_t type, uint8_t command, uint32_t value,
     ctrl_channel_write( p_cmd, NULL, 0 );
 }
 
-void ctrl_channel_handle_api_calibration( uint8_t type, uint8_t id, uint8_t direction, void *data, uint32_t data_size )
+void ctrl_channel_handle_api_calibration( uint32_t cmd_ctx_id, uint8_t type, uint8_t id, uint8_t direction, void *data, uint32_t data_size )
 {
     struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx.cmd_item;
 
@@ -403,6 +463,9 @@ void ctrl_channel_handle_api_calibration( uint8_t type, uint8_t id, uint8_t dire
     p_cmd->cmd_category = CTRL_CMD_CATEGORY_API_CALIBRATION;
     p_cmd->cmd_len = sizeof( struct ctrl_cmd_item ) + data_size;
     p_cmd->cmd_type = type;
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    p_cmd->cmd_ctx_id = cmd_ctx_id;
+#endif
     p_cmd->cmd_id = id;
     p_cmd->cmd_direction = direction;
     p_cmd->cmd_value = data_size;

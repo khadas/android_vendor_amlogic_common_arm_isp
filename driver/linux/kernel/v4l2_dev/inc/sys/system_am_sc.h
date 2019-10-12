@@ -128,6 +128,7 @@ extern void am_sc_api_dma_buffer(tframe_t * data, unsigned int index);
 extern uint32_t am_sc_get_width(void);
 extern void am_sc_set_width(uint32_t src_w, uint32_t out_w);
 extern uint32_t am_sc_get_height(void);
+uint32_t am_sc_get_output_format(void);
 extern void am_sc_set_height(uint32_t src_h, uint32_t out_h);
 extern void am_sc_set_input_format(uint32_t value);
 extern void am_sc_set_output_format(uint32_t value);

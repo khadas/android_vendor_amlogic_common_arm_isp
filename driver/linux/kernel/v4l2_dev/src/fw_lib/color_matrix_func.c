@@ -299,8 +299,6 @@ void color_matrix_setup( int16_t *p_matrix, uint16_t CCM_R_R, uint16_t CCM_R_G, 
 
 void color_matrix_initialize( color_matrix_fsm_t *p_fsm )
 {
-
-
 #if FW_DO_INITIALIZATION
     color_matrix_change_CCMs( p_fsm );
 

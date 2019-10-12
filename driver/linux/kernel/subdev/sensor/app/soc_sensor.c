@@ -32,6 +32,9 @@
 #include "runtime_initialization_settings.h"
 #include "sensor_bsp_common.h"
 
+static int isp_seq_num;
+module_param(isp_seq_num, int, 0664);
+
 #define ARGS_TO_PTR( arg ) ( (struct soc_sensor_ioctl_args *)arg )
 
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
@@ -47,11 +50,26 @@ struct SensorConversion ConversionTable[] = {
     {SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10, "os08a10"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290, "imx290"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX227, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX227, "imx227"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX481, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX481, "imx481"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX307, "imx307"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX224, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX224, "imx224"},
 };
 
 
-void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl, void* sbp ) = {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290};
-void ( *SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) = {SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290};
+void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl, void* sbp ) =
+{
+    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290,
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290
+#endif
+};
+void ( *SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) =
+{
+    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290,
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290
+#endif
+};
 
 static struct v4l2_subdev soc_sensor;
 sensor_bringup_t* sensor_bp = NULL;
@@ -86,6 +104,112 @@ uint32_t write_reg(uint32_t val, unsigned long addr)
     return 0;
 }
 
+static void parse_param(char *buf_orig, char **parm){
+    char *ps, *token;
+    unsigned int n = 0;
+    char delim1[3] = " \n";
+    ps = buf_orig;
+    token = strsep(&ps, delim1);
+    while (token != NULL) {
+        if (*token != '\0') {
+            parm[n++] = token;
+        }
+        token = strsep(&ps, delim1);
+    }
+}
+
+static const char *sensor_reg_usage_str = {
+    "Usage:\n"
+    "echo r addr(H) > /sys/devices/platform/sensor/sreg;\n"
+    "echo w addr(H) value(H) > /sys/devices/platform/sensor/sreg;\n"
+    "echo d addr(H) num(D) > /sys/devices/platform/sensor/sreg; dump reg from addr\n"
+};
+
+static ssize_t sreg_read(
+    struct device *dev,
+    struct device_attribute *attr,
+    char *buf)
+{
+    return sprintf(buf, "%s\n", sensor_reg_usage_str);
+}
+
+static ssize_t sreg_write(
+    struct device *dev, struct device_attribute *attr,
+    char const *buf, size_t size)
+{
+    char *buf_orig = NULL;
+    char *parm[8] = {NULL};
+    long val = 0;
+    unsigned int reg_addr, reg_val, i;
+    ssize_t ret = size;
+
+    subdev_camera_ctx *ctx = &s_ctx[0];
+
+    if ( ctx->camera_context == NULL ) {
+        LOG( LOG_ERR, "Failed to process reg write.camera_init must be called before\n");
+        ret = -EINVAL;
+        goto Err;
+    }
+
+    if (!buf)
+        return ret;
+
+    buf_orig = kstrdup(buf, GFP_KERNEL);
+    if (!buf_orig)
+        return ret;
+
+    parse_param(buf_orig, (char **)&parm);
+
+    if (!parm[0]) {
+        ret = -EINVAL;
+        goto Err;
+    }
+
+    if (!strcmp(parm[0], "r")) {
+        if (!parm[1] || (kstrtoul(parm[1], 16, &val) < 0)) {
+            ret = -EINVAL;
+            goto Err;
+        }
+        reg_addr = val;
+        reg_val = ctx->camera_control.read_sensor_register( ctx->camera_context, reg_addr);
+        pr_info("SENSOR READ[0x%04x]=0x%02x\n", reg_addr, reg_val);
+    } else if (!strcmp(parm[0], "w")) {
+        if (!parm[1] || (kstrtoul(parm[1], 16, &val) < 0)) {
+            ret = -EINVAL;
+            goto Err;
+        }
+        reg_addr = val;
+        if (!parm[2] || (kstrtoul(parm[2], 16, &val) < 0)) {
+            ret = -EINVAL;
+            goto Err;
+        }
+        reg_val = val;
+        ctx->camera_control.write_sensor_register( ctx->camera_context, reg_addr, reg_val);
+        pr_info("SENSOR WRITE[0x%04x]=0x%02x\n", reg_addr, reg_val);
+        reg_val = ctx->camera_control.read_sensor_register( ctx->camera_context, reg_addr);
+        pr_info("SENSOR READ[0x%04x]=0x%02x\n", reg_addr, reg_val);
+    } else if (!strcmp(parm[0], "d")) {
+        if (!parm[1] || (kstrtoul(parm[1], 16, &val) < 0)) {
+            ret = -EINVAL;
+            goto Err;
+        }
+        reg_addr = val;
+        if (!parm[2] || (kstrtoul(parm[2], 10, &val) < 0))
+            val = 1;
+
+        for (i = 0; i < val; i++) {
+            reg_val = ctx->camera_control.read_sensor_register( ctx->camera_context, reg_addr);
+            pr_info("SENSOR DUMP[0x%04x]=0x%02x\n", reg_addr, reg_val);
+            reg_addr += 1;
+        }
+    } else
+        pr_info("unsupprt cmd!\n");
+Err:
+    kfree(buf_orig);
+    return ret;
+}
+static DEVICE_ATTR(sreg, S_IRUGO | S_IWUSR, sreg_read, sreg_write);
+
 static int camera_init( struct v4l2_subdev *sd, u32 val )
 {
     int rc = 0;
@@ -113,6 +237,10 @@ static int camera_init( struct v4l2_subdev *sd, u32 val )
 static int camera_reset( struct v4l2_subdev *sd, u32 val )
 {
     int rc = 0;
+
+    if(val)
+        return rc;
+
     if ( val < FIRMWARE_CONTEXT_NUMBER && SOC_SENSOR_SENSOR_RESET_ARR[val] ) {
         ( SOC_SENSOR_SENSOR_RESET_ARR[val] )( s_ctx[val].camera_context );
     } else {
@@ -136,7 +264,7 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
 
     subdev_camera_ctx *ctx = &s_ctx[ARGS_TO_PTR( arg )->ctx_num];
 
-    if ( ctx->camera_context == NULL ) {
+    if ((ctx->camera_context == NULL) || (ctx->camera_control.get_parameters == NULL)) {
         LOG( LOG_ERR, "Failed to process camera_ioctl. Sensor is not initialized yet. camera_init must be called before" );
         rc = -1;
         return rc;
@@ -309,15 +437,24 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
     case SOC_SENSOR_GET_CONTEXT_SEQ: {
         ARGS_TO_PTR( arg )
             ->isp_context_seq.sequence = params->isp_context_seq.sequence;
-        ARGS_TO_PTR( arg )
-            ->isp_context_seq.seq_num = params->isp_context_seq.seq_num;
-
+        if ( isp_seq_num == -1 || ( params->isp_context_seq.seq_table_max- 1 ) < isp_seq_num ) {
+           ARGS_TO_PTR( arg )
+               ->isp_context_seq.seq_num = params->isp_context_seq.seq_num;
+           LOG( LOG_ERR, "Warning: wrong isp seq num, isp_seq_num range = 0 - %d\n, set isp_seq_num = 0\n", ( params->isp_context_seq.seq_table_max- 1 ) );
+        } else {
+           ARGS_TO_PTR( arg )
+               ->isp_context_seq.seq_num = isp_seq_num;
+           LOG( LOG_ERR, "get isp_seq_num = %d\n", isp_seq_num );
+        }
     } break;
     case SOC_SENSOR_IR_CUT_SET: {
         int32_t preset = ARGS_TO_PTR( arg )->args.general.val_in;
         ctx->camera_control.ir_cut_set(ctx->camera_context,preset);
     } break;
-
+    case SOC_SENSOR_GET_ID: {
+        ARGS_TO_PTR( arg )
+            ->args.general.val_out = ctx->camera_control.get_id(ctx->camera_context);
+    } break;
     default:
         LOG( LOG_WARNING, "Unknown soc sensor ioctl cmd %d", cmd );
         rc = -1;
@@ -408,6 +545,8 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
     soc_sensor.dev = &pdev->dev;
     rc = v4l2_async_register_subdev( &soc_sensor );
 
+    device_create_file(dev, &dev_attr_sreg);
+
     LOG( LOG_ERR, "register v4l2 sensor device. result %d, sd 0x%x sd->dev 0x%x", rc, &soc_sensor, soc_sensor.dev );
 
     return rc;
@@ -415,6 +554,8 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
 
 static int soc_sensor_remove( struct platform_device *pdev )
 {
+    device_remove_file(&pdev->dev, &dev_attr_sreg);
+
     v4l2_async_unregister_subdev( &soc_sensor );
 
     if (sensor_bp != NULL) {

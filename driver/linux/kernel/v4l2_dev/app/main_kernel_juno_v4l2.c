@@ -38,29 +38,59 @@
 #include "system_hw_io.h"
 #include "system_sw_io.h"
 #include "system_am_sc.h"
+#include "system_am_md.h"
+
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
 #include <linux/delay.h>
 #include "v4l2_interface/isp-v4l2.h"
 
-
 #define LOG_CONTEXT "[ ACamera ]"
 #define ISP_V4L2_MODULE_NAME "isp-v4l2"
 
+#if PLATFORM_G12B
 #define AO_RTI_GEN_PWR_SLEEP0 	(0xff800000 + 0x3a * 4)
 #define AO_RTI_GEN_PWR_ISO0		(0xff800000 + 0x3b * 4)
 #define HHI_ISP_MEM_PD_REG0		(0xff63c000 + 0x45 * 4)
 #define HHI_ISP_MEM_PD_REG1		(0xff63c000 + 0x46 * 4)
 #define HHI_CSI_PHY_CNTL0		(0xff630000 + 0xd3 * 4)
 #define HHI_CSI_PHY_CNTL1		(0xff630000 + 0x114 * 4)
+#define HWI_ISP_RESET           (0xffd01090)
+
+#elif PLATFORM_C308X
+#define PWRCTRL_PWR_OFF0       (0xfe007800 + (0x0002 << 2))
+#define PWRCTRL_ISO_EN0        (0xfe007800 + (0x0001 << 2))
+#define PWRCTRL_FOCRSTN0       (0xfe007800 + (0x0008 << 2))
+#define PWRCTRL_MASK_MEM_ON5   (0xfe007800 + (0x0075 << 2))
+#define PWRCTRL_MASK_MEM_ON6   (0xfe007800 + (0x0076 << 2))
+#define ANACTRL_CSI_PHY_CNTL0  (0xfe007c00 + (0x0090 << 2))
+#define ANACTRL_CSI_PHY_CTRL1  (0xfe007c00 + (0x0091 << 2))
+#define ANACTRL_CSI_PHY_CTRL2  (0xfe007c00 + (0x0092 << 2))
+#define ANACTRL_CSI_PHY_CTRL3  (0xfe007c00 + (0x0093 << 2))
+#define RESETCTRL_RESET1       (0xfe000000 + (0x0001 << 2))
+
+#define ISP_MIPI_CLK            0xfe000910
+
+#define AO_RTI_GEN_PWR_SLEEP0 	(0xfe007800 + (0x0002 << 2))  //bit28
+#define AO_RTI_GEN_PWR_ISO0		(0xfe007800 + (0x0001 << 2))  //bit28
+#define HHI_ISP_MEM_PD_REG0		(0xfe007800 + (0x0075 << 2))
+#define HHI_ISP_MEM_PD_REG1		(0xfe007800 + (0x0076 << 2))
+#define HHI_CSI_PHY_CNTL0		(0xfe007c00 + (0x0090 << 2))
+#define HHI_CSI_PHY_CNTL1		(0xfe007c00 + (0x0091 << 2))
+
+#define HWI_ISP_RESET           (0xfe000000 + (0x0011 << 2))
+#endif
 
 struct device_info {
     struct clk* clk_isp_0;
     struct clk* clk_mipi_0;
     struct device_node *am_sc;
+    struct device_node *am_md;
+    int clk_level;
 };
 
+extern uint32_t seamless;
 extern uint8_t *isp_kaddr;
 extern resource_size_t isp_paddr;
 
@@ -91,6 +121,7 @@ struct acamera_v4l2_subdev_t {
     struct v4l2_async_subdev *soc_async_sd_ptr[V4L2_SOC_SUBDEV_NUMBER];
     int subdev_counter;
     struct v4l2_async_notifier notifier;
+    uint32_t hw_isp_addr;
 };
 
 static struct acamera_v4l2_subdev_t g_subdevs;
@@ -189,7 +220,7 @@ static int acamera_camera_async_complete( struct v4l2_async_notifier *notifier )
         rc = v4l2_device_register_subdev_nodes( &v4l2_dev );
 
         if ( rc == 0 ) {
-            rc = isp_v4l2_create_instance( &v4l2_dev, isp_pdev);
+            rc = isp_v4l2_create_instance( &v4l2_dev, isp_pdev, g_subdevs.hw_isp_addr );
 
             if ( rc == 0 ) {
                 initialized = 1;
@@ -431,6 +462,113 @@ static ssize_t dump_frame_write(
 
 static DEVICE_ATTR(dump_frame, S_IRUGO | S_IWUSR, dump_frame_read, dump_frame_write);
 
+static const char *isp_clk_level_usage_str = {
+    "Usage:\n"
+    "echo clk_lvl > /sys/devices/platform/ff000000.isp/isp_clk;\n"
+    "------clk_lvl------\n"
+    "0: default;\n"
+    "1: 100M;\n"
+    "2: 200M;\n"
+    "3: 250M;\n"
+    "4: 286M;\n"
+    "5: 333M;\n"
+    "6: 400M;\n"
+    "7: 500M;\n"
+    "8: 667M;\n"
+};
+
+static ssize_t isp_clk_read(
+    struct device *dev,
+    struct device_attribute *attr,
+    char *buf)
+{
+    return sprintf(buf, "%s\n", isp_clk_level_usage_str);
+}
+
+static ssize_t isp_clk_write(
+    struct device *dev, struct device_attribute *attr,
+    char const *buf, size_t size)
+{
+    char *buf_orig, *parm[5] = {NULL};
+    long val = 0;
+    ssize_t ret = size;
+    ssize_t rt = size;
+    u32 clk_level = 0;
+    u32 clk_rate = 0;
+    if (!buf)
+        return ret;
+
+    buf_orig = kstrdup(buf, GFP_KERNEL);
+    if (!buf_orig)
+        return ret;
+
+    parse_param(buf_orig, (char **)&parm);
+
+    if (parm[0] != NULL) {
+        if (kstrtol(parm[0], 16, &val) == 0)
+            clk_level = val;
+    } else {
+        kfree(buf_orig);
+        return -EINVAL;
+    }
+
+    switch (clk_level) {
+#if PLATFORM_G12B == 1
+        case 0:
+            clk_rate = 666666667;
+            break;
+#elif PLATFORM_C308X == 1
+        case 0:
+            clk_rate = 400000000;
+            break;
+#endif
+        case 1:
+            clk_rate = 100000000;
+            break;
+        case 2:
+            clk_rate = 200000000;
+            break;
+        case 3:
+            clk_rate = 250000000;
+            break;
+        case 4:
+            clk_rate = 286000000;
+            break;
+        case 5:
+            clk_rate = 333333333;
+            break;
+        case 6:
+            clk_rate = 400000000;
+            break;
+#if PLATFORM_G12B == 1
+        case 7:
+            clk_rate = 500000000;
+            break;
+        case 8:
+            clk_rate = 666666667;
+            break;
+#endif
+        default:
+            pr_err("Invalid clk level %d !\n", clk_level);
+            break;
+    }
+    if (clk_rate == 0) {
+         kfree(buf_orig);
+         return -EINVAL;
+    }
+    pr_err("clk_level: %d, clk %d\n",clk_level, clk_rate);
+    clk_set_rate(dev_info.clk_isp_0, clk_rate);
+    rt = clk_prepare_enable(dev_info.clk_isp_0);
+    if (rt != 0) {
+        LOG(LOG_CRIT, "Failed to enable isp clk");
+        return -EINVAL;
+    }
+    kfree(buf_orig);
+    return ret;
+}
+
+static DEVICE_ATTR(isp_clk, S_IRUGO | S_IWUSR, isp_clk_read, isp_clk_write);
+
 uint32_t write_reg(uint32_t val, unsigned long addr)
 {
     void __iomem *io_addr;
@@ -459,6 +597,7 @@ uint32_t read_reg(unsigned long addr)
     return ret;
 }
 
+#if PLATFORM_G12B
 uint32_t isp_power_on(void)
 {
     uint32_t orig, tmp;
@@ -487,8 +626,7 @@ static void hw_reset(bool reset)
 {
     void __iomem *reset_addr;
     uint32_t val;
-
-    reset_addr = ioremap_nocache(0xffd01090, 8);//ioremap_nocache(0xffd01014, 8);
+    reset_addr = ioremap_nocache(HWI_ISP_RESET, 8);//ioremap_nocache(0xffd01014, 8);
     if (reset_addr == NULL) {
         LOG(LOG_ERR, "%s: Failed to ioremap\n", __func__);
         return;
@@ -501,49 +639,176 @@ static void hw_reset(bool reset)
         val |= (1 <<1);
     __raw_writel(val, reset_addr);
 
+    if (!reset && reset_addr) {
+        iounmap(reset_addr);
+        reset_addr = NULL;
+    }
+
+    mdelay(5);
+
     iounmap(reset_addr);
     if (reset)
         LOG(LOG_INFO, "%s:reset isp\n", __func__);
     else
         LOG(LOG_INFO, "%s:release reset isp\n", __func__);
+
 }
 
-int32_t isp_hw_enable(void)
+#elif PLATFORM_C308X
+uint32_t isp_power_on(void)
+{
+    uint32_t orig, tmp;
+
+    orig = read_reg(PWRCTRL_PWR_OFF0);			//AO_PWR_SLEEP0
+    tmp = orig & 0xefffffff;						//set bit[28]=0
+    write_reg(tmp, PWRCTRL_PWR_OFF0);
+    mdelay(5);
+    orig = read_reg(PWRCTRL_ISO_EN0);			//AO_PWR_ISO0
+    tmp = orig & 0xefffffff;						//set bit[28]=0
+    write_reg(tmp, PWRCTRL_ISO_EN0);
+    mdelay(5);
+    orig = read_reg(PWRCTRL_FOCRSTN0);			//AO_PWR_ISO0
+    tmp = orig & 0xefffffff;						//set bit[28]=0
+    write_reg(tmp, PWRCTRL_FOCRSTN0);
+
+
+    write_reg(0x0, PWRCTRL_MASK_MEM_ON5);			//MEM_PD_REG0 set 0
+    write_reg(0x0, PWRCTRL_MASK_MEM_ON6);			//MEM_PD_REG1 set 0
+    //write_reg(0x0d010d00, ISP_MIPI_CLK);		        //isp & mipi clk
+    //write_reg(0x2f440603, ANACTRL_CSI_PHY_CNTL0);		//HHI_CSI_PHY_CNTL0
+    //write_reg(0x003f2222, ANACTRL_CSI_PHY_CTRL1);		//HHI_CSI_PHY_CNTL1
+
+    write_reg(0xdfff,0xfe000608);       // set GPIOA_13 output
+    write_reg(0xdfff,0xfe000604);       // pull down GPIOA_13
+    return 0;
+}
+
+void isp_power_down(void)
+{
+    return;
+}
+
+static void hw_reset(bool reset)
+{
+    void __iomem *reset_addr;
+    uint32_t val;
+    reset_addr = ioremap_nocache(HWI_ISP_RESET, 8);
+    if (reset_addr == NULL) {
+        LOG(LOG_ERR, "%s: Failed to ioremap\n", __func__);
+        return;
+    }
+
+    val = __raw_readl(reset_addr);
+    if (reset)
+        val &= ~(7 << 6);
+    else
+        val |= (7 << 6);
+    __raw_writel(val, reset_addr);
+
+    if (!reset && reset_addr) {
+        iounmap(reset_addr);
+        reset_addr = NULL;
+    }
+
+    mdelay(5);
+
+    iounmap(reset_addr);
+    if (reset)
+        LOG(LOG_INFO, "%s:reset isp\n", __func__);
+    else
+        LOG(LOG_INFO, "%s:release reset isp\n", __func__);
+
+}
+
+#endif
+
+int32_t isp_clk_enable(void)
 {
     int32_t rc = 0;
-    uint32_t isp_clk_rate = 666666667;
-    uint32_t isp_mipi_rate = 200000000;
+    uint32_t isp_clk_rate = 400000000;
 
-    isp_power_on();
+    switch (dev_info.clk_level) {
+#if PLATFORM_G12B == 1
+    case 0:
+        isp_clk_rate = 666666667;
+        break;
+#elif PLATFORM_C308X == 1
+    case 0:
+        isp_clk_rate = 400000000;
+        break;
+#endif
+    case 1:
+        isp_clk_rate = 100000000;
+        break;
+    case 2:
+        isp_clk_rate = 200000000;
+        break;
+    case 3:
+        isp_clk_rate = 250000000;
+        break;
+    case 4:
+        isp_clk_rate = 286000000;
+        break;
+    case 5:
+        isp_clk_rate = 333333333;
+        break;
+    case 6:
+        isp_clk_rate = 400000000;
+        break;
+#if PLATFORM_G12B == 1
+    case 7:
+        isp_clk_rate = 500000000;
+        break;
+    case 8:
+        isp_clk_rate = 666666667;
+        break;
+#endif
+    default:
+        pr_err("Invalid clk level %d !\n", dev_info.clk_level);
+        break;
+    }
 
-    clk_set_rate(dev_info.clk_isp_0, isp_clk_rate);
+#if PLATFORM_G12B == 1
+	uint32_t isp_mipi_rate = 200000000;
+	LOG(LOG_ERR, "isp clk level: %d, clk rate: %d", dev_info.clk_level, isp_clk_rate);
+
+	clk_set_rate(dev_info.clk_isp_0, isp_clk_rate);
+#endif
     rc = clk_prepare_enable(dev_info.clk_isp_0);
     if (rc != 0) {
         LOG(LOG_CRIT, "Failed to enable isp clk");
         return rc;
     }
 
-    clk_set_rate(dev_info.clk_mipi_0, isp_mipi_rate);
+#if PLATFORM_G12B == 1
+	clk_set_rate(dev_info.clk_mipi_0, isp_mipi_rate);
+#endif
     rc = clk_prepare_enable(dev_info.clk_mipi_0);
     if (rc != 0) {
         LOG(LOG_CRIT, "Failed to enable mipi clk");
         return rc;
     }
 
-    hw_reset(true);
-    mdelay(2);
-    hw_reset(false);
+#if PLATFORM_C308X == 1
+	uint32_t isp_mipi_rate = 200000000;
+	if(isp_clk_rate < clk_get_rate(dev_info.clk_isp_0))
+	{
+		clk_set_rate(dev_info.clk_isp_0, isp_clk_rate);
+		clk_set_rate(dev_info.clk_mipi_0, isp_mipi_rate);
+		LOG(LOG_CRIT, "isp set clk:%ld\n", clk_get_rate(dev_info.clk_isp_0));
+	}
+#endif
 
     return rc;
 }
 
-void isp_hw_disable(void)
+void isp_clk_disable(void)
 {
     clk_disable_unprepare(dev_info.clk_mipi_0);
     clk_disable_unprepare(dev_info.clk_isp_0);
-    isp_power_down();
 }
 
+#if 0
 static uint32_t isp_module_check(struct platform_device *pdev)
 {
     void __iomem *efuse_addr;
@@ -587,16 +852,19 @@ static uint32_t isp_module_check(struct platform_device *pdev)
 
     return 0;
 }
+#endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+static const struct v4l2_async_notifier_operations acamera_camera_async_ops = {
+	.bound = acamera_camera_async_bound,
+	.unbind = acamera_camera_async_unbind,
+	.complete = acamera_camera_async_complete,
+};
+#endif
 static int32_t isp_platform_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
     struct resource *isp_res;
-
-    if (isp_module_check(pdev)) {
-        LOG( LOG_CRIT, "This chip don't have isp module.\n" );
-        return rc;
-    }
 
     // Initialize irq
     isp_res = platform_get_resource_byname( pdev,
@@ -604,7 +872,7 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 
     if ( isp_res ) {
         LOG( LOG_ERR, "Juno isp irq = %d, flags = 0x%x !\n", (int)isp_res->start, (int)isp_res->flags );
-        system_interrupts_set_irq( isp_res->start, isp_res->flags );
+        system_interrupts_set_irq( isp_res->start, 4);
     } else {
         LOG( LOG_ERR, "Error, no isp_irq found from DT\n" );
         return -1;
@@ -621,6 +889,8 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
         LOG( LOG_ERR, "Error, no IORESOURCE_MEM DT!\n" );
     }
 
+    isp_power_on();
+
     of_reserved_mem_device_init(&(pdev->dev));
 
     memset(&dev_info, 0, sizeof(dev_info));
@@ -634,33 +904,71 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
         am_sc_parse_dt(dev_info.am_sc);
     }
 
+#if PLATFORM_G12B == 1
     dev_info.clk_isp_0 = devm_clk_get(&pdev->dev, "cts_mipi_isp_clk_composite");
+    dev_info.clk_mipi_0 = devm_clk_get(&pdev->dev, "cts_mipi_csi_phy_clk0_composite");
+#elif PLATFORM_C308X == 1
+    dev_info.am_md = of_parse_phandle(pdev->dev.of_node, "att-device", 0);
+
+    if (dev_info.am_md == NULL) {
+        LOG( LOG_ERR,"Failed to get att device\n");
+    } else {
+        LOG( LOG_ERR,"Success to get att device: %s\n", dev_info.am_md->name);
+        am_md_parse_dt(dev_info.am_md);
+    }
+
+    dev_info.clk_isp_0 = devm_clk_get(&pdev->dev, "cts_mipi_isp_clk");
+    dev_info.clk_mipi_0 = devm_clk_get(&pdev->dev, "cts_mipi_csi_phy_clk0");
+    rc = of_property_read_u32(pdev->dev.of_node, "clk-level",
+			      &(dev_info.clk_level));
+#endif
+
     if (IS_ERR(dev_info.clk_isp_0)) {
-        LOG(LOG_ERR, "cannot get clock\n");
+        LOG(LOG_ERR, "cannot get isp clock\n");
         dev_info.clk_isp_0 = NULL;
         return -1;
     }
 
-    dev_info.clk_mipi_0 = devm_clk_get(&pdev->dev, "cts_mipi_csi_phy_clk0_composite");
     if (IS_ERR(dev_info.clk_mipi_0)) {
-        LOG(LOG_ERR, "cannot get clock\n");
+        LOG(LOG_ERR, "cannot get phy clock\n");
         dev_info.clk_mipi_0 = NULL;
         return -1;
     }
+    if (rc != 0) {
+        pr_err("%s: failed to get isp slave addr\n", __func__);
+        dev_info.clk_level = 0;
+    }
 
-    system_interrupts_init();
+	isp_clk_enable();
+
+	if(seamless)
+    {
+	    if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+	    {
+	        hw_reset(true);
+	        system_interrupts_init();
+	        hw_reset(false);
+	    }
+	    else
+	        system_interrupts_init();
+	}
+	else
+	{
+		hw_reset(true);
+		system_interrupts_init();
+		hw_reset(false);
+	}
 
     isp_pdev = pdev;
     static atomic_t drv_instance = ATOMIC_INIT( 0 );
     v4l2_device_set_name( &v4l2_dev, ISP_V4L2_MODULE_NAME, &drv_instance );
-    rc = v4l2_device_register( NULL, &v4l2_dev );
+    rc = v4l2_device_register( &pdev->dev, &v4l2_dev );
     if ( rc == 0 ) {
         LOG( LOG_ERR, "register v4l2 driver. result %d.", rc );
     } else {
         LOG( LOG_ERR, "failed to register v4l2 device. rc = %d", rc );
         goto free_res;
     }
-
 #if V4L2_SOC_SUBDEV_ENABLE
     int idx;
 
@@ -678,10 +986,14 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
         g_subdevs.soc_subdevs[idx] = 0;
     }
 
+    g_subdevs.hw_isp_addr = (uint32_t)isp_res->start; //ISP_SOC_START_ADDR;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+    g_subdevs.notifier.ops = &acamera_camera_async_ops;
+#else
     g_subdevs.notifier.bound = acamera_camera_async_bound;
     g_subdevs.notifier.complete = acamera_camera_async_complete;
     g_subdevs.notifier.unbind = acamera_camera_async_unbind;
-
+#endif
     g_subdevs.notifier.subdevs = (struct v4l2_async_subdev **)&g_subdevs.soc_async_sd_ptr;
     g_subdevs.notifier.num_subdevs = V4L2_SOC_SUBDEV_NUMBER;
 
@@ -689,11 +1001,11 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 
     device_create_file(&pdev->dev, &dev_attr_reg);
     device_create_file(&pdev->dev, &dev_attr_dump_frame);
-
+    device_create_file(&pdev->dev, &dev_attr_isp_clk);
     LOG( LOG_ERR, "Init finished. async register notifier result %d. Waiting for subdevices", rc );
 #else
     // no subdevice is used
-    rc = isp_v4l2_create_instance( &v4l2_dev, isp_pdev);
+    rc = isp_v4l2_create_instance( &v4l2_dev, isp_pdev, (uint32_t)isp_res->start );
     if ( rc < 0 )
         goto free_res;
 
@@ -716,7 +1028,7 @@ static int isp_platform_remove(struct platform_device *pdev)
 {
     device_remove_file(&pdev->dev, &dev_attr_reg);
     device_remove_file(&pdev->dev, &dev_attr_dump_frame);
-
+    device_remove_file(&pdev->dev, &dev_attr_isp_clk);
     if ( initialized == 1 ) {
         isp_v4l2_destroy_instance(isp_pdev);
         initialized = 0;
@@ -728,7 +1040,11 @@ static int isp_platform_remove(struct platform_device *pdev)
 
     v4l2_device_unregister( &v4l2_dev );
 
+    hw_reset(true);
+
     system_interrupts_deinit();
+
+    isp_clk_disable();
 
     if (dev_info.clk_mipi_0 != NULL) {
         devm_clk_put(&pdev->dev, dev_info.clk_mipi_0);
@@ -744,6 +1060,8 @@ static int isp_platform_remove(struct platform_device *pdev)
         am_sc_deinit_parse_dt();
         dev_info.am_sc = NULL;
     }
+
+    isp_power_down();
 
     close_hw_io();
 
@@ -773,7 +1091,7 @@ static int __init fw_module_init( void )
 
     LOG( LOG_ERR, "Juno isp fw_module_init\n" );
 
-	rc = platform_driver_register(&isp_platform_driver);
+    rc = platform_driver_register(&isp_platform_driver);
 
     return rc;
 }

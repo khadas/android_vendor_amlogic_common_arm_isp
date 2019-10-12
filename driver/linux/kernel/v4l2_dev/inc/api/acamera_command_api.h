@@ -167,13 +167,15 @@
 #define CALIBRATION_AF_ZONE_WGHT_VER                      0x00000075
 #define CALIBRATION_AE_CONTROL_HDR_TARGET                 0x00000076
 #define CALIBRATION_AE_CONTROL                            0x00000077
-
+#define CALIBRATION_GAMMA_EV1                             0x00000078
+#define CALIBRATION_GAMMA_EV2                             0x00000079
+#define CALIBRATION_GAMMA_THRESHOLD                       0x0000007A
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 120
+#define CALIBRATION_TOTAL_SIZE 123
 //------------------FILE TRANSFER-------------------
 
 
@@ -320,6 +322,8 @@
 #define SCALER_SRC_HEIGHT                                 0x00000077
 #define AE_ZONE_WEIGHT                                    0x00000078
 #define AWB_ZONE_WEIGHT                                   0x00000079
+#define SENSOR_HWID                                       0x00000080
+#define HUE_THETA_ID                                      0x00000081
 // ------------------------------------------------------------------------------ //
 //		VALUE LIST
 // ------------------------------------------------------------------------------ //
@@ -416,18 +420,18 @@
 // ------------------------------------------------------------------------------ //
 //		SET/GET FUNCTION
 // ------------------------------------------------------------------------------ //
-//set command: ret = acamera_command( TALGORITHMS, AF_MODE, AF_AUTO, COMMAND_SET, &RET_VALUE);
-//get command: ret = acamera_command( TALGORITHMS, AF_MODE, AF_AUTO, COMMAND_GET, &RET_VALUE);
+//set command: ret = acamera_command( ctx_id, TALGORITHMS, AF_MODE, AF_AUTO, COMMAND_SET, &RET_VALUE);
+//get command: ret = acamera_command( ctx_id, TALGORITHMS, AF_MODE, AF_AUTO, COMMAND_GET, &RET_VALUE);
 
 //The main api function to control and change the firmware state
-uint8_t acamera_command( uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value);
+uint8_t acamera_command( uint32_t ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value);
 
 //The function to change firmware internal calibrations.
-uint8_t acamera_api_calibration( uint8_t type, uint8_t id, uint8_t direction, void* data, uint32_t data_size, uint32_t* ret_value);
+uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint8_t direction, void* data, uint32_t data_size, uint32_t* ret_value);
 
-uint8_t acamera_api_dma_buffer( uint8_t type, void* data, uint32_t data_size, uint32_t* ret_value);
-void acamera_api_dma_buff_queue_reset(uint8_t type);
-uint8_t acamera_api_set_fps(uint8_t type, uint32_t c_fps, uint32_t t_fps);
-void acamera_api_dma_buff_get_next(uint8_t type);
+uint8_t acamera_api_dma_buffer( uint32_t ctx_id, uint8_t type, void* data, uint32_t data_size, uint32_t* ret_value, uint32_t index);
+void acamera_api_dma_buff_queue_reset(uint32_t ctx_id, uint8_t type);
+uint8_t acamera_api_set_fps(uint32_t ctx_id, uint8_t type, uint32_t c_fps, uint32_t t_fps);
+void acamera_api_dma_buff_get_next(uint32_t ctx_id, uint8_t type);
 
 #endif//_ACAMERA_COMMAND_API_H_

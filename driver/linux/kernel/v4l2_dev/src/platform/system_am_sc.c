@@ -689,6 +689,7 @@ static void enable_isp_scale(
 		isp_mif_setting(wr_mif);
 		sc_wr_reg_bits(ISP_SCWR_MIF_CTRL0, 0, 14, 1);
 		if (wr_mif->reg_pingpong_en) {
+			sc_wr_reg_bits(ISP_SCWR_MIF_CTRL0, 0, 19, 1);
 			sc_wr_reg_bits(ISP_SCWR_MIF_CTRL0, 1, 18, 1); // pingpong init
 			sc_wr_reg_bits(ISP_SCWR_MIF_CTRL0, 0, 18, 1); // pingpong init
 		}
@@ -783,7 +784,7 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
 	mif_frame->reg_burst_lim = 3;
 	mif_frame->reg_hconv_mode = 2;
 	mif_frame->reg_vconv_mode = 0;
-	mif_frame->reg_pingpong_en = 0;
+	mif_frame->reg_pingpong_en = 1;
 	mif_frame->reg_start_x = 0;
 	mif_frame->reg_start_y = 0;
 	mif_frame->reg_end_x = g_sc->info.out_w -1;
@@ -847,23 +848,20 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
 	mif_frame->reg_canvas_baddr_luma =
 		buf->primary.address;
 	mif_frame->reg_canvas_baddr_luma_other =
-		mif_frame->reg_canvas_baddr_luma
-		+ frame_size;
+		mif_frame->reg_canvas_baddr_luma;
 
 	if (mif_frame->reg_canvas_strb_chroma) {
 		mif_frame->reg_canvas_baddr_chroma =
 			buf->secondary.address;
 		mif_frame->reg_canvas_baddr_chroma_other =
-			mif_frame->reg_canvas_baddr_luma_other
-			+ plane_size;
+			mif_frame->reg_canvas_baddr_luma_other;
 	}
 
 	if (mif_frame->reg_canvas_strb_r) {
 		mif_frame->reg_canvas_baddr_r =
 			buf->secondary.address;
 		mif_frame->reg_canvas_baddr_r_other =
-			mif_frame->reg_canvas_baddr_chroma_other
-			+ plane_size;
+			mif_frame->reg_canvas_baddr_chroma_other;
 	}
 
 	if (!mif_frame->reg_pingpong_en) {
@@ -963,11 +961,17 @@ void sc_do_tasklet( unsigned long data )
 }
 #endif
 
-void sc_config_next_buffer(tframe_t* f_buf)
+void sc_config_next_buffer(tframe_t* f_buf, int ping)
 {
-	isp_frame.reg_canvas_baddr_luma = f_buf->primary.address;
-	isp_frame.reg_canvas_baddr_chroma = f_buf->secondary.address;
-	isp_frame.reg_canvas_baddr_r = f_buf->secondary.address;
+	if (ping) {
+		isp_frame.reg_canvas_baddr_luma = f_buf->primary.address;
+		isp_frame.reg_canvas_baddr_chroma = f_buf->secondary.address;
+		isp_frame.reg_canvas_baddr_r = f_buf->secondary.address;
+	} else {
+		isp_frame.reg_canvas_baddr_luma_other = f_buf->primary.address;
+		isp_frame.reg_canvas_baddr_chroma_other = f_buf->secondary.address;
+		isp_frame.reg_canvas_baddr_r_other = f_buf->secondary.address;
+	}
 	isp_mif_setting(&isp_frame);
 }
 
@@ -1000,12 +1004,11 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
 			}
 			spin_unlock_irqrestore( &g_sc->sc_lock, flags );
 
-			sc_config_next_buffer(f_buf);
-			cur_frame = f_buf;
-
-			isr_count++;
 			sc_reg_rd(ISP_SCWR_TOP_DBG0, &flag);
+			sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
 			flag = (flag & (1 << 6)) ? 1 : 0;
+			isr_count++;
+			cur_frame = f_buf;
 
 			if (flag == last_end_frame) {
 				if (!pre_frame) {
@@ -1184,6 +1187,16 @@ uint32_t am_sc_get_height(void)
 	return g_sc->info.out_h;
 }
 
+uint32_t am_sc_get_output_format(void)
+{
+	if (!g_sc) {
+		pr_info("%d, g_sc is NULL.\n", __LINE__);
+		return -1;
+	}
+	return g_sc->info.out_fmt;
+}
+
+
 void am_sc_set_height(uint32_t src_h, uint32_t out_h)
 {
 	if (!g_sc) {
@@ -1241,6 +1254,9 @@ int am_sc_system_init(void)
 		pr_info("%d, g_sc is NULL.\n", __LINE__);
 		return -1;
 	}
+
+	if(g_sc->req_buf_num == 0)
+		return 0;
 
 	ret = kfifo_alloc(&g_sc->sc_fifo_in, PAGE_SIZE, GFP_KERNEL);
 	if (ret) {

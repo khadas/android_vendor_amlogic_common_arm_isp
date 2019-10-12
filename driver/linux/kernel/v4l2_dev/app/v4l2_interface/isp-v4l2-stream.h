@@ -20,6 +20,9 @@
 #ifndef _ISP_V4L2_STREAM_H_
 #define _ISP_V4L2_STREAM_H_
 
+#include <linux/version.h>
+#include <linux/utsname.h>
+
 #include <linux/videodev2.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 #include <media/videobuf2-v4l2.h>
@@ -83,6 +86,7 @@ typedef struct isp_fw_frame_mgr {
  */
 typedef struct _isp_v4l2_stream_t {
     /* Control fields */
+    uint32_t ctx_id;
     int stream_id;
     isp_v4l2_stream_type_t stream_type;
     int stream_started;
@@ -96,6 +100,7 @@ typedef struct _isp_v4l2_stream_t {
 
     /* Video buffer field*/
     struct list_head stream_buffer_list;
+    struct list_head stream_buffer_list_busy;
     spinlock_t slock;
 
     /* Temporal fields for memcpy */
@@ -105,18 +110,17 @@ typedef struct _isp_v4l2_stream_t {
 #endif
     isp_fw_frame_mgr_t frame_mgr;
     int fw_frame_seq_count;
-    struct ion_client *ion_client;
     struct vb2_queue* vb2_q;
 } isp_v4l2_stream_t;
 
 
 /* stream control interface */
-int isp_v4l2_stream_init_static_resources(void);
-void isp_v4l2_stream_deinit_static_resources(void);
-int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id );
-void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream );
+int isp_v4l2_stream_init_static_resources( struct platform_device *pdev, uint32_t ctx_id );
+void isp_v4l2_stream_deinit_static_resources( struct platform_device *pdev );
+int isp_v4l2_stream_init( isp_v4l2_stream_t **ppstream, int stream_id, int ctx_num );
+void isp_v4l2_stream_deinit( isp_v4l2_stream_t *pstream, int stream_on_count );
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream );
-void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream );
+void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream, int stream_on_count );
 
 /* stream configuration interface */
 int isp_v4l2_stream_enum_framesizes( isp_v4l2_stream_t *pstream, struct v4l2_frmsizeenum *fsize );

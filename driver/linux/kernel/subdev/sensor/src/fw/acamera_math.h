@@ -65,7 +65,7 @@
 #endif
 
 
-#define array_size( a ) \
+#define array_size_s( a ) \
     ( sizeof( a ) / sizeof( a[0] ) )
 
 

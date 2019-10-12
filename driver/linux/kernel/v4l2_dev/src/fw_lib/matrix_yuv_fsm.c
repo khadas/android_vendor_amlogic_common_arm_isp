@@ -102,13 +102,13 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         break;
 
     case FSM_PARAM_SET_MATRIX_YUV_HUE_THETA:
-        if ( !input || input_size != sizeof( uint32_t ) ) {
+        if ( !input || input_size != sizeof( uint16_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-        p_fsm->hue_theta = *(uint32_t *)input;
+        p_fsm->hue_theta = *(uint16_t *)input;
         matrix_yuv_update( p_fsm );
         break;
 

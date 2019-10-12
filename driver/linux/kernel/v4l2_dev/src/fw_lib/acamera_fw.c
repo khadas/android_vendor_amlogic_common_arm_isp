@@ -32,6 +32,7 @@
 #include "sensor_init.h"
 #include "isp_config_seq.h"
 #include "system_am_sc.h"
+#include "system_autowrite.h"
 
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
 
@@ -43,8 +44,13 @@
 #include "metadata_api.h"
 #endif
 
+#include "acamera_3aalg_preset.h"
 
 static const acam_reg_t **p_isp_data = SENSOR_ISP_SEQUENCE_DEFAULT;
+
+uint32_t seamless = 0;
+module_param(seamless, uint, 0664);
+MODULE_PARM_DESC(seamless, "\n control seamless\n");
 
 extern void acamera_notify_evt_data_avail( void );
 
@@ -71,29 +77,40 @@ void acamera_load_sw_sequence( uintptr_t isp_base, const acam_reg_t **sequence, 
 
 void acamera_fw_init( acamera_context_t *p_ctx )
 {
-
 #if ACAMERA_ISP_PROFILING
 #if ACAMERA_ISP_PROFILING_INIT
-    p_ctx->binit_profiler = 0;
-    p_ctx->breport_profiler = 0;
+	p_ctx->binit_profiler = 0;
+	p_ctx->breport_profiler = 0;
 #else
-    p_ctx->binit_profiler = 0;
-    p_ctx->breport_profiler = 0;
+	p_ctx->binit_profiler = 0;
+	p_ctx->breport_profiler = 0;
 #endif
-    p_ctx->start_profiling = 500; //start when gframe == 500
-    p_ctx->stop_profiling = 1000; //stop  when gframe == 1000
+	p_ctx->start_profiling = 500; //start when gframe == 500
+	p_ctx->stop_profiling = 1000; //stop  when gframe == 1000
 #endif
 
-    p_ctx->irq_flag = 1;
+	p_ctx->irq_flag = 1;
 
-    p_ctx->fsm_mgr.p_ctx = p_ctx;
-    p_ctx->fsm_mgr.ctx_id = p_ctx->context_id;
-    p_ctx->fsm_mgr.isp_base = p_ctx->settings.isp_base;
-    acamera_fsm_mgr_init( &p_ctx->fsm_mgr );
+	if(seamless)
+	{
+		if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+			p_ctx->fsm_mgr.isp_seamless = 0;
+		else
+			p_ctx->fsm_mgr.isp_seamless = 1;
+	}
+	else
+		p_ctx->fsm_mgr.isp_seamless = 0;
+	
+	LOG(LOG_CRIT, "seamless:%d", p_ctx->fsm_mgr.isp_seamless);
 
-    p_ctx->irq_flag = 0;
-    acamera_fw_interrupts_enable( p_ctx );
-    p_ctx->system_state = FW_RUN;
+	p_ctx->fsm_mgr.p_ctx = p_ctx;
+	p_ctx->fsm_mgr.ctx_id = p_ctx->context_id;
+ 	p_ctx->fsm_mgr.isp_base = p_ctx->settings.isp_base;
+	acamera_fsm_mgr_init( &p_ctx->fsm_mgr );
+
+	p_ctx->irq_flag = 0;
+	acamera_fw_interrupts_enable( p_ctx );
+	p_ctx->system_state = FW_RUN;
 }
 
 void acamera_fw_deinit( acamera_context_t *p_ctx )
@@ -432,7 +449,7 @@ static void configure_all_frame_buffers( acamera_context_ptr_t p_ctx )
 
 void acamera_fw_get_sensor_name(uint32_t *sname)
 {
-    acamera_command(TSENSOR, SENSOR_NAME, 0, COMMAND_GET, sname);
+    acamera_command(0, TSENSOR, SENSOR_NAME, 0, COMMAND_GET, sname);
     if (sname == NULL) {
         LOG(LOG_ERR, "Error input param\n");
     }
@@ -508,14 +525,159 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
 #else
 
+int acamera_3aalg_enable(void)
+{
+#ifdef ACAMERA_PRESET_FREERTOS
+	acamera_alg_preset_t * total_param;
+	char *reserve_virt_addr = phys_to_virt(ACAMERA_ALG_PRE_BASE);
+	if(autowrite_fr_start_address_read())
+		reserve_virt_addr = phys_to_virt(autowrite_fr_start_address_read() + autowrite_fr_writer_memsize_read());
+	else if(autowrite_ds1_start_address_read())
+		reserve_virt_addr = phys_to_virt(autowrite_ds1_start_address_read() + autowrite_ds1_writer_memsize_read());
+
+	//system_memcpy((void *)&total_param, (void *)reserve_virt_addr, sizeof(total_param));
+	total_param = (acamera_alg_preset_t *)reserve_virt_addr; 
+
+	if(total_param->ae_pre_info.skip_cnt == 0xFFFF && total_param->awb_pre_info.skip_cnt == 0xFFFF)
+	{
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+void acamera_3aalg_preset(acamera_fsm_mgr_t *p_fsm_mgr)
+{
+	isp_ae_preset_t ae_param;
+	isp_awb_preset_t awb_param;
+	isp_gamma_preset_t gamma_param;
+	isp_iridix_preset_t iridix_param;
+    fsm_param_sensor_info_t sensor_info;
+
+	acamera_fsm_mgr_get_param( p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+	if(sensor_info.sensor_exp_number == 2)
+	{
+		ae_param.skip_cnt = 5;
+		ae_param.exposure_log2 = 1726569;
+		ae_param.integrator = 51797079;
+		ae_param.error_log2 = 0;
+		ae_param.exposure_ratio = 512;
+
+		awb_param.skip_cnt = 15;
+		awb_param.wb_log2[0] = 252071;
+		awb_param.wb_log2[1] = 87;
+		awb_param.wb_log2[2] = 87;
+		awb_param.wb_log2[3] = 180394;
+		awb_param.wb[0] = 527;
+		awb_param.wb[1] = 271;
+		awb_param.wb[2] = 271;
+		awb_param.wb[3] = 436;
+		awb_param.global_awb_red_gain = 302;
+		awb_param.global_awb_blue_gain = 234;
+		awb_param.p_high = 78;
+		awb_param.temperature_detected = 6410;
+		awb_param.light_source_candidate = 3;
+
+		gamma_param.skip_cnt = 30;
+		gamma_param.gamma_gain = 266;
+		gamma_param.gamma_offset = 39;
+
+		iridix_param.skip_cnt = 90;
+		iridix_param.strength_target = 30681;
+		iridix_param.iridix_contrast = 3986;
+		iridix_param.dark_enh = 1500;
+		iridix_param.iridix_global_DG = 256;
+		iridix_param.diff = 256;
+		iridix_param.iridix_strength = 30681;
+		LOG(LOG_CRIT, "Enter FS_Lin_2Exp Preset");
+	}
+	else
+	{
+		ae_param.skip_cnt = 5;
+		ae_param.exposure_log2 = 2011011;
+		ae_param.integrator = 33165172;
+		ae_param.error_log2 = 0;
+		ae_param.exposure_ratio = 64;
+		
+		awb_param.skip_cnt = 15;
+		awb_param.wb_log2[0] = 252071;
+		awb_param.wb_log2[1] = 87;
+		awb_param.wb_log2[2] = 87;
+		awb_param.wb_log2[3] = 180394;
+		awb_param.wb[0] = 527;
+		awb_param.wb[1] = 271;
+		awb_param.wb[2] = 271;
+		awb_param.wb[3] = 436;
+		awb_param.global_awb_red_gain = 270;
+		awb_param.global_awb_blue_gain = 236;
+		awb_param.p_high = 29;
+		awb_param.temperature_detected = 5400;
+		awb_param.light_source_candidate = 3;
+
+		gamma_param.skip_cnt = 30;
+		gamma_param.gamma_gain = 340;
+		gamma_param.gamma_offset = 15;
+
+		iridix_param.skip_cnt = 90;
+		iridix_param.strength_target = 13708;
+		iridix_param.iridix_contrast = 2464;
+		iridix_param.dark_enh = 400;
+		iridix_param.iridix_global_DG = 256;
+		iridix_param.diff = 256;
+		iridix_param.iridix_strength = 13708;
+		LOG(LOG_CRIT, "Enter Linear Binary Preset");
+	}
+
+#ifdef ACAMERA_PRESET_FREERTOS
+	acamera_alg_preset_t total_param;
+	char *reserve_virt_addr = phys_to_virt(ACAMERA_ALG_PRE_BASE);
+	if(autowrite_fr_start_address_read())
+		reserve_virt_addr = phys_to_virt(autowrite_fr_start_address_read() + autowrite_fr_writer_memsize_read());
+	else if(autowrite_ds1_start_address_read())
+		reserve_virt_addr = phys_to_virt(autowrite_ds1_start_address_read() + autowrite_ds1_writer_memsize_read());
+
+	system_memcpy((void *)&total_param, (void *)reserve_virt_addr, sizeof(total_param));
+
+	if(total_param.ae_pre_info.skip_cnt == 0xFFFF && total_param.awb_pre_info.skip_cnt == 0xFFFF)
+	{
+	    total_param.ae_pre_info.skip_cnt = 5;
+		total_param.awb_pre_info.skip_cnt = 15;
+		total_param.gamma_pre_info.skip_cnt = 30;
+		total_param.iridix_pre_info.skip_cnt = 90;
+
+		system_memcpy(&ae_param, &total_param.ae_pre_info,sizeof(ae_param));
+		system_memcpy(&awb_param, &total_param.awb_pre_info,sizeof(awb_param));
+		system_memcpy(&gamma_param, &total_param.gamma_pre_info,sizeof(gamma_param));
+		system_memcpy(&iridix_param, &total_param.iridix_pre_info,sizeof(iridix_param));
+
+	    LOG(LOG_CRIT, "Preset Value ae_param: %d,%d,%d,%d, Gamma:%d,%d",ae_param.skip_cnt,\
+		ae_param.exposure_log2,ae_param.error_log2,ae_param.integrator,gamma_param.gamma_gain,gamma_param.gamma_offset);
+	}
+	else
+#endif
+	{
+		uint8_t input = 0xff;
+
+		//Configure donot skip sensor initialization with test pattern command.
+		//mode == 0xff would configure to call sending sensor setting.
+		acamera_fsm_mgr_set_param(p_fsm_mgr, FSM_PARAM_SET_SENSOR_TEST_PATTERN, &input, sizeof(input));
+	}
+
+	ctrl_channel_3aalg_param_init(&ae_param,&awb_param,&gamma_param,&iridix_param);
+
+	acamera_fsm_mgr_set_param( p_fsm_mgr, FSM_PARAM_SET_AE_PRESET, &ae_param, sizeof(ae_param) );
+	acamera_fsm_mgr_set_param( p_fsm_mgr, FSM_PARAM_SET_AWB_PRESET, &awb_param, sizeof(awb_param) );
+	acamera_fsm_mgr_set_param( p_fsm_mgr, FSM_PARAM_SET_GAMMA_PRESET, &gamma_param, sizeof(gamma_param) );
+	acamera_fsm_mgr_set_param( p_fsm_mgr, FSM_PARAM_SET_IRIDIX_PRESET, &iridix_param, sizeof(iridix_param) );
+}
 
 int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settings, acamera_firmware_t *g_fw )
 {
-    int32_t result = 0;
-    // keep the context pointer for debug purposes
-    p_ctx->context_ref = (uint32_t *)p_ctx;
-    p_ctx->p_gfw = g_fw;
-    if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
+	int32_t result = 0;
+	// keep the context pointer for debug purposes
+	p_ctx->context_ref = (uint32_t *)p_ctx;
+	p_ctx->p_gfw = g_fw;
+	if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
 
         LOG( LOG_INFO, "Allocated memory for config space of size %d bytes", ACAMERA_ISP1_SIZE );
         LOG( LOG_INFO, "Allocated memory for metering of size %d bytes", ACAMERA_METERING_STATS_MEM_SIZE );
@@ -528,7 +690,19 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         // each context is initialized to the default state
         p_ctx->isp_sequence = p_isp_data;
 
-        acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
+#if FW_DO_INITIALIZATION
+		if(seamless)
+		{
+			if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+				acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
+		}
+		else
+			acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS );
+#endif
+
+#if defined( SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT )
+		acamera_load_sw_sequence( p_ctx->settings.isp_base, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_CONTEXT );
+#endif
 
 #if defined( SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_FPGA ) && ISP_HAS_FPGA_WRAPPER
         // these settings are loaded only for ARM FPGA demo platform and must be ignored on other systems
@@ -556,7 +730,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
             p_ctx->settings.custom_initialization( p_ctx->context_id );
         }
 
-        acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+        //acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
         p_ctx->initialized = 1;
 
@@ -565,6 +739,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         LOG( LOG_CRIT, "Failed to allocate memory for ISP config context" );
     }
 
+    acamera_3aalg_preset(&p_ctx->fsm_mgr);
 
     return result;
 }

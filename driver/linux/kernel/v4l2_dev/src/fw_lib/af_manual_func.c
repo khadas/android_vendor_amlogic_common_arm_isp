@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#include <linux/vmalloc.h>
 #include "acamera_types.h"
 
 #include "acamera_fw.h"
@@ -166,6 +166,25 @@ void AF_init( AF_fsm_ptr_t p_fsm )
 {
     int32_t result = 0;
     af_lms_param_t *param = NULL;
+
+	p_fsm->zone_weight = vmalloc(AF_ZONES_COUNT_MAX*sizeof(uint8_t));
+	if(p_fsm->zone_weight == NULL){
+        LOG(LOG_ERR, "Failed to malloc mem");
+        return;
+    }
+		
+	p_fsm->zone_process_statistic = vmalloc(AF_ZONES_COUNT_MAX*sizeof(uint64_t));
+	if(p_fsm->zone_process_statistic == NULL){
+        LOG(LOG_ERR, "Failed to malloc mem");
+        return;
+    }
+		
+	p_fsm->zone_process_reliablility = vmalloc(AF_ZONES_COUNT_MAX*sizeof(uint32_t));
+	if(p_fsm->zone_process_reliablility == NULL){
+        LOG(LOG_ERR, "Failed to malloc mem");
+        return;
+    }
+	
     //check if lens was initialised properly
     if ( !p_fsm->lens_driver_ok ) {
         p_fsm->lens_ctx = NULL;
@@ -210,4 +229,22 @@ void AF_deinit( AF_fsm_ptr_t p_fsm )
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.lens_deinit )
         ACAMERA_FSM2CTX_PTR( p_fsm )
             ->settings.lens_deinit( p_fsm->lens_ctx );
+	
+    if(p_fsm->zone_weight)
+	{
+	    vfree(p_fsm->zone_weight);
+		p_fsm->zone_weight = NULL;
+    }
+	
+	if(p_fsm->zone_process_statistic)
+	{
+	    vfree(p_fsm->zone_process_statistic);
+		p_fsm->zone_process_statistic = NULL;
+    }    
+	
+	if(p_fsm->zone_process_reliablility)
+	{
+		vfree(p_fsm->zone_process_reliablility);
+		p_fsm->zone_process_reliablility = NULL;
+	}
 }

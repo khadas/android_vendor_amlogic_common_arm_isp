@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#include <linux/vmalloc.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "acamera_math.h"
@@ -109,7 +109,7 @@ typedef struct {
     data_read_f data_read;
     data_write_f data_write;
     int state;
-    uint8_t buffer[CONNECTION_BUFFER_SIZE];
+    uint8_t *buffer;
     uint32_t rx_buffer_inx;
     uint32_t rx_buffer_size;
     uint32_t tx_buffer_inx;
@@ -188,6 +188,7 @@ void acamera_connection_init( void )
         ACAMERA_CONNECTION_TRACE( "Connection is character device" );
         con.data_read = (data_read_f)acamera_chardev_read;
         con.data_write = (data_write_f)acamera_chardev_write;
+		con.buffer = vmalloc(CONNECTION_BUFFER_SIZE);
     } else {
         LOG( LOG_ERR, "Unable to register character device" );
     }
@@ -211,6 +212,8 @@ void acamera_connection_destroy( void )
     con.param = NULL;
     con.data_read = NULL;
     con.data_write = NULL;
+	if(con.buffer)
+		vfree(con.buffer);
 #endif /* ISP_HAS_STREAM_CONNECTION */
 }
 

@@ -503,7 +503,7 @@ void sbuf_update_calibration_data( sbuf_fsm_ptr_t p_fsm )
     uint32_t fw_id = p_fsm->cmn.ctx_id;
     struct sbuf_context *p_ctx = NULL;
 
-    LOG( LOG_ERR, "+++ sbuf_update_calibration_data" );
+    LOG( LOG_INFO, "+++ sbuf_update_calibration_data" );
 
     p_ctx = &( sbuf_contexts[fw_id] );
     if ( p_ctx->fw_id != fw_id ) {
@@ -513,7 +513,7 @@ void sbuf_update_calibration_data( sbuf_fsm_ptr_t p_fsm )
 
     sbuf_calibration_init( p_ctx );
 
-    LOG( LOG_ERR, "--- sbuf_update_calibration_data" );
+    LOG( LOG_INFO, "--- sbuf_update_calibration_data" );
 }
 
 

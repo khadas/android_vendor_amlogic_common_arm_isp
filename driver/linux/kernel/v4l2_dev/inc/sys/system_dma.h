@@ -134,7 +134,7 @@ int32_t system_dma_copy_memory_to_device( void *ctx, void *src_mem, uint32_t dev
  *
  *   @return 0 - on success or -1 on error
  */
-int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs );
+int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs, uint32_t fw_ctx_id );
 
 /**
  *   Setup isp device memory for scatter and gather dma feature from pairs of dma bus address and lenght
@@ -145,7 +145,7 @@ int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_
  *
  *   @return 0 - on success or -1 on error
  */
-int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs );
+int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs, uint32_t fw_ctx_id );
 
 /**
  *   Needed to unmap the virtual address after dma completes
@@ -168,7 +168,7 @@ void system_dma_unmap_sg( void *ctx );
  *
  *   @return 0 - on success or -1 on error
  */
-int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func );
+int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func, uint32_t fw_ctx_id );
 
 
 #endif // __SYSTEM_DMA_H__

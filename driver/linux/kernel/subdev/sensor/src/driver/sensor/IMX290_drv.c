@@ -41,7 +41,8 @@
 #define DGAIN_MAX_DB 0x6e
 
 #define FS_LIN_1080P 1
-
+#define FS_LIN_1080P_60FPS 0
+static int sen_mode = 0;
 static void start_streaming( void *ctx );
 static void stop_streaming( void *ctx );
 
@@ -59,41 +60,18 @@ static sensor_mode_t supported_modes[] = {
         .dol_type = DOL_NON,
         .num = 0,
     },
-    {
-        .wdr_mode = WDR_MODE_FS_LIN, // 8 Lanes
-        .fps = 25 * 256,
-#if FS_LIN_1080P
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-#else
-        .resolution.width = 1280,
-        .resolution.height = 720,
-#endif
-        .bits = 10,
-        .exposures = 3,
-        .lanes = 4,
-        .bps = 446,
-        .bayer = BAYER_RGGB,
-        .dol_type = DOL_NON,
-        .num = 1,
-    },
-    {
-        .wdr_mode = WDR_MODE_FS_LIN, // 8 Lanes
-        .fps = 25 * 256,
-#if FS_LIN_1080P
-        .resolution.width = 1920,
-        .resolution.height = 1080,
-#else
-        .resolution.width = 1280,
-        .resolution.height = 720,
-#endif
-        .bits = 10,
-        .exposures = 3,
-        .lanes = 4,
-        .bps = 446,
-        .bayer = BAYER_RGGB,
-        .dol_type = DOL_NON,
-        .num = 2,
+	{
+		.wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
+		.fps = 25 * 256,
+		.resolution.width = 1920,
+		.resolution.height = 1080,
+		.bits = 12,
+		.exposures = 1,
+		.lanes = 4,
+		.bps = 446,
+		.bayer = BAYER_RGGB,
+		.dol_type = DOL_NON,
+		.num = 0,
     },
     {
         .wdr_mode = WDR_MODE_FS_LIN, // 8 Lanes 3DOL sequence used two exposures only
@@ -106,12 +84,12 @@ static sensor_mode_t supported_modes[] = {
         .resolution.height = 720,
 #endif
         .bits = 10,
-        .exposures = 3,
+        .exposures = 2,
         .lanes = 4,
         .bps = 446,
         .bayer = BAYER_RGGB,
-        .dol_type = DOL_NON,
-        .num = 3,
+        .dol_type = DOL_LINEINFO,
+        .num = 4,
     },
     {
         .wdr_mode = WDR_MODE_FS_LIN, // 8 Lanes
@@ -130,9 +108,23 @@ static sensor_mode_t supported_modes[] = {
         .bayer = BAYER_RGGB,
         .dol_type = DOL_LINEINFO,
         .num = 4,
+    },
+#if FS_LIN_1080P_60FPS
+    {
+        .wdr_mode = WDR_MODE_FS_LIN, // 8 Lanes
+        .fps = 60 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 10,
+        .exposures = 2,
+        .lanes = 4,
+        .bps = 446,
+        .bayer = BAYER_RGGB,
+        .dol_type = DOL_LINEINFO,
+        .num = 5,
     }
+#endif
 };
-
 
 typedef struct _sensor_context_t {
     uint8_t address; // Sensor address for direct write (not used currently)
@@ -284,21 +276,6 @@ static int32_t sensor_ir_cut_set( void *ctx, int32_t ir_cut_state )
 
    if (ir_cut_state == 1)
         {
-            ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[1], 1);
-            if (ret < 0 )
-            pr_err("set power fail\n");
-
-            ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[0], 0);
-            if (ret < 0 )
-            pr_err("set power fail\n");
-
-            mdelay(500);
-            ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[0], 1);
-            if (ret < 0 )
-            pr_err("set power fail\n");
-        }
-    else if(ir_cut_state == 0)
-        {
             ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[1], 0);
             if (ret < 0 )
             pr_err("set power fail\n");
@@ -309,6 +286,21 @@ static int32_t sensor_ir_cut_set( void *ctx, int32_t ir_cut_state )
 
             mdelay(500);
             ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[1], 1);
+            if (ret < 0 )
+            pr_err("set power fail\n");
+        }
+    else if(ir_cut_state == 0)
+        {
+            ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[1], 1);
+            if (ret < 0 )
+            pr_err("set power fail\n");
+
+            ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[0], 0);
+            if (ret < 0 )
+            pr_err("set power fail\n");
+
+            mdelay(500);
+            ret = pwr_ir_cut_enable(sensor_bp, sensor_bp->ir_gname[0], 1);
             if (ret < 0 )
             pr_err("set power fail\n");
        }
@@ -378,16 +370,18 @@ static uint16_t sensor_get_id( void *ctx )
     /* return that sensor id register does not exist */
 
 	sensor_context_t *p_ctx = ctx;
-	uint32_t sensor_id = 0;
+	uint16_t sensor_id = 0;
 
 	sensor_id |= acamera_sbus_read_u8(&p_ctx->sbus, 0x301e) << 8;
 	sensor_id |= acamera_sbus_read_u8(&p_ctx->sbus, 0x301f);
 
     if (sensor_id != SENSOR_CHIP_ID) {
         LOG(LOG_ERR, "%s: Failed to read sensor id\n", __func__);
-        return 0xFF;
+        return 0xFFFF;
     }
-    return 0;
+
+	LOG(LOG_INFO, "%s: success to read sensor %x\n", __func__, sensor_id);
+    return sensor_id;
 }
 
 static void sensor_set_iface(sensor_mode_t *mode)
@@ -402,6 +396,7 @@ static void sensor_set_iface(sensor_mode_t *mode)
 
     memset(&mipi_info, 0, sizeof(mipi_info));
     memset(&info, 0, sizeof(struct am_adap_info));
+    mipi_info.fte1_flag = get_fte1_flag();
     mipi_info.lanes = mode->lanes;
     mipi_info.ui_val = 1000 / mode->bps;
 
@@ -424,21 +419,28 @@ static void sensor_set_iface(sensor_mode_t *mode)
 
     info.img.width = mode->resolution.width;
     info.img.height = mode->resolution.height;
+    info.offset.offset_x = 4 + 8;
     info.path = PATH0;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
         info.mode = DOL_MODE;
         info.type = mode->dol_type;
         if (info.type == DOL_LINEINFO) {
-           info.offset.long_offset = 15;
-           info.offset.short_offset = 20;
+#if PLATFORM_G12B
+           info.offset.long_offset = 0xa;
+           info.offset.short_offset = 0x1d;
+#elif PLATFORM_C308X
+           info.offset.long_offset = 0x8;
+           info.offset.short_offset = 0x8;
+#endif
         }
     } else
         info.mode = DIR_MODE;
     am_adap_set_info(&info);
     am_adap_init();
     am_adap_start(0);
-}
 
+}
+static uint32_t initial_sensor = 0;
 static void sensor_set_mode( void *ctx, uint8_t mode )
 {
     sensor_context_t *p_ctx = ctx;
@@ -446,17 +448,29 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     uint8_t setting_num = 0;
     uint16_t s_id = 0xff;
+    sen_mode = mode;
 
-    sensor_hw_reset_enable();
-    system_timer_usleep( 10000 );
-    sensor_hw_reset_disable();
-    system_timer_usleep( 10000 );
+	if(initial_sensor ++ >= 1)
+    {
+        reset_am_enable(p_ctx->sbp,"reset", 0);
+        sensor_hw_reset_enable();
+        system_timer_usleep( 10000 );
+        sensor_hw_reset_disable();
+        system_timer_usleep( 10000 );
+        reset_am_enable(p_ctx->sbp,"reset", 1);
+	}
+
+	if(initial_sensor == 1)
+        return;		
 
     setting_num = param->modes_table[mode].num;
 
     s_id = sensor_get_id(ctx);
-    if (s_id != 0)
+    if (s_id != SENSOR_CHIP_ID)
+    {
+        LOG(LOG_INFO, "%s: check sensor failed\n", __func__);
         return;
+    }
 
     switch ( param->modes_table[mode].wdr_mode ) {
     case WDR_MODE_LINEAR:
@@ -499,6 +513,14 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
         p_ctx->vmax = 1350;
     } else if ((param->modes_table[mode].exposures == 2) && (param->modes_table[mode].fps == 30 * 256)) {
         p_ctx->s_fps = 30;
+        p_ctx->vmax = 1220;
+	} else if ((param->modes_table[mode].exposures == 2) && (param->modes_table[mode].fps == 25 * 256)) {
+		acamera_sbus_write_u8( p_sbus, 0x3018, 0xb8 );
+		acamera_sbus_write_u8( p_sbus, 0x3019, 0x05 );
+        p_ctx->s_fps = 25;
+        p_ctx->vmax = 1464;
+    }else if ((param->modes_table[mode].exposures == 2) && (param->modes_table[mode].fps == 60 * 256)) {
+        p_ctx->s_fps = 60;
         p_ctx->vmax = 1220;
     } else {
         //p_ctx->vmax = ((uint32_t)acamera_sbus_read_u8(p_sbus,0x8219)<<8)|acamera_sbus_read_u8(p_sbus,0x8218);
@@ -553,11 +575,11 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     param->pixels_per_line = param->total.width;
     param->integration_time_min = SENSOR_MIN_INTEGRATION_TIME;
     if ( param->modes_table[mode].wdr_mode == WDR_MODE_LINEAR ) {
-        param->integration_time_limit = SENSOR_MAX_INTEGRATION_TIME_LIMIT;
+        param->integration_time_limit = p_ctx->vmax - 2;
         param->integration_time_max = p_ctx->vmax - 2;
     } else {
-        param->integration_time_limit = 60;
-        param->integration_time_max = 60;
+        param->integration_time_limit = p_ctx->max_S;
+        param->integration_time_max = p_ctx->max_S;
         if ( param->modes_table[mode].exposures == 2 ) {
             param->integration_time_long_max = ( p_ctx->vmax << 1 ) - 256;
             param->lines_per_second = param->lines_per_second >> 1;
@@ -569,7 +591,6 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
         }
     }
     param->sensor_exp_number = param->modes_table[mode].exposures;
-    param->integration_time_limit = SENSOR_MAX_INTEGRATION_TIME_LIMIT;
     param->mode = mode;
     p_ctx->wdr_mode = param->modes_table[mode].wdr_mode;
     param->bayer = param->modes_table[mode].bayer;
@@ -608,13 +629,34 @@ static void stop_streaming( void *ctx )
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     p_ctx->streaming_flg = 0;
+
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x01 );
+
+    reset_sensor_bus_counter();
+    am_adap_deinit();
+    am_mipi_deinit();
 }
+
+uint32_t write2_reg(uint32_t val, unsigned long addr)
+{
+    void __iomem *io_addr;
+    io_addr = ioremap_nocache(addr, 8);
+    if (io_addr == NULL) {
+        LOG(LOG_ERR, "%s: Failed to ioremap addr\n", __func__);
+        return -1;
+    }
+    __raw_writel(val, io_addr);
+    iounmap(io_addr);
+    return 0;
+}
+
 
 static void start_streaming( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
+    sensor_param_t *param = &p_ctx->param;
+    sensor_set_iface(&param->modes_table[sen_mode]);
     p_ctx->streaming_flg = 1;
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x00 );
 
@@ -632,6 +674,12 @@ static void sensor_test_pattern( void *ctx, uint8_t mode )
 {
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
+	if(mode == 0xff)
+	{
+		 LOG(LOG_CRIT, "Donot skip initial sensor: %d", initial_sensor);
+         initial_sensor += 1;
+		 return;
+	}
     sensor_load_sequence( p_sbus, p_ctx->seq_width, p_sensor_data, SENSOR_IMX290_SEQUENCE_DEFAULT_TEST_PATTERN );
 }
 
@@ -639,8 +687,6 @@ void sensor_deinit_imx290( void *ctx )
 {
 	sensor_context_t *t_ctx = ctx;
 	reset_sensor_bus_counter();
-	am_adap_deinit();
-	am_mipi_deinit();
 	acamera_sbus_deinit(&t_ctx->sbus,  sbus_i2c);
 	if (t_ctx != NULL && t_ctx->sbp != NULL)
 		clk_am_disable(t_ctx->sbp);
@@ -654,8 +700,26 @@ void sensor_init_imx290( void **ctx, sensor_control_t *ctrl, void* sbp)
     sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
     *ctx = &s_ctx;
     s_ctx.sbp = sbp;
+/*
+    write2_reg(0x01800000, 0xfe007cc4);
+    write2_reg(0x00001100, 0xfe007cc8);
+    write2_reg(0x10022300, 0xfe007ccc);
+    write2_reg(0x00300000, 0xfe007cd0);
+    write2_reg(0x00089688, 0xfe007cd8);
+    write2_reg(0x01f18863, 0xfe007cc0);
+    write2_reg(0x11f18863, 0xfe007cc0);
+    write2_reg(0x15f18863, 0xfe007cc0);
+    write2_reg(0x00001120, 0xfe007cc8);
 
+    write2_reg(0x11300000, 0xfe000428);
+    write2_reg(0x9000, 0xfe007cd4);
+*/
 #if NEED_CONFIG_BSP
+    ret = gp_pl_am_enable(sensor_bp, "mclk_0", 37125000);
+    if (ret < 0 )
+        pr_info("set mclk fail\n");
+    udelay(30);
+
     ret = reset_am_enable(sensor_bp,"reset", 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
@@ -687,11 +751,42 @@ void sensor_init_imx290( void **ctx, sensor_control_t *ctrl, void* sbp)
     s_ctx.param.integration_time_apply_delay = 2;
     s_ctx.param.isp_exposure_channel_delay = 0;
     s_ctx.param.modes_table = supported_modes;
-    s_ctx.param.modes_num = array_size( supported_modes );
+    s_ctx.param.modes_num = array_size_s( supported_modes );
     s_ctx.param.sensor_ctx = &s_ctx;
     s_ctx.param.isp_context_seq.sequence = p_isp_data;
     s_ctx.param.isp_context_seq.seq_num= SENSOR_IMX290_CONTEXT_SEQ;
+    s_ctx.param.isp_context_seq.seq_table_max = array_size_s( isp_seq_table );
 
+	s_ctx.again_delay = 0;
+	s_ctx.param.integration_time_apply_delay = 2;
+	s_ctx.param.isp_exposure_channel_delay = 0;
+	s_ctx.s_fps = 30;
+	s_ctx.vmax = 1125;
+	s_ctx.param.active.width = 1920;
+	s_ctx.param.active.height = 1080;
+	s_ctx.max_L = 2236;
+	s_ctx.max_S = 98;
+	s_ctx.rhs1 = 201;
+	s_ctx.param.total.width = 0x1130;
+	s_ctx.param.lines_per_second = s_ctx.pixel_clock / s_ctx.param.total.width;
+	s_ctx.param.total.height = (uint16_t)s_ctx.vmax;
+	s_ctx.param.pixels_per_line = s_ctx.param.total.width;
+	s_ctx.param.integration_time_min = SENSOR_MIN_INTEGRATION_TIME;
+	s_ctx.param.integration_time_limit = s_ctx.vmax - 2;
+	s_ctx.param.integration_time_max = s_ctx.vmax - 2;
+	s_ctx.param.sensor_exp_number = 1;
+	s_ctx.param.mode = 0;
+	s_ctx.wdr_mode = DOL_NON;
+	s_ctx.param.bayer = BAYER_RGGB;
+	if((acamera_sbus_read_u8(&s_ctx.sbus, 0x300c) & 0x01) == 1)
+	{
+		s_ctx.param.sensor_exp_number = 2;
+		s_ctx.param.mode = 4;
+		s_ctx.wdr_mode = WDR_MODE_FS_LIN;
+		s_ctx.param.integration_time_long_max = 1125 * 2 - 256;
+		s_ctx.param.integration_time_limit = 198;
+		sen_mode = 4;
+	}
     ctrl->alloc_analog_gain = sensor_alloc_analog_gain;
     ctrl->alloc_digital_gain = sensor_alloc_digital_gain;
     ctrl->alloc_integration_time = sensor_alloc_integration_time;

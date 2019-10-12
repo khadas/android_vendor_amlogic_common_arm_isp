@@ -31,6 +31,9 @@
 
 #include "runtime_initialization_settings.h"
 
+static int cali_name;
+module_param(cali_name, int, 0664);
+
 #define ARGS_TO_PTR( arg ) ( (struct soc_iq_ioctl_args *)arg )
 
 #define __GET_LUT_SIZE( lut ) ( lut->rows * lut->cols * lut->width )
@@ -45,14 +48,16 @@ struct IqConversion {
     const char *sensor_name;
 };
 
-
 struct IqConversion IqConversionTable[] = {
     {CALIBRATION_SUBDEV_FUNCTIONS_OS08A10, "os08a10"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, "imx290"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, "imx227"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX481, "imx481"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, "imx307"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX224, "imx224"},
 };
 
-uint32_t ( *CALIBRATION_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c ) = {CALIBRATION_SUBDEV_FUNCTIONS_IMX290};
+uint32_t ( *CALIBRATION_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c ) = {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, CALIBRATION_SUBDEV_FUNCTIONS_IMX290};
 
 static int iq_log_status( struct v4l2_subdev *sd )
 {
@@ -90,7 +95,7 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
                 *( (uint16_t *)&ARGS_TO_PTR( arg )->ioctl.request_info.lut.rows ) = 0;
                 *( (uint16_t *)&ARGS_TO_PTR( arg )->ioctl.request_info.lut.cols ) = 0;
                 *( (uint16_t *)&ARGS_TO_PTR( arg )->ioctl.request_info.lut.width ) = 0;
-                LOG( LOG_CRIT, "Unitialialized calibration at ctx:%d id:%d\n", context, id );
+                LOG( LOG_INFO, "Unitialialized calibration at ctx:%d id:%d\n", context, id );
             }
             rc = 0;
         } else {
@@ -122,7 +127,7 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
                         rc = -1;
                     }
                 } else {
-                    LOG( LOG_CRIT, "Uninitialized calibration at ctx:%d id:%d\n", context, id );
+                    LOG( LOG_INFO, "Uninitialized calibration at ctx:%d id:%d\n", context, id );
                 }
             } else {
                 LOG( LOG_ERR, "User pointer is null, lut id %d, lut sensor_arg 0x%x", id, sensor_arg );
@@ -154,6 +159,95 @@ static const struct v4l2_subdev_ops iq_ops = {
     .core = &core_ops,
 };
 
+static int get_cali_name_id( int cali_name_id, int sensor_name_id )
+{
+    switch ( sensor_name_id ) {
+    case 0: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10;
+            LOG( LOG_ERR, "get_calibrations_os08a10\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10;
+            LOG( LOG_ERR, "get_calibrations_os08a10\n" );
+            break;
+        }
+    } break;
+    case 1: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
+            LOG( LOG_ERR, "get_calibrations_imx290\n" );
+            break;
+        case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_8mm;
+            LOG( LOG_ERR, "get_calibrations_imx290_lens_8mm\n" );
+            break;
+        case 2:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_4mm;
+            LOG( LOG_ERR, "get_calibrations_imx290_lens_4mm\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
+            LOG( LOG_ERR, "get_calibrations_imx290\n" );
+            break;
+        }
+    } break;
+    case 2: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX227;
+            LOG( LOG_ERR, "get_calibrations_imx227\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX227;
+            LOG( LOG_ERR, "get_calibrations_imx227\n" );
+            break;
+        }
+    } break;
+    case 3: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX481;
+            LOG( LOG_ERR, "get_calibrations_imx481\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX481;
+            LOG( LOG_ERR, "get_calibrations_imx481\n" );
+            break;
+        }
+    } break;
+    case 4: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307;
+            LOG( LOG_ERR, "get_calibrations_imx307\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307;
+            LOG( LOG_ERR, "get_calibrations_imx307\n" );
+            break;
+        }
+    } break;
+    case 5: {
+        switch ( cali_name_id ) {
+        case 0:
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX224;
+            LOG( LOG_ERR, "get_calibrations_imx224\n" );
+            break;
+        }
+    } break;
+    default:
+      break;
+    }
+    return 0;
+}
+
+static char* sensor = NULL;
+module_param(sensor, charp, 0);
+
 static int32_t soc_iq_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
@@ -166,17 +260,31 @@ static int32_t soc_iq_probe( struct platform_device *pdev )
     if ( total_functions < FIRMWARE_CONTEXT_NUMBER ) {
         LOG( LOG_CRIT, "calibration functions mismatch total_functions:%d expected:%d", total_functions, FIRMWARE_CONTEXT_NUMBER );
     }
-    rtn = of_property_read_string(dev->of_node, "sensor-name", &sensor_name);
 
-    if (rtn != 0) {
-        pr_err("%s: iq failed to parse dts sensor name\n", __func__);
+    if (sensor == NULL) {
+        rtn = of_property_read_string(dev->of_node, "sensor-name", &sensor_name);
+
+        if (rtn != 0) {
+            pr_err("%s: iq failed to parse dts sensor name\n", __func__);
+            return -1;
+        }
+    } else {
+      sensor_name = sensor;
     }
-    pr_err("iq name from dts config is ----> %s\n", sensor_name);
+
+    pr_err("probe iq_dev for sensor: %s\n", sensor_name);
 
     for (i = 0; i < NELEM(IqConversionTable); ++i) {
         if (strcmp(IqConversionTable[i].sensor_name, sensor_name) == 0) {
                CALIBRATION_FUNC_ARR[0] = IqConversionTable[i].calibration_init;
+               get_cali_name_id( cali_name, i );
+               break;
         }
+    }
+
+    if (i == NELEM(IqConversionTable)) {
+      pr_err("Fatal error: Wrong sensor name %s!\n", sensor_name);
+      return -1;
     }
 
     v4l2_subdev_init( &soc_iq, &iq_ops );
@@ -188,6 +296,8 @@ static int32_t soc_iq_probe( struct platform_device *pdev )
     soc_iq.dev = &pdev->dev;
     rc = v4l2_async_register_subdev( &soc_iq );
 
+    for (i = 0; i < CALIBRATION_TOTAL_SIZE; i++)
+        (&g_luts_arr[0])->calibrations[i] = NULL;
 
     LOG( LOG_ERR, "register v4l2 IQ device. result %d, sd 0x%x sd->dev 0x%x", rc, &soc_iq, soc_iq.dev );
 

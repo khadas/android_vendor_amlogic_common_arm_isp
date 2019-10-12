@@ -15,7 +15,6 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-
 obj-m += iv009_isp_iq.o
 
 M_PATH := $(shell dirname $(lastword $(MAKEFILE_LIST)))
@@ -35,3 +34,4 @@ EXTRA_CFLAGS := -I$(M_PATH)/app -I$(M_PATH)/inc -I$(M_PATH)/app/control \
 
 EXTRA_CFLAGS += -Wno-declaration-after-statement -Idrivers/staging/android/ \
 		-Wno-error
+

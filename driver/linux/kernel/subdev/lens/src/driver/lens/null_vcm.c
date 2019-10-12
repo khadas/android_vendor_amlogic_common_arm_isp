@@ -41,12 +41,12 @@ uint8_t lens_null_test( uint32_t lens_bus )
 
 static void vcm_null_drv_move( void *ctx, uint16_t position )
 {
-    LOG( LOG_ERR, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
+    LOG( LOG_INFO, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
 }
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )
 {
-    LOG( LOG_ERR, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
+    LOG( LOG_INFO, "Null VCM driver use attempted: no lens movement can be performed with the null driver" );
     return 0;
 }
 

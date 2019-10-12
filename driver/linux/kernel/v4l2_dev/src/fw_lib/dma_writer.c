@@ -183,7 +183,7 @@ dma_error dma_writer_reset( void *handle, dma_type type )
         pipe->settings.last_tframe = NULL;
         pipe->settings.inqueue_tframe[0] = NULL;
         pipe->settings.inqueue_tframe[1] = NULL;
-        pipe->settings.init_delay = 0;
+        pipe->settings.init_delay = 1;
         dma_writer_init_frame_queue( pipe );
         pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
         pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, 0 );
@@ -286,10 +286,13 @@ uint16_t dma_writer_write_frame_queue( void *handle, dma_type type, tframe_t *fr
         else
             pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
 
+        pipe->api.p_acamera_isp_dma_writer_line_offset_write( pipe->settings.isp_base, pipe->settings.frame_buf_queue[set_i].primary.line_offset);
+		
         //check if format is for UV
         if ( pipe->api.p_acamera_isp_dma_writer_format_read_uv( pipe->settings.isp_base ) != DMA_FORMAT_DISABLE ) {
             pipe->settings.frame_buf_queue[set_i].secondary.status = dma_buf_busy;
             pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, 1 );
+		    pipe->api.p_acamera_isp_dma_writer_line_offset_write_uv( pipe->settings.isp_base, pipe->settings.frame_buf_queue[set_i].secondary.line_offset);
             LOG( LOG_DEBUG, "enabled uv %d", pipe->api.p_acamera_isp_dma_writer_format_read_uv( pipe->settings.isp_base ) );
         } else {
             //cannot enable

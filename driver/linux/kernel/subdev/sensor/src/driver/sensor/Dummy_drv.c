@@ -185,7 +185,7 @@ void sensor_init_dummy( void **ctx, sensor_control_t *ctrl, void* sbp )
     s_ctx.param.integration_time_apply_delay = 2;
     s_ctx.param.isp_exposure_channel_delay = 0;
     s_ctx.param.modes_table = supported_modes;
-    s_ctx.param.modes_num = array_size( supported_modes );
+    s_ctx.param.modes_num = array_size_s( supported_modes );
     s_ctx.param.sensor_ctx = &s_ctx;
     ctrl->alloc_analog_gain = sensor_alloc_analog_gain;
     ctrl->alloc_digital_gain = sensor_alloc_digital_gain;

@@ -33,6 +33,7 @@ void sensor_fsm_clear( sensor_fsm_t *p_fsm )
     p_fsm->is_streaming = ( 0 );
     p_fsm->info_preset_num = SENSOR_DEFAULT_PRESET_MODE;
     p_fsm->boot_status = sensor_boot_init( p_fsm );
+	p_fsm->preset_mode = ((sensor_param_t *)(p_fsm->sensor_ctx))->mode;
 }
 
 void sensor_request_interrupt( sensor_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -190,9 +191,9 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
 
         streaming = *(uint32_t *)input;
 
-        if ( streaming ) {
+        if (streaming == 1) {
             p_fsm->ctrl.start_streaming( p_fsm->sensor_ctx );
-        } else {
+        } else if(streaming == 0){
             p_fsm->ctrl.stop_streaming( p_fsm->sensor_ctx );
         }
         p_fsm->is_streaming = streaming;

@@ -447,6 +447,9 @@ void general_set_wdr_mode( general_fsm_ptr_t p_fsm )
     (void)seq_table;
 #endif
 
+	if(p_fsm->p_fsm_mgr == NULL)
+		return;
+
     switch ( p_fsm->wdr_mode ) {
     case WDR_MODE_LINEAR:
 #ifdef SENSOR_ISP_SEQUENCE_DEFAULT_LINEAR
@@ -543,8 +546,54 @@ static void adjust_exposure( general_fsm_ptr_t p_fsm, int32_t corr )
 
 #endif
 
+void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm)
+{
+ // update gamma here
+    const uint16_t *gamma_ev1 = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_EV1 );
+    const uint16_t *gamma_ev2 = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_EV2 );
+    if (gamma_ev1 == NULL || gamma_ev2 == NULL)
+        return;
+    const uint32_t gamma_len_ev1 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_EV1 );
+    const uint32_t gamma_len_ev2 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_EV2 );
+
+    uint32_t expected_gamma_size = ( ( ACAMERA_FR_GAMMA_RGB_MEM_SIZE / ( ACAMERA_FR_GAMMA_RGB_MEM_ARRAY_DATA_DATASIZE >> 3 ) >> 1 ) + 1 );
+
+    if ( (gamma_len_ev1 == expected_gamma_size) && (gamma_len_ev2 == expected_gamma_size) ) {
+        fsm_param_ae_info_t ae_info;
+        uint32_t i = 0;
+        // get current exposure value
+        acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AE_INFO, NULL, 0, &ae_info, sizeof( ae_info ) );
+        uint32_t exposure_log2 = ae_info.exposure_log2;
+        uint32_t ev1_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0] ;
+        uint32_t ev2_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[1] ;
+
+        modulation_entry_32_t p_table[2];
+        p_table[0].x = ev1_thresh;
+        p_table[1].x = ev2_thresh;
+        // Use EV1 gamma curve if EV < EV1_THRESHOLD
+        // Use EV2 gamma curve if EV > EV2_THRESHOLD
+        // Do alpha blending between EV1 and EV2 when EV1_THRESHOLD < EV < EV2_THRESHOLD
+        for ( i = 0; i < expected_gamma_size; i++ ) {
+            p_table[0].y = gamma_ev1[i];
+            p_table[1].y = gamma_ev2[i];
+            // do alpha blending between two gammas for bin [i]
+            uint16_t gamma_bin = acamera_calc_modulation_u32( exposure_log2, p_table, 2);
+            LOG( LOG_DEBUG, "Gamma update: ev %d, ev1 %d, ev2 %d, ref_gamma_ev1 %d, ref_gamma_ev2 %d, result %d", exposure_log2, ev1_thresh, ev2_thresh, gamma_ev1[i], gamma_ev2[i], gamma_bin );
+            // update the hardware gamma curve for fr and ds
+            acamera_fr_gamma_rgb_mem_array_data_write( p_fsm->cmn.isp_base, i, gamma_bin );
+    #if ISP_HAS_DS1
+            acamera_ds1_gamma_rgb_mem_array_data_write( p_fsm->cmn.isp_base, i, gamma_bin );
+    #endif
+        }
+    } else {
+        // wrong gamma lut size
+        LOG( LOG_ERR, "wrong elements number in gamma_rgb_ev1 or ev2 -> ev1 size %d, ev2 size, expected %d", (int)gamma_len_ev1, (int)gamma_len_ev2, (int)expected_gamma_size );
+    }
+}
+
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
+    //general_dynamic_gamma_update(p_fsm);
 #if ISP_WDR_SWITCH
 
     if ( p_fsm->wdr_auto_mode ) {

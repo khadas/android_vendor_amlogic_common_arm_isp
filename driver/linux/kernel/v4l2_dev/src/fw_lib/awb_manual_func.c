@@ -26,6 +26,7 @@
 
 #include <linux/vmalloc.h>
 #include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #ifdef LOG_MODULE
 #undef LOG_MODULE
@@ -189,11 +190,16 @@ void awb_init( AWB_fsm_t *p_fsm )
         LOG( LOG_CRIT, "MAX_AWB_ZONES is less than hardware reported zones" );
     }
 
-    p_fsm->wb_log2[0] = 0;
-    p_fsm->wb_log2[1] = 0;
-    p_fsm->wb_log2[2] = 0;
-    p_fsm->wb_log2[3] = 0;
+    p_fsm->wb_log2[0] = 252071;
+    p_fsm->wb_log2[1] = 87;
+    p_fsm->wb_log2[2] = 87;
+    p_fsm->wb_log2[3] = 180394;
     awb_coeffs_write( p_fsm );
+
+	acamera_isp_white_balance_gain_00_write( p_fsm->cmn.isp_base, p_fsm->wb[0]);
+	acamera_isp_white_balance_gain_01_write( p_fsm->cmn.isp_base, p_fsm->wb[1]);
+	acamera_isp_white_balance_gain_10_write( p_fsm->cmn.isp_base, p_fsm->wb[2]);
+	acamera_isp_white_balance_gain_11_write( p_fsm->cmn.isp_base, p_fsm->wb[3]);
 
     width = acamera_isp_top_active_width_read( p_fsm->cmn.isp_base );
     height = acamera_isp_top_active_height_read( p_fsm->cmn.isp_base );

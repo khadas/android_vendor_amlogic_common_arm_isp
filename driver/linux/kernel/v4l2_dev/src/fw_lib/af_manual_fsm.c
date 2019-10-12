@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#include <linux/vmalloc.h>
 #include "acamera_fw.h"
 #include "af_manual_fsm.h"
 #include "sbuf.h"
@@ -42,6 +42,9 @@ void AF_fsm_clear( AF_fsm_t *p_fsm )
     p_fsm->last_pos_done = 0;
     p_fsm->new_last_sharp = 0;
     p_fsm->last_sharp_done = 0;
+	p_fsm->zone_weight = NULL;
+	p_fsm->zone_process_statistic = NULL;
+	p_fsm->zone_process_reliablility = NULL;
     memset( &p_fsm->lens_ctrl, 0, sizeof( p_fsm->lens_ctrl ) );
 }
 
@@ -58,7 +61,7 @@ void AF_fsm_init( void *fsm, fsm_init_param_t *init_param )
     p_fsm->cmn.p_fsm_mgr = init_param->p_fsm_mgr;
     p_fsm->cmn.isp_base = init_param->isp_base;
     p_fsm->p_fsm_mgr = init_param->p_fsm_mgr;
-
+	
     AF_fsm_clear( p_fsm );
 
     AF_init( p_fsm );

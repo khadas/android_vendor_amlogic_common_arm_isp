@@ -60,32 +60,32 @@ static void sensor_print_params( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
 
-    LOG( LOG_ERR, "SOC SENSOR PARAMETERS" );
-    LOG( LOG_ERR, "pixels_per_line: %d", p_ctx->param.pixels_per_line );
-    LOG( LOG_ERR, "again_log2_max: %d", p_ctx->param.again_log2_max );
-    LOG( LOG_ERR, "dgain_log2_max: %d", p_ctx->param.dgain_log2_max );
-    LOG( LOG_ERR, "again_accuracy: %d", p_ctx->param.again_accuracy );
-    LOG( LOG_ERR, "integration_time_min: %d", p_ctx->param.integration_time_min );
-    LOG( LOG_ERR, "integration_time_max: %d", p_ctx->param.integration_time_max );
-    LOG( LOG_ERR, "integration_time_long_max: %d", p_ctx->param.integration_time_long_max );
-    LOG( LOG_ERR, "integration_time_limit: %d", p_ctx->param.integration_time_limit );
-    LOG( LOG_ERR, "day_light_integration_time_max: %d", p_ctx->param.day_light_integration_time_max );
-    LOG( LOG_ERR, "integration_time_apply_delay: %d", p_ctx->param.integration_time_apply_delay );
-    LOG( LOG_ERR, "isp_exposure_channel_delay: %d", p_ctx->param.isp_exposure_channel_delay );
-    LOG( LOG_ERR, "xoffset: %d", p_ctx->param.xoffset );
-    LOG( LOG_ERR, "yoffset: %d", p_ctx->param.yoffset );
-    LOG( LOG_ERR, "lines_per_second: %d", p_ctx->param.lines_per_second );
-    LOG( LOG_ERR, "sensor_exp_number: %d", p_ctx->param.sensor_exp_number );
-    LOG( LOG_ERR, "modes_num: %d", p_ctx->param.modes_num );
-    LOG( LOG_ERR, "mode: %d", p_ctx->param.mode );
+    LOG( LOG_INFO, "SOC SENSOR PARAMETERS" );
+    LOG( LOG_INFO, "pixels_per_line: %d", p_ctx->param.pixels_per_line );
+    LOG( LOG_INFO, "again_log2_max: %d", p_ctx->param.again_log2_max );
+    LOG( LOG_INFO, "dgain_log2_max: %d", p_ctx->param.dgain_log2_max );
+    LOG( LOG_INFO, "again_accuracy: %d", p_ctx->param.again_accuracy );
+    LOG( LOG_INFO, "integration_time_min: %d", p_ctx->param.integration_time_min );
+    LOG( LOG_INFO, "integration_time_max: %d", p_ctx->param.integration_time_max );
+    LOG( LOG_INFO, "integration_time_long_max: %d", p_ctx->param.integration_time_long_max );
+    LOG( LOG_INFO, "integration_time_limit: %d", p_ctx->param.integration_time_limit );
+    LOG( LOG_INFO, "day_light_integration_time_max: %d", p_ctx->param.day_light_integration_time_max );
+    LOG( LOG_INFO, "integration_time_apply_delay: %d", p_ctx->param.integration_time_apply_delay );
+    LOG( LOG_INFO, "isp_exposure_channel_delay: %d", p_ctx->param.isp_exposure_channel_delay );
+    LOG( LOG_INFO, "xoffset: %d", p_ctx->param.xoffset );
+    LOG( LOG_INFO, "yoffset: %d", p_ctx->param.yoffset );
+    LOG( LOG_INFO, "lines_per_second: %d", p_ctx->param.lines_per_second );
+    LOG( LOG_INFO, "sensor_exp_number: %d", p_ctx->param.sensor_exp_number );
+    LOG( LOG_INFO, "modes_num: %d", p_ctx->param.modes_num );
+    LOG( LOG_INFO, "mode: %d", p_ctx->param.mode );
     int32_t idx = 0;
     for ( idx = 0; idx < p_ctx->param.modes_num; idx++ ) {
-        LOG( LOG_ERR, "preset %d", idx );
-        LOG( LOG_ERR, "    mode:   %d", p_ctx->param.modes_table[idx].wdr_mode );
-        LOG( LOG_ERR, "    width:  %d", p_ctx->param.modes_table[idx].resolution.width );
-        LOG( LOG_ERR, "    height: %d", p_ctx->param.modes_table[idx].resolution.height );
-        LOG( LOG_ERR, "    fps:    %d", p_ctx->param.modes_table[idx].fps );
-        LOG( LOG_ERR, "    exp:    %d", p_ctx->param.modes_table[idx].exposures );
+        LOG( LOG_INFO, "preset %d", idx );
+        LOG( LOG_INFO, "    mode:   %d", p_ctx->param.modes_table[idx].wdr_mode );
+        LOG( LOG_INFO, "    width:  %d", p_ctx->param.modes_table[idx].resolution.width );
+        LOG( LOG_INFO, "    height: %d", p_ctx->param.modes_table[idx].resolution.height );
+        LOG( LOG_INFO, "    fps:    %d", p_ctx->param.modes_table[idx].fps );
+        LOG( LOG_INFO, "    exp:    %d", p_ctx->param.modes_table[idx].exposures );
     }
 }
 
@@ -351,7 +351,28 @@ static void sensor_test_pattern( void *ctx, uint8_t mode )
 
 static uint16_t sensor_get_id( void *ctx )
 {
-    return 0;
+    sensor_context_t *p_ctx = ctx;
+	uint16_t ret_value = 0xFFFF;
+    if ( p_ctx != NULL ) {
+		struct soc_sensor_ioctl_args settings;
+        struct v4l2_subdev *sd = p_ctx->soc_sensor;
+        uint32_t ctx_num = get_ctx_num( ctx );
+		settings.ctx_num = ctx_num;
+        if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {       
+            int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_ID, &settings );
+            if ( rc == 0 ) {
+				ret_value = settings.args.general.val_out;
+            } else {
+                LOG( LOG_ERR, "Failed to alloc integration time. rc = %d", rc );
+            }
+        } else {
+            LOG( LOG_CRIT, "SOC sensor subdev pointer is NULL" );
+        }
+    } else {
+        LOG( LOG_CRIT, "Sensor context pointer is NULL" );
+    }
+	
+    return ret_value;
 }
 
 

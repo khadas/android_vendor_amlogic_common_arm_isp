@@ -22,12 +22,14 @@
 #include "acamera_types.h"
 #include "acamera_firmware_config.h"
 
+extern uint32_t acamera_get_api_context( void );
 
 uint8_t application_command( uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     uint8_t ret = NOT_EXISTS;
+    uint32_t ctx_id = acamera_get_api_context();
 
-    ret = acamera_command( command_type, command, value, direction, ret_value );
+    ret = acamera_command( ctx_id, command_type, command, value, direction, ret_value );
 
     return ret;
 }
@@ -37,6 +39,7 @@ uint8_t application_api_calibration( uint8_t type, uint8_t id, uint8_t direction
 {
     uint8_t ret = SUCCESS;
 
-    ret = acamera_api_calibration( type, id, direction, data, data_size, ret_value );
+    uint32_t ctx_id = acamera_get_api_context();
+    ret = acamera_api_calibration( ctx_id, type, id, direction, data, data_size, ret_value );
     return ret;
 }

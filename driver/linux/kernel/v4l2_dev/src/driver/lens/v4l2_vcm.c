@@ -54,12 +54,12 @@ static void lens_print_params( void *ctx )
 {
     lens_context_t *p_ctx = ctx;
 
-    LOG( LOG_ERR, "SOC SENSOR PARAMETERS" );
-    LOG( LOG_ERR, "lens_type: %d", p_ctx->param.lens_type );
-    LOG( LOG_ERR, "min_step: %d", p_ctx->param.min_step );
-    LOG( LOG_ERR, "next_zoom: %d", p_ctx->param.next_zoom );
-    LOG( LOG_ERR, "curr_zoom: %d", p_ctx->param.curr_zoom );
-    LOG( LOG_ERR, "next_pos: %d", p_ctx->param.next_pos );
+    LOG( LOG_INFO, "SOC SENSOR PARAMETERS" );
+    LOG( LOG_INFO, "lens_type: %d", p_ctx->param.lens_type );
+    LOG( LOG_INFO, "min_step: %d", p_ctx->param.min_step );
+    LOG( LOG_INFO, "next_zoom: %d", p_ctx->param.next_zoom );
+    LOG( LOG_INFO, "curr_zoom: %d", p_ctx->param.curr_zoom );
+    LOG( LOG_INFO, "next_pos: %d", p_ctx->param.next_pos );
 }
 
 
