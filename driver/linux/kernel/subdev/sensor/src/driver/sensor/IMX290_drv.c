@@ -781,11 +781,11 @@ void sensor_init_imx290( void **ctx, sensor_control_t *ctrl, void* sbp)
 	if((acamera_sbus_read_u8(&s_ctx.sbus, 0x300c) & 0x01) == 1)
 	{
 		s_ctx.param.sensor_exp_number = 2;
-		s_ctx.param.mode = 4;
+		s_ctx.param.mode = 3;
 		s_ctx.wdr_mode = WDR_MODE_FS_LIN;
 		s_ctx.param.integration_time_long_max = 1125 * 2 - 256;
 		s_ctx.param.integration_time_limit = 198;
-		sen_mode = 4;
+		sen_mode = 3;
 	}
     ctrl->alloc_analog_gain = sensor_alloc_analog_gain;
     ctrl->alloc_digital_gain = sensor_alloc_digital_gain;
