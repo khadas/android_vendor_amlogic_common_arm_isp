@@ -50,8 +50,8 @@ void *isp_kaddr = NULL;
 resource_size_t isp_paddr = 0;
 #define SIZE_1M (1024 * 1024UL)
 #define DEFAULT_TEMPER_BUFFER_SIZE 16
-
-
+#define DEFAULT_TEMPER_LINE_OFFSET 1920*4
+unsigned int temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
 /* ----------------------------------------------------------------
  * V4L2 file handle structures and functions
  * : implementing multi stream
@@ -834,21 +834,28 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
 	rc = of_property_read_u32(pdev->dev.of_node, "temper-buf-size",
 							   &temper_buf_size);
 	LOG(LOG_INFO, "%s:temper buffer size %d, rtn %d\n", __func__, temper_buf_size, rc);
-		
+
 	if (rc != 0) {
 		   LOG(LOG_ERR, "failed to get temper-buf-size from dts, use default value\n");
 		   temper_buf_size = DEFAULT_TEMPER_BUFFER_SIZE;
 	}
-	
+
 	rc = isp_cma_alloc(pdev, temper_buf_size * SIZE_1M);
 	if (rc < 0)
 		return rc;
+
+	rc = of_property_read_u32(pdev->dev.of_node, "temper-line-offset", &temper_line_offset);
+	LOG(LOG_INFO, "%s:temper line offset %d, rtn %d\n", __func__, temper_line_offset, rc);
+	if (rc != 0) {
+		   LOG(LOG_ERR, "failed to get temper_line_offset from dts, use default value\n");
+		   temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
+	}
 
 	/* initialize isp */
 	rc = fw_intf_isp_init(hw_isp_addr);
 	if ( rc < 0 )
 		goto free_cma;
-	
+
     /* initialize stream related resources to prepare for streaming.
      * It should be called after sensor initialized.
      */

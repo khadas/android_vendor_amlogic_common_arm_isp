@@ -51,6 +51,7 @@
 
 extern uint8_t *isp_kaddr;
 extern resource_size_t isp_paddr;
+extern unsigned int temper_line_offset;
 
 static struct task_struct *isp_fw_process_thread = NULL;
 
@@ -174,6 +175,8 @@ void isp_update_setting(void)
 	        aframe[i].address = paddr;
 
 	        paddr = aframe[i].address + aframe[i].size;
+
+	        aframe[i].line_offset = temper_line_offset;
 	    }
 
 	    settings[j].temper_frames_number = 1;

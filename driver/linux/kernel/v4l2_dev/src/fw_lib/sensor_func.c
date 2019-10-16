@@ -178,7 +178,7 @@ void sensor_configure_buffers( sensor_fsm_ptr_t p_fsm )
             acamera_isp_temper_dma_msb_bank_base_writer_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, temper_frames[1].address );
             acamera_isp_temper_temper2_mode_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 0 ); //temper 3
         }
-        acamera_isp_temper_dma_line_offset_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, acamera_isp_top_active_width_read( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base ) * 3 );
+        acamera_isp_temper_dma_line_offset_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, temper_frames[0].line_offset);
         acamera_isp_temper_enable_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 );
         acamera_isp_temper_dma_frame_write_on_lsb_dma_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 );
         acamera_isp_temper_dma_frame_read_on_lsb_dma_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 );
