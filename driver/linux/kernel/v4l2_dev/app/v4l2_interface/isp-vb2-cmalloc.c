@@ -287,16 +287,16 @@ static int vb2_cmalloc_dmabuf_ops_attach(struct dma_buf *dbuf,
 		kfree(attach);
 		return ret;
 	}
-	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
-		struct page *page = vaddr;
 
+	struct page *page = vaddr;	
+	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
 		if (!page) {
 			sg_free_table(sgt);
 			kfree(attach);
 			return -ENOMEM;
 		}
 		sg_set_page(sg, page, PAGE_SIZE, 0);
-		vaddr += PAGE_SIZE;
+		page ++;
 	}
 
 	attach->dma_dir = DMA_NONE;
