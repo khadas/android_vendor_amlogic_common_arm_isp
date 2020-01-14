@@ -64,6 +64,8 @@ struct _noise_reduction_fsm_t {
 void noise_reduction_fsm_clear( noise_reduction_fsm_ptr_t p_fsm );
 
 void noise_reduction_fsm_init( void *fsm, fsm_init_param_t *init_param );
+int noise_reduction_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_size );
+int noise_reduction_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_size, void *output, uint32_t output_size );
 
 uint8_t noise_reduction_fsm_process_event( noise_reduction_fsm_ptr_t p_fsm, event_id_t event_id );
 

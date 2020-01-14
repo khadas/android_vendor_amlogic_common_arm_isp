@@ -151,6 +151,13 @@ int acamera_fsm_mgr_set_param(acamera_fsm_mgr_t * p_fsm_mgr, uint32_t param_id, 
             LOG(LOG_ERR, "AUTOCAP FSM doesn't support set_param().");
             rc = -1;
         }
+    } else if ( FSM_PARAM_SET_NR_START < param_id && param_id < FSM_PARAM_SET_NR_END ) {
+        if ( p_fsm_mgr->fsm_arr[FSM_ID_NOISE_REDUCTION]->ops.set_param ) {
+            rc = p_fsm_mgr->fsm_arr[FSM_ID_NOISE_REDUCTION]->ops.set_param( p_fsm_mgr->fsm_arr[FSM_ID_NOISE_REDUCTION]->p_fsm, param_id, input, input_size);
+        } else {
+            LOG(LOG_ERR, "NR FSM doesn't support set_param().");
+            rc = -1;
+        }
     }else {
         LOG(LOG_CRIT, "Unsupported param_id: %d.", param_id);
         rc = -1;
@@ -257,6 +264,13 @@ int acamera_fsm_mgr_get_param(acamera_fsm_mgr_t * p_fsm_mgr, uint32_t param_id, 
             rc = p_fsm_mgr->fsm_arr[FSM_ID_AF]->ops.get_param( p_fsm_mgr->fsm_arr[FSM_ID_AF]->p_fsm, param_id, input, input_size, output, output_size);
         } else {
             LOG(LOG_ERR, "AF FSM doesn't support get_param().");
+            rc = -1;
+        }
+    } else if ( FSM_PARAM_GET_NR_START < param_id && param_id < FSM_PARAM_GET_NR_END ) {
+        if ( p_fsm_mgr->fsm_arr[FSM_ID_NOISE_REDUCTION]->ops.get_param ) {
+            rc = p_fsm_mgr->fsm_arr[FSM_ID_NOISE_REDUCTION]->ops.get_param( p_fsm_mgr->fsm_arr[FSM_ID_NOISE_REDUCTION]->p_fsm, param_id, input, input_size, output, output_size);
+        } else {
+            LOG(LOG_ERR, "NR FSM doesn't support get_param().");
             rc = -1;
         }
     } else {

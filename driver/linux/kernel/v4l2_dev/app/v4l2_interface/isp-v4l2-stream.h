@@ -111,6 +111,7 @@ typedef struct _isp_v4l2_stream_t {
     isp_fw_frame_mgr_t frame_mgr;
     int fw_frame_seq_count;
     struct vb2_queue* vb2_q;
+    struct ion_client *ion_client;
 } isp_v4l2_stream_t;
 
 

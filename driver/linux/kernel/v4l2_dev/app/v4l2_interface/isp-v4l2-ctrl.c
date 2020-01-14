@@ -243,6 +243,70 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         LOG( LOG_INFO, "set custom fps: %d.\n", ctrl->val );
         ret = fw_intf_set_custom_sensor_fps(ctx_id, ctrl->val);
         break;
+    case ISP_V4L2_CID_CUSTOM_SNR_MANUAL:
+        LOG( LOG_INFO, "set snr manual: %d.\n", ctrl->val );
+        ret = fw_intf_set_custom_snr_manual(ctx_id, ctrl->val);
+        break;
+    case ISP_V4L2_CID_CUSTOM_SNR_OFFSET:
+        LOG( LOG_INFO, "set snr offset: %d.\n", ctrl->val );
+        ret = fw_intf_set_custom_snr_offset(ctx_id, ctrl->val);
+        break;
+    case ISP_V4L2_CID_CUSTOM_TNR_MANUAL:
+        LOG( LOG_INFO, "set tnr manual: %d.\n", ctrl->val );
+        ret = fw_intf_set_custom_tnr_manual(ctx_id, ctrl->val);
+        break;
+    case ISP_V4L2_CID_CUSTOM_TNR_OFFSET:
+        LOG( LOG_INFO, "set tnr offset: %d.\n", ctrl->val );
+        ret = fw_intf_set_custom_tnr_offset(ctx_id, ctrl->val);
+        break;
+     case ISP_V4L2_CID_CUSTOM_TEMPER_MODE:
+        LOG( LOG_INFO, "set temper mode: %d.\n", ctrl->val );
+        ret = fw_intf_set_customer_temper_mode(ctx_id, ctrl->val);
+        break;
+    }
+
+    return ret;
+}
+
+static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
+{
+    int ret = 0;
+    struct v4l2_ctrl_handler *hdl = ctrl->handler;
+
+    isp_v4l2_ctrl_t *isp_ctrl = cst_hdl_to_isp_ctrl( hdl );
+    int ctx_id = isp_ctrl->ctx_id;
+
+    LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
+         ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum);
+
+    switch ( ctrl->id ) {
+    case ISP_V4L2_CID_AE_COMPENSATION:
+        LOG( LOG_INFO, "get ae compensation: %d.\n" );
+        ctrl->val = fw_intf_get_ae_compensation(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_SNR_MANUAL:
+        LOG( LOG_INFO, "get snr manual: %d.\n" );
+        ctrl->val = fw_intf_get_custom_snr_manual(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_SNR_OFFSET:
+        LOG( LOG_INFO, "get snr offset: %d.\n" );
+        ctrl->val = fw_intf_get_custom_snr_offset(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_TNR_MANUAL:
+        LOG( LOG_INFO, "get tnr manual: %d.\n" );
+        ctrl->val = fw_intf_get_custom_tnr_manual(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_TNR_OFFSET:
+        LOG( LOG_INFO, "get tnr offset: %d.\n" );
+        ctrl->val = fw_intf_get_custom_tnr_offset(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_TEMPER_MODE:
+        LOG( LOG_INFO, "get temper mode: %d.\n" );
+        ctrl->val = fw_intf_get_custom_temper_mode(ctx_id);
+        break;
+    default:
+        ret = 1;
+        break;
     }
 
     return ret;
@@ -250,6 +314,7 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
 
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops_custom = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_custom,
+    .g_volatile_ctrl = isp_v4l2_ctrl_g_ctrl_custom,
 };
 
 static const struct v4l2_ctrl_config isp_v4l2_ctrl_test_pattern = {
@@ -542,6 +607,61 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_sensor_fps = {
     .def = 0,
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_snr_manual = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SNR_MANUAL,
+    .name = "ISP SNR manual",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 1,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_snr_offset = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_SNR_OFFSET,
+    .name = "ISP SNR offset",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 255,
+    .step = 1,
+    .def = 128,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_tnr_manual = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_TNR_MANUAL,
+    .name = "ISP TNR manual",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 1,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_tnr_offset = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_TNR_OFFSET,
+    .name = "ISP TNR offset",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 255,
+    .step = 1,
+    .def = 128,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_temper_mode = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_TEMPER_MODE,
+    .name = "ISP Temper mode",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 1,
+    .max = 2,
+    .step = 1,
+    .def = 1,
+};
+
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_standard,
 };
@@ -671,6 +791,16 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_max_integration_time, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_FPS,
                   &isp_v4l2_ctrl_sensor_fps, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SNR_MANUAL,
+                  &isp_v4l2_ctrl_snr_manual, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SNR_OFFSET,
+                  &isp_v4l2_ctrl_snr_offset, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_TNR_MANUAL,
+                  &isp_v4l2_ctrl_tnr_manual, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_TNR_OFFSET,
+                  &isp_v4l2_ctrl_tnr_offset, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_TEMPER_MODE,
+                  &isp_v4l2_ctrl_temper_mode, NULL);
     /* Add control handler to v4l2 device */
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );
     ctrl->video_dev->ctrl_handler = hdl_std_ctrl;

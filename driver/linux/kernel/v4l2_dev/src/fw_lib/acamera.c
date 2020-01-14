@@ -570,7 +570,9 @@ int32_t acamera_interrupt_handler()
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION ) ) {
 
-            LOG( LOG_CRIT, "Found error resetting ISP. MASK is 0x%x", irq_mask );
+            LOG( LOG_INFO, "Found error resetting ISP. MASK is 0x%x", irq_mask );
+
+            system_irq_status(irq_mask);
 
             acamera_fw_error_routine( p_ctx, irq_mask );
             return -1; //skip other interrupts in case of error

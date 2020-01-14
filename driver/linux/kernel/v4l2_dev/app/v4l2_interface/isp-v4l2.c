@@ -49,9 +49,18 @@ static isp_v4l2_dev_t *g_isp_v4l2_dev;
 void *isp_kaddr = NULL;
 resource_size_t isp_paddr = 0;
 #define SIZE_1M (1024 * 1024UL)
-#define DEFAULT_TEMPER_BUFFER_SIZE 16
-#define DEFAULT_TEMPER_LINE_OFFSET 1920*4
+#define DEFAULT_TEMPER_BUFFER_SIZE    16
+#define DEFAULT_TEMPER_LINE_OFFSET    3840*3
+#define DEFAULT_TEMPER_FRAME_NUM      1
+#define DEFAULT_TEMPER_FRAME_SIZE     3840*2160*6
+#define ENFORCE_TEMPER3_DISABLE       0
+#define ENFORCE_TEMPER3_ENABLE        3
 unsigned int temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
+unsigned int temper_frame_num = DEFAULT_TEMPER_FRAME_NUM;
+unsigned int temper_frame_size = DEFAULT_TEMPER_FRAME_SIZE;
+unsigned int temper3 = 1;
+module_param(temper3, uint, 0664);
+MODULE_PARM_DESC(temper3, "\n temper3 enable\n");
 /* ----------------------------------------------------------------
  * V4L2 file handle structures and functions
  * : implementing multi stream
@@ -217,8 +226,10 @@ static int isp_v4l2_fop_close( struct file *file )
             dev->stream_id_index[pstream->stream_type] = -1;
         if (pstream->stream_started)
         {
+            isp_v4l2_stream_type_t type = pstream->stream_type;
             isp_v4l2_stream_deinit( pstream, atomic_read(&dev->stream_on_cnt) );
-            atomic_sub_return( 1, &dev->stream_on_cnt );
+			if (atomic_read(&dev->stream_on_cnt) && ( type != V4L2_STREAM_TYPE_META))
+				atomic_sub_return( 1, &dev->stream_on_cnt );
             dev->pstreams[sp->stream_id] = NULL;
         }
         if ( dev->pstreams[sp->stream_id] ) {
@@ -231,7 +242,7 @@ static int isp_v4l2_fop_close( struct file *file )
     if ( sp->vb2_q.lock )
         mutex_lock( sp->vb2_q.lock );
 
-    isp_vb2_queue_release( &sp->vb2_q );
+    isp_vb2_queue_release( &sp->vb2_q, pstream );
 
     if ( sp->vb2_q.lock )
         mutex_unlock( sp->vb2_q.lock );
@@ -426,7 +437,8 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         return rc;
     }
 
-    atomic_add( 1, &dev->stream_on_cnt );
+    if (pstream->stream_type != V4L2_STREAM_TYPE_META)
+    	atomic_add( 1, &dev->stream_on_cnt );
 
     return rc;
 }
@@ -447,7 +459,8 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
     /* vb streamoff */
     rc = vb2_streamoff( &sp->vb2_q, i );
 
-    atomic_sub_return( 1, &dev->stream_on_cnt );
+	if (atomic_read(&dev->stream_on_cnt) && (pstream->stream_type != V4L2_STREAM_TYPE_META))
+		atomic_sub_return( 1, &dev->stream_on_cnt );
 
     return rc;
 }
@@ -821,40 +834,61 @@ static void isp_v4l2_destroy_dev( int ctx_id )
  */
 int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_device *pdev, uint32_t hw_isp_addr )
 {
-	uint32_t ctx_id;
-	uint32_t ret_value;
-	unsigned int temper_buf_size;
-	int rc = 0;
-	
-	if ( v4l2_dev == NULL ) {
-		LOG( LOG_ERR, "Invalid parameter" );
-		return -EINVAL;
-	}
-	
-	rc = of_property_read_u32(pdev->dev.of_node, "temper-buf-size",
-							   &temper_buf_size);
-	LOG(LOG_INFO, "%s:temper buffer size %d, rtn %d\n", __func__, temper_buf_size, rc);
+    uint32_t ctx_id;
+    uint32_t ret_value;
+    unsigned int temper_buf_size;
+    int rc = 0;
 
-	if (rc != 0) {
-		   LOG(LOG_ERR, "failed to get temper-buf-size from dts, use default value\n");
-		   temper_buf_size = DEFAULT_TEMPER_BUFFER_SIZE;
-	}
+    if ( v4l2_dev == NULL ) {
+        LOG( LOG_ERR, "Invalid parameter" );
+        return -EINVAL;
+    }
 
-	rc = isp_cma_alloc(pdev, temper_buf_size * SIZE_1M);
-	if (rc < 0)
-		return rc;
+    rc = of_property_read_u32(pdev->dev.of_node, "temper-frame-num",
+                               &temper_frame_num);
+    if ( rc != 0 ) {
+        temper_frame_num = DEFAULT_TEMPER_FRAME_NUM * temper3;
+    }
+    else
+    {
+        if ( temper3 == ENFORCE_TEMPER3_DISABLE )
+            temper_frame_num = DEFAULT_TEMPER_FRAME_NUM;
+        else if ( temper3 == ENFORCE_TEMPER3_ENABLE )
+            temper_frame_num = DEFAULT_TEMPER_FRAME_NUM * 2;
+    }
 
-	rc = of_property_read_u32(pdev->dev.of_node, "temper-line-offset", &temper_line_offset);
-	LOG(LOG_INFO, "%s:temper line offset %d, rtn %d\n", __func__, temper_line_offset, rc);
-	if (rc != 0) {
-		   LOG(LOG_ERR, "failed to get temper_line_offset from dts, use default value\n");
-		   temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
-	}
+    rc = of_property_read_u32(pdev->dev.of_node, "temper-frame-size",
+                               &temper_frame_size);
+    if ( rc != 0 ) {
+        temper_frame_size = DEFAULT_TEMPER_FRAME_SIZE;
+    }
 
-	/* initialize isp */
-	rc = fw_intf_isp_init(hw_isp_addr);
-	if ( rc < 0 )
-		goto free_cma;
+    rc = of_property_read_u32(pdev->dev.of_node, "temper-buf-size",
+                               &temper_buf_size);
+    LOG(LOG_INFO, "%s:temper buffer size %d, rtn %d\n", __func__, temper_buf_size, rc);
+    if ( rc != 0 ) {
+        LOG(LOG_ERR, "failed to get temper-buf-size from dts, use default value\n");
+        temper_buf_size = DEFAULT_TEMPER_BUFFER_SIZE;
+    }
+
+    if ( temper_buf_size < (( temper_frame_num * temper_frame_size) / SIZE_1M) )
+        temper_buf_size = (temper_frame_num * temper_frame_size) / SIZE_1M;
+
+    rc = isp_cma_alloc(pdev, temper_buf_size * SIZE_1M);
+    if (rc < 0)
+        return rc;
+
+    rc = of_property_read_u32(pdev->dev.of_node, "temper-line-offset", &temper_line_offset);
+    LOG(LOG_INFO, "%s:temper line offset %d, rtn %d\n", __func__, temper_line_offset, rc);
+    if (rc != 0) {
+        LOG(LOG_ERR, "failed to get temper_line_offset from dts, use default value\n");
+        temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
+    }
+
+    /* initialize isp */
+    rc = fw_intf_isp_init(hw_isp_addr);
+    if ( rc < 0 )
+        goto free_cma;
 
     /* initialize stream related resources to prepare for streaming.
      * It should be called after sensor initialized.
@@ -865,43 +899,43 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
             goto deinit_fw_intf;
     }
 
-	/* check sensor devices */
-	for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
-		rc = acamera_command(ctx_id, TSENSOR, SENSOR_HWID, 0, COMMAND_GET, &ret_value);
-		if ( rc ) {
-			LOG( LOG_CRIT, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
-			rc = 0;
-			goto deinit_fw_intf;
-		}
-	}
-		
-	/* initialize v4l2 layer devices */
-	for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
-		rc = isp_v4l2_init_dev( ctx_id, v4l2_dev );
-		if ( rc ) {
-			LOG( LOG_ERR, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
-			goto unreg_dev;
-		}
-		g_isp_v4l2_devs[ctx_id]->pdev = &pdev->dev;
-	}
-		
-	g_isp_v4l2_dev = g_isp_v4l2_devs[0];
+    /* check sensor devices */
+    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+        rc = acamera_command(ctx_id, TSENSOR, SENSOR_HWID, 0, COMMAND_GET, &ret_value);
+        if ( rc ) {
+            LOG( LOG_CRIT, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
+            rc = 0;
+            goto deinit_fw_intf;
+        }
+    }
+
+    /* initialize v4l2 layer devices */
+    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+        rc = isp_v4l2_init_dev( ctx_id, v4l2_dev );
+        if ( rc ) {
+            LOG( LOG_ERR, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
+            goto unreg_dev;
+        }
+        g_isp_v4l2_devs[ctx_id]->pdev = &pdev->dev;
+    }
+
+    g_isp_v4l2_dev = g_isp_v4l2_devs[0];
     g_isp_v4l2_dev->temper_buf_size = temper_buf_size;
-	
-	return 0;
-	
+
+    return 0;
+
 unreg_dev:
-	for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
-		isp_v4l2_destroy_dev( ctx_id );
-	}
-	
+    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+        isp_v4l2_destroy_dev( ctx_id );
+    }
+
 deinit_fw_intf:
-	fw_intf_isp_deinit();
+    fw_intf_isp_deinit();
 
 free_cma:
-	isp_cma_free(pdev, isp_kaddr, temper_buf_size * SIZE_1M);
-	
-	return rc;
+    isp_cma_free(pdev, isp_kaddr, temper_buf_size * SIZE_1M);
+
+    return rc;
 }
 
 void isp_v4l2_destroy_instance( struct platform_device *pdev )

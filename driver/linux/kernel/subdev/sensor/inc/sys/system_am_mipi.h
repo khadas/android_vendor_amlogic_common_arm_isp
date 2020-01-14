@@ -89,6 +89,8 @@ csi1_host: 0xfe022400
 #define MIPI_CSI_PHY_STATE	0x014
 #define MIPI_CSI_DATA_IDS_1	0x018
 #define MIPI_CSI_DATA_IDS_2	0x01C
+#define MIPI_CSI_DATA_ERR1	0x020
+#define MIPI_CSI_DATA_ERR2	0x024
 
 struct am_mipi {
 	struct device_node *of_node;
@@ -124,7 +126,8 @@ void am_mipi_deinit_parse_dt(void);
 int am_mipi_init(void *info);
 void am_mipi_set_lanes(int lanes);
 void am_mipi_deinit(void);
-
+uint32_t mipi_csi_reg_rd_ext(int addr);
+uint32_t mipi_phy_reg_rd_ext(int addr);
 
 
 #endif

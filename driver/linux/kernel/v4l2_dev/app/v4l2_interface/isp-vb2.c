@@ -135,7 +135,7 @@ static int isp_vb2_buf_prepare( struct vb2_buffer *vb )
     return 0;
 }
 
-static int isp_vb_to_tframe(isp_v4l2_stream_t *pstream, tframe_t *frame, isp_v4l2_buffer_t *buf)
+static int isp_vb_mmap_cvt(isp_v4l2_stream_t *pstream, tframe_t *frame, isp_v4l2_buffer_t *buf)
 {
     void *p_mem = NULL;
     void *s_mem = NULL;
@@ -143,7 +143,7 @@ static int isp_vb_to_tframe(isp_v4l2_stream_t *pstream, tframe_t *frame, isp_v4l
     unsigned int s_size = 0;
     unsigned int bytesline = 0;
     struct page *cma_pages = NULL;
-	
+
     if (frame == NULL || buf == NULL) {
         LOG(LOG_ERR, "Error input param");
         return -1;
@@ -189,8 +189,117 @@ static int isp_vb_to_tframe(isp_v4l2_stream_t *pstream, tframe_t *frame, isp_v4l
 	} else {
 		LOG(LOG_CRIT, "v4l2 bufer format not supported\n");
 	}
-	
-	frame->list = (void *)&buf->list;		
+
+	frame->list = (void *)&buf->list;
+    return 0;
+}
+
+#ifdef CONFIG_AMLOGIC_ION
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+void isp_ion_buffer_to_phys(struct ion_buffer *buffer,
+			      phys_addr_t *addr, size_t *len)
+{
+	struct sg_table *sg_table;
+	struct page *page;
+
+	if (buffer) {
+		sg_table = buffer->sg_table;
+		page = sg_page(sg_table->sgl);
+		*addr = PFN_PHYS(page_to_pfn(page));
+		*len = buffer->size;
+	}
+}
+
+int isp_ion_share_fd_to_phys(int fd, phys_addr_t *addr, size_t *len)
+{
+	struct dma_buf *dmabuf;
+	struct ion_buffer *buffer;
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR_OR_NULL(dmabuf))
+		return PTR_ERR(dmabuf);
+
+	buffer = (struct ion_buffer *)dmabuf->priv;
+	isp_ion_buffer_to_phys(buffer, addr, len);
+	dma_buf_put(dmabuf);
+
+	return 0;
+}
+#endif
+
+static void isp_vb_userptr_cvt(isp_v4l2_stream_t *pstream, tframe_t *frame, isp_v4l2_buffer_t *buf)
+{
+    int i = 0;
+    int ret = 0;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+    phys_addr_t addr;
+#else
+	ion_phys_addr_t addr;
+#endif
+    size_t size = 0;
+    uint32_t p_len = 0;
+    uint32_t p_off = 0;
+    uint32_t p_addr = 0;
+    struct vb2_cmalloc_buf *cma_buf;
+
+    for (i = 0; i < buf->vvb.vb2_buf.num_planes; i++) {
+        cma_buf = buf->vvb.vb2_buf.planes[i].mem_priv;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+        ret = isp_ion_share_fd_to_phys((unsigned long)cma_buf->vaddr,
+                                   &addr, &size);
+#else
+		ret = meson_ion_share_fd_to_phys(pstream->ion_client, (unsigned long)cma_buf->vaddr,
+							&addr, &size);
+#endif
+        if (ret < 0) {
+            LOG(LOG_CRIT, "Failed to get phys addr\n");
+            return;
+        }
+
+        p_len = buf->vvb.vb2_buf.planes[i].length;
+        p_addr = addr + p_off;
+
+        switch (i) {
+        case 0:
+            frame->primary.address = p_addr;
+            frame->primary.size = p_len;
+            break;
+        case 1:
+            frame->secondary.address = p_addr;
+            frame->secondary.size = p_len;
+            break;
+        default:
+            LOG(LOG_CRIT, "Failed to support %d planes\n", i + 1);
+            break;
+        }
+
+        LOG(LOG_DEBUG, "idx %u, plane[%d], addr 0x%x, len %u, off %u, size %u",
+                buf->vvb.vb2_buf.index, i, p_addr, p_len, p_off, size);
+
+        p_off += p_len;
+    }
+
+    frame->list = (void *)&buf->list;
+}
+#else
+static void isp_vb_userptr_cvt(isp_v4l2_stream_t *pstream, tframe_t *frame, isp_v4l2_buffer_t *buf)
+{
+}
+#endif
+static int isp_vb_to_tframe(isp_v4l2_stream_t *pstream,
+                                tframe_t *frame,
+                                isp_v4l2_buffer_t *buf)
+{
+    if (frame == NULL || buf == NULL) {
+        LOG(LOG_ERR, "Error input param");
+        return -1;
+    }
+
+    if (buf->vvb.vb2_buf.memory == VB2_MEMORY_MMAP)
+        isp_vb_mmap_cvt(pstream, frame, buf);
+    else if (buf->vvb.vb2_buf.memory == VB2_MEMORY_USERPTR)
+        isp_vb_userptr_cvt(pstream, frame, buf);
+
     return 0;
 }
 
@@ -323,6 +432,11 @@ static const struct vb2_ops isp_vb2_ops = {
  */
 int isp_vb2_queue_init( struct vb2_queue *q, struct mutex *mlock, isp_v4l2_stream_t *pstream, struct device *dev )
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
+#ifdef CONFIG_AMLOGIC_ION
+    char ion_client_name[32];
+#endif
+#endif
     memset( q, 0, sizeof( struct vb2_queue ) );
 
     /* start creating the vb2 queues */
@@ -345,7 +459,11 @@ int isp_vb2_queue_init( struct vb2_queue *q, struct mutex *mlock, isp_v4l2_strea
         q->mem_ops = &vb2_vmalloc_memops;
     }
 
-    q->io_modes = VB2_MMAP | VB2_READ;
+#ifdef CONFIG_AMLOGIC_ION
+    q->io_modes = VB2_MMAP | VB2_READ | VB2_USERPTR;
+#else
+	q->io_modes = VB2_MMAP | VB2_READ;
+#endif
     q->drv_priv = pstream;
     q->buf_struct_size = sizeof( isp_v4l2_buffer_t );
 
@@ -357,10 +475,27 @@ int isp_vb2_queue_init( struct vb2_queue *q, struct mutex *mlock, isp_v4l2_strea
     q->dev = dev;
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
+#ifdef CONFIG_AMLOGIC_ION
+    sprintf(ion_client_name, "isp_stream_%d", pstream->stream_id);
+    if (!pstream->ion_client)
+        pstream->ion_client = meson_ion_client_create(-1, ion_client_name);
+#endif
+#endif
+
     return vb2_queue_init( q );
 }
 
-void isp_vb2_queue_release( struct vb2_queue *q )
+void isp_vb2_queue_release( struct vb2_queue *q, isp_v4l2_stream_t *pstream )
 {
     vb2_queue_release( q );
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
+#ifdef CONFIG_AMLOGIC_ION
+    if (pstream->ion_client) {
+        ion_client_destroy(pstream->ion_client);
+        pstream->ion_client = NULL;
+    }
+#endif
+#endif
 }

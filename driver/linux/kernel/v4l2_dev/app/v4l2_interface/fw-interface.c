@@ -33,6 +33,7 @@
 #include "acamera_logger.h"
 #include "isp-v4l2-common.h"
 #include "fw-interface.h"
+#include "runtime_initialization_settings.h"
 #include <linux/delay.h>
 
 //use main_firmware.c routines to initialize fw
@@ -344,11 +345,13 @@ void fw_intf_stream_stop( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, in
     if (streamType == V4L2_STREAM_TYPE_DS2) {
         uint32_t ret_val;
         LOG( LOG_ERR, "Stopping stream type %d", streamType );
+		if(stream_on_count == 1)
+			acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
         acamera_command( ctx_id, TAML_SCALER, SCALER_STREAMING_OFF, OFF, COMMAND_SET, &ret_val );
     }
 #endif
 
-    LOG( LOG_CRIT, "Stream off %d\n",  streamType);
+    LOG( LOG_CRIT, "Stream off %d, user: %d\n",  streamType, stream_on_count);
 }
 
 void fw_intf_stream_pause( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, uint8_t bPause )
@@ -1581,6 +1584,219 @@ static int isp_fw_do_set_max_integration_time( uint32_t ctx_id, int val )
     return 0;
 }
 
+static int isp_fw_do_set_snr_manual( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+
+    LOG( LOG_INFO, "snr maunal: %d.", val );
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, SNR_MANUAL_ID, val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SNR_MANUAL_ID to %d, ret_value: %d.", val, result );
+        return result;
+    }
+
+    return 0;
+
+}
+
+static int isp_fw_do_set_snr_offset( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+
+    LOG( LOG_INFO, "snr offset: %d.", val );
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, SNR_OFFSET_ID, val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SNR_OFFSET_ID to %d, ret_value: %d.", val, result );
+        return result;
+    }
+
+    return 0;
+
+}
+
+static int isp_fw_do_set_tnr_manual( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+
+    LOG( LOG_INFO, "tnr maunal: %d.", val );
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, TNR_MANUAL_ID, val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set TNR_MANUAL_ID to %d, ret_value: %d.", val, result );
+        return result;
+    }
+
+    return 0;
+
+}
+
+static int isp_fw_do_set_tnr_offset( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+
+    LOG( LOG_INFO, "tnr offset: %d.", val );
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, TNR_OFFSET_ID, val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set TNR_OFFSET_ID to %d, ret_value: %d.", val, result );
+        return result;
+    }
+
+    return 0;
+
+}
+
+static int isp_fw_do_set_temper_mode( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+    uint32_t temper_mode;
+
+    LOG( LOG_INFO, "temper mode: %d.", val );
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    if ( val == 1 )
+        temper_mode = TEMPER2_MODE;
+    else
+        temper_mode = TEMPER3_MODE;
+
+    result = acamera_command( ctx_id, TSYSTEM, TEMPER_MODE_ID, temper_mode, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set TEMPER_MODE_ID to %d, ret_value: %d.", temper_mode, result );
+        return result;
+    }
+
+    return 0;
+
+}
+
+static int isp_fw_do_get_ae_compensation( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_NOTICE, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TALGORITHMS, AE_COMPENSATION_ID, 0, COMMAND_GET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set AE_COMPENSATION, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+}
+
+static int isp_fw_do_get_snr_manual( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, SNR_MANUAL_ID, 0, COMMAND_GET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SNR_MANUAL_ID, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+}
+
+static int isp_fw_do_get_snr_offset( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, SNR_OFFSET_ID, 0, COMMAND_GET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SNR_OFFSET_ID, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+
+}
+
+static int isp_fw_do_get_tnr_manual( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, TNR_MANUAL_ID, 0, COMMAND_GET, &ret_val );
+	if ( result ) {
+        LOG( LOG_ERR, "Failed to set TNR_MANUAL_ID, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+
+}
+
+static int isp_fw_do_get_tnr_offset( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, TNR_OFFSET_ID, 0, COMMAND_GET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set TNR_OFFSET_ID, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+
+}
 
 /* ----------------------------------------------------------------
  * fw_interface config interface
@@ -1773,6 +1989,26 @@ int fw_intf_set_custom_sensor_fps(uint32_t ctx_id, uint32_t ctrl_val)
     return 0;
 }
 
+int fw_intf_set_custom_snr_manual(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    return isp_fw_do_set_snr_manual(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_custom_snr_offset(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    return isp_fw_do_set_snr_offset(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_custom_tnr_manual(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    return isp_fw_do_set_tnr_manual(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_custom_tnr_offset(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    return isp_fw_do_set_tnr_offset(ctx_id, ctrl_val);
+}
+
 int fw_intf_set_custom_fr_fps(uint32_t ctx_id, uint32_t ctrl_val)
 {
     int rtn = -1;
@@ -1942,4 +2178,45 @@ int fw_intf_set_customer_max_integration_time(uint32_t ctx_id, uint32_t ctrl_val
        return 0;
     }
     return isp_fw_do_set_max_integration_time(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_customer_temper_mode(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    if ( ctrl_val != 1 || ctrl_val != 2) {
+       return 0;
+    }
+
+    settings[ctx_id].temper_frames_number = ctrl_val;
+
+    return isp_fw_do_set_temper_mode(ctx_id, ctrl_val);
+}
+
+int fw_intf_get_ae_compensation( uint32_t ctx_id )
+{
+    return isp_fw_do_get_ae_compensation( ctx_id );
+}
+
+int fw_intf_get_custom_snr_manual(uint32_t ctx_id)
+{
+    return isp_fw_do_get_snr_manual(ctx_id);
+}
+
+int fw_intf_get_custom_snr_offset(uint32_t ctx_id)
+{
+    return isp_fw_do_get_snr_offset(ctx_id);
+}
+
+int fw_intf_get_custom_tnr_manual(uint32_t ctx_id)
+{
+    return isp_fw_do_get_tnr_manual(ctx_id);
+}
+
+int fw_intf_get_custom_tnr_offset(uint32_t ctx_id)
+{
+    return isp_fw_do_get_tnr_offset(ctx_id);
+}
+
+int fw_intf_get_custom_temper_mode(uint32_t ctx_id)
+{
+    return settings[ctx_id].temper_frames_number;
 }

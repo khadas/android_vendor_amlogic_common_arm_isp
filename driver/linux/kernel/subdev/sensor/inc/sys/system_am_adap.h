@@ -196,6 +196,7 @@ struct am_adap {
 	struct resource reg;
 	void __iomem *base_addr;
 	int f_end_irq;
+	int f_fifo;
 	int rd_irq;
 	unsigned int adap_buf_size;
 };
@@ -219,6 +220,7 @@ int am_adap_deinit(void);
 void am_adap_set_info(struct am_adap_info *info);
 int get_fte1_flag(void);
 int am_adap_get_depth(void);
+void mipi_adap_reg_rd_ext(int addr, adap_io_type_t io_type, uint32_t *val);
 
 #endif
 

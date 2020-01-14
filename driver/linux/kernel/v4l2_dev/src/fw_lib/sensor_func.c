@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/module.h>
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_math.h"
@@ -50,6 +51,10 @@ typedef struct {
 #undef LOG_MODULE
 #define LOG_MODULE LOG_MODULE_SENSOR
 #endif
+
+unsigned int temper3_4k = 0;
+module_param(temper3_4k, uint, 0664);
+MODULE_PARM_DESC(temper3_4k, "\n temper3 4k enable\n");
 
 void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 {
@@ -188,6 +193,16 @@ void sensor_configure_buffers( sensor_fsm_ptr_t p_fsm )
         acamera_isp_temper_dma_frame_write_on_lsb_dma_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 0 );
         acamera_isp_temper_dma_frame_read_on_lsb_dma_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 0 );
         LOG( LOG_ERR, "No output buffers for temper block provided in settings. Temper is disabled" );
+    }
+
+    if ( temper3_4k == 0 )
+    {
+        const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+        if ( param->modes_table[p_fsm->preset_mode].resolution.width > 1920 &&  param->modes_table[p_fsm->preset_mode].resolution.height > 1080 )
+        {
+            LOG(LOG_CRIT, "Resolution: %dx%d > 1080P, close temper3",param->modes_table[p_fsm->preset_mode].resolution.width ,param->modes_table[p_fsm->preset_mode].resolution.height);
+            acamera_isp_temper_temper2_mode_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 );
+        }
     }
 #endif
 }

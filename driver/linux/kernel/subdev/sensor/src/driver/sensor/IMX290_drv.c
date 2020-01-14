@@ -376,7 +376,7 @@ static uint16_t sensor_get_id( void *ctx )
 	sensor_id |= acamera_sbus_read_u8(&p_ctx->sbus, 0x301f);
 
     if (sensor_id != SENSOR_CHIP_ID) {
-        LOG(LOG_ERR, "%s: Failed to read sensor id\n", __func__);
+        LOG(LOG_CRIT, "%s: Failed to read sensor id\n", __func__);
         return 0xFFFF;
     }
 
@@ -506,7 +506,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
         break;
     }
 
-    if ( param->modes_table[mode].fps == 25 * 256 ) {
+    if ( (param->modes_table[mode].exposures == 1 ) && (param->modes_table[mode].fps == 25 * 256) ) {
         acamera_sbus_write_u8( p_sbus, 0x3018, 0x46 );
         acamera_sbus_write_u8( p_sbus, 0x3019, 0x05 );
         p_ctx->s_fps = 25;

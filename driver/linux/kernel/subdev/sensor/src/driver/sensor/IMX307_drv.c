@@ -84,6 +84,19 @@ static sensor_mode_t supported_modes[] = {
     },
     {
         .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
+        .fps = 25 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 12,
+        .exposures = 1,
+        .lanes = 4,
+        .bps = 446,
+        .bayer = BAYER_RGGB,
+        .dol_type = DOL_NON,
+        .num = SENSOR_IMX307_SEQUENCE_1080P_30FPS_12BIT_4LANE,
+    },
+    {
+        .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
         .fps = 60 * 256,
         .resolution.width = 1920,
         .resolution.height = 1080,
@@ -113,6 +126,19 @@ static sensor_mode_t supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_FS_LIN,
         .fps = 30 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 10,
+        .exposures = 2,
+        .lanes = 4,
+        .bps = 446,
+        .bayer = BAYER_RGGB,
+        .dol_type = DOL_LINEINFO,
+        .num = SENSOR_IMX307_SEQUENCE_1080P_30FPS_10BIT_4LANE_WDR,
+    },
+    {
+        .wdr_mode = WDR_MODE_FS_LIN,
+        .fps = 25 * 256,
         .resolution.width = 1920,
         .resolution.height = 1080,
         .bits = 10,
@@ -420,8 +446,8 @@ static uint16_t sensor_get_id( void *ctx )
     sensor_id |= acamera_sbus_read_u8(&p_ctx->sbus, 0x301f);
 
     if (sensor_id != SENSOR_CHIP_ID) {
-        LOG(LOG_ERR, "%s: Failed to read sensor id\n", __func__);
-        return 0xFF;
+        LOG(LOG_CRIT, "%s: Failed to read sensor id\n", __func__);
+        return 0xFFFF;
     }
     return 0;
 }
@@ -521,7 +547,26 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
         return;
     }
 
-    p_ctx->vmax = (((uint32_t)acamera_sbus_read_u8(p_sbus,0x3019)<<8)|acamera_sbus_read_u8(p_sbus,0x3018));
+    if ( (param->modes_table[mode].exposures == 1) && (param->modes_table[mode].fps == 25 * 256) ) {
+        acamera_sbus_write_u8( p_sbus, 0x3018, 0x46 );
+        acamera_sbus_write_u8( p_sbus, 0x3019, 0x05 );
+        p_ctx->s_fps = 25;
+        p_ctx->vmax = 1350;
+    } else if ((param->modes_table[mode].exposures == 2) && (param->modes_table[mode].fps == 30 * 256)) {
+        p_ctx->s_fps = 30;
+        p_ctx->vmax = 1220;
+    } else if ((param->modes_table[mode].exposures == 2) && (param->modes_table[mode].fps == 25 * 256)) {
+        acamera_sbus_write_u8( p_sbus, 0x3018, 0xb8 );
+        acamera_sbus_write_u8( p_sbus, 0x3019, 0x05 );
+        p_ctx->s_fps = 25;
+        p_ctx->vmax = 1464;
+    }else if ((param->modes_table[mode].exposures == 2) && (param->modes_table[mode].fps == 60 * 256)) {
+        p_ctx->s_fps = 60;
+        p_ctx->vmax = 1220;
+    } else {
+        //p_ctx->vmax = ((uint32_t)acamera_sbus_read_u8(p_sbus,0x8219)<<8)|acamera_sbus_read_u8(p_sbus,0x8218);
+        p_ctx->vmax = 1125;
+    }
 
     uint8_t r = ( acamera_sbus_read_u8( p_sbus, 0x3007 ) >> 4 );
     switch ( r ) {
@@ -531,18 +576,31 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
         // TODO (brgurung) In order to support specific exposure ratio
         // (8:1) this rhs1 limit may not be enough. Need to check if VMAX
         // and rhs1 needs to be updated.
+        if ( param->modes_table[mode].fps == 25 * 256 ) {
+            // RHS1 should be between 2n+5 and (FSC - BRL * 2 - 21)
+            // FSC = 2 * Vmax = 2250
+            p_ctx->rhs1 = 201;
 
-        // RHS1 should be between 2n+5 and (FSC - BRL * 2 - 21)
-        // FSC = 2 * Vmax = 2250
-        p_ctx->rhs1 = 2 * p_ctx->vmax - WDR_2_DOL_1080P_BRL * 2 - 21;
+            // Long integration time = FSC - (SHS2 + 1)
+            // SHS2 should be between 2 and RHS1 - 2
+            p_ctx->max_L = 2 * p_ctx->vmax - 3;
 
-        // Long integration time = FSC - (SHS2 + 1)
-        // SHS2 should be between 2 and RHS1 - 2
-        p_ctx->max_L = 2 * p_ctx->vmax - 3;
+            // Short integration time = RHS1 - (SHS1 + 1)
+            // Shutter time SHS1 should be between 2 and RHS1 - 2
+            p_ctx->max_S = p_ctx->rhs1 - 3;
+        } else {
+            // RHS1 should be between 2n+5 and (FSC - BRL * 2 - 21)
+            // FSC = 2 * Vmax = 2250
+            p_ctx->rhs1 = 2 * p_ctx->vmax - WDR_2_DOL_1080P_BRL * 2 - 21;
 
-        // Short integration time = RHS1 - (SHS1 + 1)
-        // Shutter time SHS1 should be between 2 and RHS1 - 2
-        p_ctx->max_S = p_ctx->rhs1 - 3;
+            // Long integration time = FSC - (SHS2 + 1)
+            // SHS2 should be between 2 and RHS1 - 2
+            p_ctx->max_L = 2 * p_ctx->vmax - 3;
+
+            // Short integration time = RHS1 - (SHS1 + 1)
+            // Shutter time SHS1 should be between 2 and RHS1 - 2
+            p_ctx->max_S = p_ctx->rhs1 - 3;
+        }
         break;
     case 1:  //HD 720P
         param->active.width = 1280;

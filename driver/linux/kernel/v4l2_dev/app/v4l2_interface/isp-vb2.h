@@ -22,12 +22,13 @@
 
 #include <linux/videodev2.h>
 #include <media/videobuf2-core.h>
+#include <linux/meson_ion.h>
 
 #include "isp-v4l2-stream.h"
 #include "isp-vb2-cmalloc.h"
 
 /* VB2 control interfaces */
 int isp_vb2_queue_init( struct vb2_queue *q, struct mutex *mlock, isp_v4l2_stream_t *pstream, struct device *dev );
-void isp_vb2_queue_release( struct vb2_queue *q );
+void isp_vb2_queue_release( struct vb2_queue *q, isp_v4l2_stream_t *pstream );
 
 #endif

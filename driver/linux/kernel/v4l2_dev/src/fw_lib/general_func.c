@@ -302,7 +302,6 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
     }
 #endif
 
-
     const uint16_t *gamma_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA );
     const uint32_t gamma_lut_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA );
 
@@ -424,6 +423,15 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
         acamera_radial_shading_mem_array_data_write( p_fsm->cmn.isp_base, bank_offset + i, p_lut[i] );
     }
 #endif
+
+    p_fsm->gamma2_enable = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0];
+    LOG(LOG_INFO, "Gamma2 Enable: %d",	p_fsm->gamma2_enable);
+
+#if FW_HAS_CUSTOM_SETTINGS
+    // the custom initialization may be required for a context
+    const acam_reg_t *p_custom_settings_context = (const acam_reg_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CUSTOM_SETTINGS_CONTEXT );
+    acamera_load_sw_sequence( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, &p_custom_settings_context, 0 );
+#endif
 }
 
 
@@ -513,6 +521,8 @@ void general_initialize( general_fsm_ptr_t p_fsm )
     p_fsm->api_reg_source = SENSOR;
 #endif
 
+    p_fsm->gamma2_enable = 0;
+
     general_set_wdr_mode( p_fsm );
 
     p_fsm->mask.repeat_irq_mask = ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_START ) | ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_END );
@@ -564,8 +574,8 @@ void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm)
         // get current exposure value
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AE_INFO, NULL, 0, &ae_info, sizeof( ae_info ) );
         uint32_t exposure_log2 = ae_info.exposure_log2;
-        uint32_t ev1_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0] ;
-        uint32_t ev2_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[1] ;
+        uint32_t ev1_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[1] ;
+        uint32_t ev2_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[2] ;
 
         modulation_entry_32_t p_table[2];
         p_table[0].x = ev1_thresh;
@@ -593,7 +603,9 @@ void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm)
 
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
-    //general_dynamic_gamma_update(p_fsm);
+    if ( p_fsm->gamma2_enable )
+        general_dynamic_gamma_update(p_fsm);
+
 #if ISP_WDR_SWITCH
 
     if ( p_fsm->wdr_auto_mode ) {

@@ -27,8 +27,8 @@ typedef struct _isp_ae_preset_t {
 	int32_t skip_cnt;
 	int32_t exposure_log2;
 	int32_t error_log2;
-	int64_t integrator;	
-	uint32_t exposure_ratio;
+	int32_t integrator;
+	int32_t exposure_ratio;
 } isp_ae_preset_t;
 
 typedef struct _isp_awb_preset_t {

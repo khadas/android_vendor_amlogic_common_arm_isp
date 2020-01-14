@@ -206,13 +206,55 @@ long ctrl_channel_fops_ioctl (struct file *pfile, unsigned int cmd, unsigned lon
 			if ( rc ) {
                  LOG( LOG_CRIT, "iridix copy_to_user failed, rc: %d.", rc );
             }
-			break;			
+			break;
 		default:
 		    LOG(LOG_CRIT, "invalid cmd");
 		    break;
 	}
-    return 0;  
+
+    return 0;
 }
+
+#ifdef CONFIG_COMPAT
+long ctrl_compat_ioctl (struct file *pfile, unsigned int cmd, unsigned long args)
+{
+	int rc;
+	void  *arg64 = compat_ptr(args);
+
+	switch (cmd)
+	{
+		case IOCTL_3AALG_AEPRE:
+			rc = copy_to_user((void *)arg64, &ctrl_channel_ctx.ae_param, sizeof(isp_ae_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "ae copy_to_user failed, rc: %d.", rc );
+            }
+			break;
+		case IOCTL_3AALG_AWBPRE:
+			rc = copy_to_user((void *)arg64, &ctrl_channel_ctx.awb_param, sizeof(isp_awb_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "awb copy_to_user failed, rc: %d.", rc );
+            }
+			break;
+		case IOCTL_3AALG_GAMMAPRE:
+			rc = copy_to_user((void *)arg64, &ctrl_channel_ctx.gamma_param, sizeof(isp_gamma_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "gamma copy_to_user failed, rc: %d.", rc );
+            }
+			break;
+		case IOCTL_3AALG_IRIDIXPRE:
+			rc = copy_to_user((void *)arg64, &ctrl_channel_ctx.iridix_param, sizeof(isp_iridix_preset_t));
+			if ( rc ) {
+                 LOG( LOG_CRIT, "iridix copy_to_user failed, rc: %d.", rc );
+            }
+			break;
+		default:
+		    LOG(LOG_CRIT, "invalid cmd");
+		    break;
+	}
+
+    return 0;
+}
+#endif
 
 int ctrl_channel_3aalg_param_init(isp_ae_preset_t *ae, isp_awb_preset_t *awb, isp_gamma_preset_t *gamma, isp_iridix_preset_t *iridix)
 {
@@ -234,6 +276,9 @@ static struct file_operations isp_fops = {
     .read = ctrl_channel_fops_read,
     .write = ctrl_channel_fops_write,
     .unlocked_ioctl = ctrl_channel_fops_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = ctrl_compat_ioctl,
+#endif
     .llseek = noop_llseek,
 };
 

@@ -269,6 +269,30 @@ static uint16_t _calibration_AWB_bg_max_gain[][2] = {
     {7 * 256, 200},
 };
 
+// *** NOTE: to add/remove items in partition luts, please also update SYSTEM_EXPOSURE_PARTITION_VALUE_COUNT.
+static uint16_t _calibration_cmos_exposure_partition_luts[][10] = {
+    // {integration time, gain }
+    // value: for integration time - milliseconds, for gains - multiplier.
+    //		  Zero value means maximum.
+    // lut partitions_balanced
+    {
+        10, 2,
+        30, 4,
+        60, 6,
+        100, 8,
+        0, 0,
+    },
+
+    // lut partition_int_priority
+    {
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+    },
+};
+
 static uint32_t _calibration_cmos_control[] = {
     0,   // enable antiflicker
     50,  // antiflicker frequency
@@ -473,7 +497,7 @@ static uint16_t _calibration_af_zone_wght_hor[] = {0, 0, 16, 16, 16, 16, 16, 16,
 static uint16_t _calibration_af_zone_wght_ver[] = {0, 0, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 0, 0};
 
 
-static int32_t _calibration_gamma_threshold[] = {3357408, 4357408};
+static int32_t _calibration_gamma_threshold[] = {1, 3357408, 4357408};
 
 // CALIBRATION_GAMMA_EV1
 static uint16_t _calibration_gamma_ev1[] =
@@ -488,6 +512,9 @@ static uint16_t _calibration_gamma_ev2[] =
     /*sRGB 65{0,192,318,419,511,596,675,749,820,887,950,1012,1070,1126,1180,1231,1282,1332,1380,1428,1475,1521,1568,1614,1660,1706,1751,1796,1842,1890,1938,1988,2037,2085,2133,2180,2228,2273,2319,2363,2406,2447,2489,2528,2566,2603,2638,2671,2703,2734,2762,2790,2818,2845,2871,2897,2921,2946,2970,2993,3016,3038,3060,3081,3103,3123,3143,3163,3183,3203,3222,3241,3259,3278,3296,3315,3333,3351,3369,3386,3403,3420,3438,3455,3472,3489,3506,3522,3539,3555,3572,3588,3604,3620,3635,3651,3666,3681,3696,3712,3726,3741,3755,3770,3784,3798,3813,3827,3840,3854,3868,3881,3895,3908,3921,3934,3947,3960,3972,3985,3998,4010,4023,4035,4048,4060,4071,4083,4095}; */
     {0, 65, 132, 190, 240, 296, 356, 416, 478, 537, 596, 655, 710, 765, 817, 869, 922, 977, 1032, 1087, 1143, 1198, 1254, 1309, 1363, 1416, 1467, 1518, 1566, 1615, 1662, 1708, 1752, 1796, 1840, 1883, 1926, 1968, 2010, 2051, 2092, 2132, 2173, 2211, 2251, 2289, 2327, 2363, 2399, 2435, 2470, 2504, 2538, 2572, 2605, 2639, 2671, 2704, 2738, 2770, 2802, 2834, 2865, 2895, 2927, 2958, 2986, 3016, 3045, 3074, 3102, 3130, 3156, 3183, 3209, 3235, 3260, 3284, 3308, 3330, 3353, 3375, 3397, 3418, 3438, 3458, 3478, 3497, 3516, 3535, 3554, 3573, 3591, 3609, 3627, 3644, 3661, 3678, 3695, 3712, 3728, 3744, 3760, 3775, 3791, 3806, 3821, 3836, 3850, 3865, 3879, 3892, 3906, 3920, 3933, 3946, 3959, 3971, 3983, 3995, 4007, 4019, 4031, 4042, 4053, 4064, 4074, 4085, 4095};
 
+static uint32_t _calibration_custom_settings_context[][4] = {
+    //stop sequence - address is 0x0000
+    {0x0000, 0x0000, 0x0000, 0x0000}};
 
 static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_threshold, .rows = 1, .cols = sizeof( _calibration_gamma_threshold ) / sizeof( _calibration_gamma_threshold[0] ), .width = sizeof( _calibration_gamma_threshold[0] )};
 static LookupTable calibration_gamma_ev1 = {.ptr = _calibration_gamma_ev1, .rows = 1, .cols = sizeof( _calibration_gamma_ev1 ) / sizeof( _calibration_gamma_ev1[0] ), .width = sizeof( _calibration_gamma_ev1[0] )};
@@ -533,6 +560,7 @@ static LookupTable calibration_demosaic_np_offset = {.ptr = _calibration_demosai
 static LookupTable calibration_mesh_shading_strength = {.ptr = _calibration_mesh_shading_strength, .rows = sizeof( _calibration_mesh_shading_strength ) / sizeof( _calibration_mesh_shading_strength[0] ), .cols = 2, .width = sizeof( _calibration_mesh_shading_strength[0][0] )};
 static LookupTable calibration_saturation_strength = {.ptr = _calibration_saturation_strength, .rows = sizeof( _calibration_saturation_strength ) / sizeof( _calibration_saturation_strength[0] ), .cols = 2, .width = sizeof( _calibration_saturation_strength[0][0] )};
 static LookupTable calibration_ccm_one_gain_threshold = {.ptr = _calibration_ccm_one_gain_threshold, .cols = sizeof( _calibration_ccm_one_gain_threshold ) / sizeof( _calibration_ccm_one_gain_threshold[0] ), .rows = 1, .width = sizeof( _calibration_ccm_one_gain_threshold[0] )};
+static LookupTable calibration_cmos_exposure_partition_luts = {.ptr = _calibration_cmos_exposure_partition_luts, .rows = sizeof( _calibration_cmos_exposure_partition_luts ) / sizeof( _calibration_cmos_exposure_partition_luts[0] ), .cols = 10, .width = sizeof( _calibration_cmos_exposure_partition_luts[0][0] )};
 static LookupTable calibration_cmos_control = {.ptr = _calibration_cmos_control, .rows = 1, .cols = sizeof( _calibration_cmos_control ) / sizeof( _calibration_cmos_control[0] ), .width = sizeof( _calibration_cmos_control[0] )};
 static LookupTable calibration_status_info = {.ptr = _calibration_status_info, .rows = 1, .cols = sizeof( _calibration_status_info ) / sizeof( _calibration_status_info[0] ), .width = sizeof( _calibration_status_info[0] )};
 static LookupTable calibration_ae_control = {.ptr = _calibration_ae_control, .rows = 1, .cols = sizeof( _calibration_ae_control ) / sizeof( _calibration_ae_control[0] ), .width = sizeof( _calibration_ae_control[0] )};
@@ -552,7 +580,7 @@ static LookupTable calibration_scaler_h_filter = {.ptr = _scaler_h_filter, .rows
 static LookupTable calibration_scaler_v_filter = {.ptr = _scaler_v_filter, .rows = 1, .cols = sizeof( _scaler_v_filter ) / sizeof( _scaler_v_filter[0] ), .width = sizeof( _scaler_v_filter[0] )};
 static LookupTable calibration_sharpen_ds1 = {.ptr = _calibration_sharpen_ds1, .rows = sizeof( _calibration_sharpen_ds1 ) / sizeof( _calibration_sharpen_ds1[0] ), .cols = 2, .width = sizeof( _calibration_sharpen_ds1[0][0] )};
 static LookupTable calibration_temper_strength = {.ptr = _calibration_temper_strength, .rows = sizeof( _calibration_temper_strength ) / sizeof( _calibration_temper_strength[0] ), .cols = 2, .width = sizeof( _calibration_temper_strength[0][0] )};
-
+static LookupTable calibration_custom_settings_context = {.ptr = _calibration_custom_settings_context, .rows = sizeof( _calibration_custom_settings_context ) / sizeof( _calibration_custom_settings_context[0] ), .cols = 4, .width = sizeof( _calibration_custom_settings_context[0][0] )};
 
 uint32_t get_calibrations_dynamic_linear_imx227( ACameraCalibrations *c )
 {
@@ -569,6 +597,7 @@ uint32_t get_calibrations_dynamic_linear_imx227( ACameraCalibrations *c )
         c->calibrations[CALIBRATION_SINTER_RADIAL_PARAMS] = &calibration_sinter_radial_params;
         c->calibrations[CALIBRATION_AWB_BG_MAX_GAIN] = &calibration_AWB_bg_max_gain;
         c->calibrations[CALIBRATION_IRIDIX8_STRENGTH_DK_ENH_CONTROL] = &calibration_iridix8_strength_dk_enh_control;
+        c->calibrations[CALIBRATION_CMOS_EXPOSURE_PARTITION_LUTS] = &calibration_cmos_exposure_partition_luts;
         c->calibrations[CALIBRATION_CMOS_CONTROL] = &calibration_cmos_control;
         c->calibrations[CALIBRATION_STATUS_INFO] = &calibration_status_info;
         c->calibrations[CALIBRATION_AUTO_LEVEL_CONTROL] = &calibration_auto_level_control;
@@ -620,6 +649,7 @@ uint32_t get_calibrations_dynamic_linear_imx227( ACameraCalibrations *c )
         c->calibrations[CALIBRATION_GAMMA_EV1] = &calibration_gamma_ev1;
         c->calibrations[CALIBRATION_GAMMA_EV2] = &calibration_gamma_ev2;
         c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
+        c->calibrations[CALIBRATION_CUSTOM_SETTINGS_CONTEXT] = &calibration_custom_settings_context;
     } else {
         result = -1;
     }

@@ -151,8 +151,8 @@
 #define CALIBRATION_AWB_ZONE_WGHT_VER                     0x00000065
 #define CALIBRATION_SHARPEN_FR                            0x00000066
 #define CALIBRATION_SHARPEN_DS1                           0x00000067
-#define CALIBRATION_GAMMA_BE_0                            0x00000068
-#define CALIBRATION_GAMMA_BE_1                            0x00000069
+#define CALIBRATION_CUSTOM_SETTINGS_CONTEXT               0x00000068
+#define CALIBRATION_CMOS_EXPOSURE_PARTITION_LUTS          0x00000069
 #define CALIBRATION_TEMPER_STRENGTH                       0x0000006A
 #define CALIBRATION_NP_LUT_MEAN                           0x0000006B
 #define CALIBRATION_SCALER_H_FILTER                       0x0000006C
@@ -324,6 +324,11 @@
 #define AWB_ZONE_WEIGHT                                   0x00000079
 #define SENSOR_HWID                                       0x00000080
 #define HUE_THETA_ID                                      0x00000081
+#define SNR_MANUAL_ID                                     0x00000082
+#define SNR_OFFSET_ID                                     0x00000083
+#define TNR_MANUAL_ID                                     0x00000084
+#define TNR_OFFSET_ID                                     0x00000085
+
 // ------------------------------------------------------------------------------ //
 //		VALUE LIST
 // ------------------------------------------------------------------------------ //

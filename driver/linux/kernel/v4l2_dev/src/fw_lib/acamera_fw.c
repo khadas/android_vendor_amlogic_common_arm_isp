@@ -135,7 +135,7 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
         } while ( count % 32 != 0 );
 
         if ( ( count >> 5 ) > 50 ) {
-            LOG( LOG_CRIT, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
+            LOG( LOG_INFO, "stopping isp failed, timeout: %u.", (unsigned int)count * 1000 );
             break;
         }
     }
@@ -148,7 +148,7 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
 
     acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
-    LOG( LOG_CRIT, "starting isp from error" );
+    LOG( LOG_INFO, "starting isp from error" );
 }
 
 
@@ -629,14 +629,18 @@ void acamera_3aalg_preset(acamera_fsm_mgr_t *p_fsm_mgr)
 	}
 
 #ifdef ACAMERA_PRESET_FREERTOS
-	acamera_alg_preset_t total_param;
-	char *reserve_virt_addr = phys_to_virt(ACAMERA_ALG_PRE_BASE);
-	if(autowrite_fr_start_address_read())
-		reserve_virt_addr = phys_to_virt(autowrite_fr_start_address_read() + autowrite_fr_writer_memsize_read());
-	else if(autowrite_ds1_start_address_read())
-		reserve_virt_addr = phys_to_virt(autowrite_ds1_start_address_read() + autowrite_ds1_writer_memsize_read());
+    acamera_alg_preset_t total_param;
 
-	system_memcpy((void *)&total_param, (void *)reserve_virt_addr, sizeof(total_param));
+    if ( p_fsm_mgr->isp_seamless ) {
+        char *reserve_virt_addr = phys_to_virt(ACAMERA_ALG_PRE_BASE);
+
+        if ( autowrite_fr_start_address_read() )
+            reserve_virt_addr = phys_to_virt(autowrite_fr_start_address_read() + autowrite_fr_writer_memsize_read());
+        else if ( autowrite_ds1_start_address_read() )
+            reserve_virt_addr = phys_to_virt(autowrite_ds1_start_address_read() + autowrite_ds1_writer_memsize_read());
+
+        system_memcpy((void *)&total_param, (void *)reserve_virt_addr, sizeof(total_param));
+    }
 
 	if(total_param.ae_pre_info.skip_cnt == 0xFFFF && total_param.awb_pre_info.skip_cnt == 0xFFFF)
 	{

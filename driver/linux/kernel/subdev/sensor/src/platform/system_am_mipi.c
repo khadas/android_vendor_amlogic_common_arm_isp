@@ -63,8 +63,7 @@ int am_mipi_parse_dt(struct device_node *node)
 			pr_err("%s:Error idx %d get mipi reg resource\n", __func__, i);
 			continue;
 		} else {
-			pr_info("%s: rs idx %d info: name: %s\n", __func__,
-				i, rs.name);
+			//pr_info("%s: rs idx %d info: name: %s\n", __func__, i, rs.name);
 
 			if (strcmp(rs.name, "csi2_phy0") == 0) {
 				t_mipi->csi2_phy0_reg = rs;
@@ -98,8 +97,7 @@ int am_mipi_parse_dt(struct device_node *node)
 			pr_err("%s: Error idx %d get dev irq resource\n", __func__, i);
 			continue;
 		} else {
-			pr_info("%s: rs idx %d info: irq %d\n", __func__,
-				i, irq);
+			//pr_info("%s: rs idx %d info: irq %d\n", __func__,	i, irq);
 
 			if (i == 0) {
 				t_mipi->phy_irq = irq;
@@ -203,6 +201,16 @@ static inline void mipi_phy_reg_rd(int addr, uint32_t *val)
 	*val = data;
 }
 
+uint32_t mipi_phy_reg_rd_ext(int addr)
+{
+	uint32_t data = 0;
+	void __iomem *reg_addr = g_mipi->csi2_phy0 + addr;
+
+	data = __raw_readl(reg_addr);
+
+	return data;
+}
+
 static inline void mipi_phy1_reg_wr(int addr, uint32_t val)
 {
 	void __iomem *reg_addr = g_mipi->csi2_phy1 + addr;
@@ -245,7 +253,7 @@ static int am_mipi_phy_init(void *info)
 	settle = (85 + 145 + (16 * m_info->ui_val))/2;
 	settle = settle/cycle_time;
 
-	pr_err("%s:Settle:0x%08x\n", __func__, settle);
+	//pr_err("%s:Settle:0x%08x\n", __func__, settle);
 
 	if (m_info->ui_val <= 1)
 		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x0b440585);
@@ -341,6 +349,16 @@ static inline void mipi_csi_reg_rd(int addr, uint32_t *val)
 	*val = data;
 }
 
+uint32_t mipi_csi_reg_rd_ext(int addr)
+{
+	uint32_t data = 0;
+	void __iomem *reg_addr = g_mipi->csi0_host + addr;
+
+	data = __raw_readl(reg_addr);
+
+	return data;
+}
+
 static inline void mipi_csi1_reg_wr(int addr, uint32_t val)
 {
 	void __iomem *reg_addr = g_mipi->csi1_host + addr;
@@ -375,7 +393,7 @@ static int am_mipi_csi_init(void *info)
 	m_info = info;
 
 	mipi_csi_reg_rd(MIPI_CSI_VERSION, &m_info->csi_version);
-	pr_info("%s:csi version 0x%x\n", __func__, m_info->csi_version);
+	//pr_info("%s:csi version 0x%x\n", __func__, m_info->csi_version);
 
 	mipi_csi_reg_wr(MIPI_CSI_CSI2_RESETN, 0); // csi2 reset
 	mipi_csi_reg_wr(MIPI_CSI_CSI2_RESETN, 0xffffffff); // release csi2 reset

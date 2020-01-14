@@ -1002,6 +1002,7 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
     device_create_file(&pdev->dev, &dev_attr_reg);
     device_create_file(&pdev->dev, &dev_attr_dump_frame);
     device_create_file(&pdev->dev, &dev_attr_isp_clk);
+    system_dbg_create(&pdev->dev);
     LOG( LOG_ERR, "Init finished. async register notifier result %d. Waiting for subdevices", rc );
 #else
     // no subdevice is used
@@ -1029,6 +1030,7 @@ static int isp_platform_remove(struct platform_device *pdev)
     device_remove_file(&pdev->dev, &dev_attr_reg);
     device_remove_file(&pdev->dev, &dev_attr_dump_frame);
     device_remove_file(&pdev->dev, &dev_attr_isp_clk);
+    system_dbg_remove(&pdev->dev);
     if ( initialized == 1 ) {
         isp_v4l2_destroy_instance(isp_pdev);
         initialized = 0;

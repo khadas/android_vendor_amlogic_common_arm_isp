@@ -256,29 +256,20 @@ uint8_t sensor_streaming( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
             uint32_t streaming = 1;
 
 			if(instance->isp_seamless)
-			{
-				if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
-				{
-					acamera_reset_ping_pong_port();
-					acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
-
-					acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
-					acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
-				}
-				else
+			{				
+				if(acamera_isp_input_port_mode_status_read( 0 ) == ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
 				{
 					streaming = 2;
-					acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_AUTOCAP_HW_RESET, NULL, 0 );
 				}
 			}
-			else
-			{
-				acamera_reset_ping_pong_port();
-				acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
 
-				acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
-				acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
-			}
+			acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_AUTOCAP_HW_RESET, NULL, 0 );
+
+			acamera_reset_ping_pong_port();
+			acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+
+			acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
+			acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
 
 			acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
 			acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 );
@@ -4067,6 +4058,142 @@ uint8_t hue_theta( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t directio
 #endif
 
 // ------------------------------------------------------------------------------ //
+// snr manual description:
+// Control the hue
+//
+// Values:[0-1]
+//
+//Default Value: 0
+// ------------------------------------------------------------------------------ //
+#ifdef SNR_MANUAL_ID
+uint8_t snr_manual( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+#if defined( ISP_HAS_SINTER_RADIAL_LUT )
+    uint32_t snr_manual = (uint32_t)value;
+    *ret_value = 0;
+    if ( direction == COMMAND_SET ) {
+        if ( value > 1 )
+            return NOT_SUPPORTED;
+        else
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SNR_MANUAL, &snr_manual, sizeof( snr_manual ) );
+
+        return SUCCESS;
+    } else if ( direction == COMMAND_GET ) {
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SNR_MANUAL, NULL, 0, &snr_manual, sizeof( snr_manual ) );
+        *ret_value = snr_manual;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+#else
+    return NOT_SUPPORTED;
+#endif
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// snr offset description:
+// Control the hue
+//
+// Values:[0-255]
+//
+//Default Value: 128
+// ------------------------------------------------------------------------------ //
+#ifdef SNR_OFFSET_ID
+uint8_t snr_offset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+#if defined( ISP_HAS_SINTER_RADIAL_LUT )
+    uint32_t snr_offset = (uint32_t)value;
+    *ret_value = 0;
+    if ( direction == COMMAND_SET ) {
+        if ( value > 255 )
+            return NOT_SUPPORTED;
+        else
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SNR_OFFSET, &snr_offset, sizeof( snr_offset ) );
+
+        return SUCCESS;
+    } else if ( direction == COMMAND_GET ) {
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SNR_OFFSET, NULL, 0, &snr_offset, sizeof( snr_offset ) );
+        *ret_value = snr_offset;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+#else
+    return NOT_SUPPORTED;
+#endif
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// tnr manual description:
+// Control the hue
+//
+// Values:[0-1]
+//
+//Default Value: 0
+// ------------------------------------------------------------------------------ //
+#ifdef TNR_MANUAL_ID
+uint8_t tnr_manual( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+#if defined( ISP_HAS_SINTER_RADIAL_LUT )
+    uint32_t tnr_manual = (uint32_t)value;
+    *ret_value = 0;
+    if ( direction == COMMAND_SET ) {
+        if ( value > 1 )
+            return NOT_SUPPORTED;
+        else
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_TNR_MANUAL, &tnr_manual, sizeof( tnr_manual ) );
+
+        return SUCCESS;
+    } else if ( direction == COMMAND_GET ) {
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_TNR_MANUAL, NULL, 0, &tnr_manual, sizeof( tnr_manual ) );
+        *ret_value = tnr_manual;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+#else
+    return NOT_SUPPORTED;
+#endif
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// tnr offset description:
+// Control the hue
+//
+// Values:[0-255]
+//
+//Default Value: 128
+// ------------------------------------------------------------------------------ //
+#ifdef TNR_OFFSET_ID
+uint8_t tnr_offset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+#if defined( ISP_HAS_SINTER_RADIAL_LUT )
+    uint32_t tnr_offset = (uint32_t)value;
+    *ret_value = 0;
+    if ( direction == COMMAND_SET ) {
+        if ( value > 255 )
+            return NOT_SUPPORTED;
+        else
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_TNR_OFFSET, &tnr_offset, sizeof( tnr_offset ) );
+
+        return SUCCESS;
+    } else if ( direction == COMMAND_GET ) {
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_TNR_OFFSET, NULL, 0, &tnr_offset, sizeof( tnr_offset ) );
+        *ret_value = tnr_offset;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+#else
+    return NOT_SUPPORTED;
+#endif
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
 // orientation_hflip description:
 //
 //     Horizontally flip the output image.
@@ -4086,14 +4213,36 @@ uint8_t orientation_hflip( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
     case COMMAND_SET:
         switch ( value ) {
         case ENABLE:
-            instance->p_ctx->hflip = 1;
-            acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 0 );          // enable mirror
-            acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1 ); // color after mirror is: Gr-R-B-Gb
-            break;
+			if(instance->p_ctx->hflip == 0)
+            {
+            	instance->p_ctx->hflip = 1;
+            	acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 0 );          // enable mirror
+				uint8_t mirror = acamera_isp_top_rggb_start_post_mirror_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+				if(mirror == BAYER_RGGB)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GRBG ); // color after mirror is: Gr-R-B-Gb
+				else if(mirror == BAYER_GRBG)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_RGGB );
+				else if(mirror == BAYER_GBRG)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_BGGR );
+				else if(mirror == BAYER_BGGR)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GBRG );
+			}
+			break;
         case DISABLE:
-            acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1 );          // bypass mirror
-            acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 0 ); // color after mirror is: R-Gr-Gb-B
-            instance->p_ctx->hflip = 0;
+			if(instance->p_ctx->hflip == 1)
+            {
+            	instance->p_ctx->hflip = 0;
+				acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1 );		   // bypass mirror
+				uint8_t mirror = acamera_isp_top_rggb_start_post_mirror_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+				if(mirror == BAYER_RGGB)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GRBG ); // color after mirror is: Gr-R-B-Gb
+				else if(mirror == BAYER_GRBG)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_RGGB );
+				else if(mirror == BAYER_GBRG)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_BGGR );
+				else if(mirror == BAYER_BGGR)
+					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GBRG );
+			}
             break;
         default:
             *ret_value = ERR_BAD_ARGUMENT;
@@ -4102,8 +4251,7 @@ uint8_t orientation_hflip( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 
 // reload some tables according with flip
 #if FW_DO_INITIALIZATION && ISP_HAS_COLOR_MATRIX_FSM
-		if(instance->isp_seamless == 0)
-            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SHADING_MESH_RELOAD, NULL, 0 );
+        acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SHADING_MESH_RELOAD, NULL, 0 );
 #endif
 
 #ifdef AF_ROI_ID
@@ -4515,11 +4663,11 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                     break;
                 case CALIBRATION_GAMMA:
                 case CALIBRATION_DEMOSAIC:
-#ifdef CALIBRATION_GAMMA_BE_0
-                case CALIBRATION_GAMMA_BE_0:
+#ifdef CALIBRATION_GAMMA_EV1
+                case CALIBRATION_GAMMA_EV1:
 #endif
-#ifdef CALIBRATION_GAMMA_BE_1
-                case CALIBRATION_GAMMA_BE_1:
+#ifdef CALIBRATION_GAMMA_EV2
+                case CALIBRATION_GAMMA_EV2:
 #endif
                 case CALIBRATION_NOISE_PROFILE:
 #ifdef CALIBRATION_GAMMA_FE_0
@@ -4527,6 +4675,9 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
 #endif
 #ifdef CALIBRATION_GAMMA_FE_1
                 case CALIBRATION_GAMMA_FE_1:
+#endif
+#ifdef CALIBRATION_GAMMA_THRESHOLD
+                case CALIBRATION_GAMMA_THRESHOLD:
 #endif
                 case CALIBRATION_SHADING_LS_A_R:
                 case CALIBRATION_SHADING_LS_A_G:

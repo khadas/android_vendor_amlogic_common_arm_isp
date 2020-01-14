@@ -55,6 +55,9 @@ struct IqConversion IqConversionTable[] = {
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX481, "imx481"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, "imx307"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX224, "imx224"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_OV13858, "ov13858"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_SC2232H, "sc2232h"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_SC4238, "sc4238"},
 };
 
 uint32_t ( *CALIBRATION_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c ) = {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, CALIBRATION_SUBDEV_FUNCTIONS_IMX290};
@@ -168,6 +171,10 @@ static int get_cali_name_id( int cali_name_id, int sensor_name_id )
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10;
             LOG( LOG_ERR, "get_calibrations_os08a10\n" );
             break;
+        case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_SLT;
+            LOG( LOG_CRIT, "Loading Calibration for OS08A10_SLT\n" );
+            break;
         default:
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10;
             LOG( LOG_ERR, "get_calibrations_os08a10\n" );
@@ -236,6 +243,42 @@ static int get_cali_name_id( int cali_name_id, int sensor_name_id )
         default:
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX224;
             LOG( LOG_ERR, "get_calibrations_imx224\n" );
+            break;
+        }
+    } break;
+    case 6: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OV13858;
+            LOG( LOG_ERR, "get_calibrations_ov13858\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OV13858;
+            LOG( LOG_ERR, "get_calibrations_ov13858\n" );
+            break;
+        }
+    } break;
+    case 7: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC2232H;
+            LOG( LOG_ERR, "get_calibrations_sc2232h\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC2232H;
+            LOG( LOG_ERR, "get_calibrations_sc2232h\n" );
+            break;
+        }
+    } break;
+    case 8: {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC4238;
+            LOG( LOG_ERR, "get_calibrations_sc4238\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC4238;
+            LOG( LOG_ERR, "get_calibrations_sc4238\n" );
             break;
         }
     } break;

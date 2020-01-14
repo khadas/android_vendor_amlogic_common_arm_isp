@@ -46,6 +46,19 @@ extern uint32_t get_calibrations_imx307( uint32_t ctx_num,void * sensor_arg,ACam
 extern void sensor_init_imx224( void** ctx, sensor_control_t*, void*);
 extern void sensor_deinit_imx224( void *ctx );
 
+extern void sensor_init_ov13858( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_ov13858( void *ctx ) ;
+extern uint32_t get_calibrations_ov13858( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
+
+extern void sensor_init_sc2232h( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_sc2232h( void *ctx ) ;
+extern uint32_t get_calibrations_sc2232h( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
+
+extern void sensor_init_sc4238( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_sc4238( void *ctx ) ;
+extern uint32_t get_calibrations_sc4238( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
+
+
 
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10 sensor_init_ov08a10
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10 sensor_deinit_ov08a10
@@ -73,4 +86,15 @@ extern void sensor_deinit_imx224( void *ctx );
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX224 sensor_deinit_imx224
 //#define CALIBRATION_SUBDEV_FUNCTIONS_IMX224 get_calibrations_imx224
 
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_OV13858 sensor_init_ov13858
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV13858 sensor_deinit_ov13858
+#define CALIBRATION_SUBDEV_FUNCTIONS_OV13858 get_calibrations_ov13858
+
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_SC2232H sensor_init_sc2232h
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC2232H sensor_deinit_sc2232h
+#define CALIBRATION_SUBDEV_FUNCTIONS_SC2232H get_calibrations_sc2232h
+
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_SC4238 sensor_init_sc4238
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC4238 sensor_deinit_sc4238
+#define CALIBRATION_SUBDEV_FUNCTIONS_SC4238 get_calibrations_sc4238
 

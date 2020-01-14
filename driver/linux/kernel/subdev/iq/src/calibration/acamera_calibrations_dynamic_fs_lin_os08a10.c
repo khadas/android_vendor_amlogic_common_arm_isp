@@ -20,202 +20,187 @@
 #include "acamera_command_api.h"
 #include "acamera_firmware_settings.h"
 // ------------ 3A & iridix
-static uint8_t _calibration_evtolux_probability_enable[] = {1};
+static uint8_t _calibration_evtolux_probability_enable[] = {0};
 
-static uint8_t _calibration_awb_avg_coef[] = {30};
+static uint8_t _calibration_awb_avg_coef[] = {15};
 
-static uint8_t _calibration_iridix_avg_coef[] = {30};
+static uint8_t _calibration_iridix_avg_coef[] = {15};
 
-static uint16_t _calibration_ccm_one_gain_threshold[] = {256 * 10};
+static uint16_t _calibration_ccm_one_gain_threshold[] = {256 * 6};
 
 static uint8_t _calibration_iridix_strength_maximum[] = {255};
 
 static uint16_t _calibration_iridix_min_max_str[] = {0};
 
-static uint32_t _calibration_iridix_ev_lim_full_str[] = {1900000};
+static uint32_t _calibration_iridix_ev_lim_full_str[] = {2000000};
 
-static uint32_t _calibration_iridix_ev_lim_no_str[] = {3600000,2600000};
+static uint32_t _calibration_iridix_ev_lim_no_str[] = {4180000,2600000};
 
-static uint8_t _calibration_ae_correction[] = {128};
+static uint8_t _calibration_ae_correction[] = {128, 128, 128, 128, 128, 110, 98, 98, 98, 90, 90, 90};
 
-static uint32_t _calibration_ae_exposure_correction[] = {500};
+static uint32_t _calibration_ae_exposure_correction[] = {6710, 15739, 15778, 23282, 56186, 500325, 632161, 1190074, 1406400, 2382765, 3295034, 5491142}; //500,157778,500325,632161,1406400,6046465 //23282 - Max Lab Exposure
 
 // ------------Noise reduction ----------------------//
 static uint16_t _calibration_sinter_strength[][2] = {
-    {0 * 256, 55},
-    {1 * 256, 55},
-    {2 * 256, 55},
-    {3 * 256, 65},
-    {4 * 256, 65},
-    {5 * 256, 65},
-    {6 * 256, 65},
-    {7 * 256, 65},
-    {8 * 256, 60},
-    {9 * 256, 80}};
-
+    {0 * 256, 25}, //30
+    {1 * 256, 30}, //30
+    {2 * 256, 50}, //45
+    {3 * 256, 55}, //55
+    {4 * 256, 60}, //73
+    {5 * 256, 60}, //74
+    {6 * 256, 90}, //74
+    {7 * 256, 100}  //82
+};
 // ------------Noise reduction ----------------------//
 static uint16_t _calibration_sinter_strength_MC_contrast[][2] = {
     {0 * 256, 0}};
 
 static uint16_t _calibration_sinter_strength1[][2] = {
-    {0 * 256, 110},
-    {1 * 256, 120},
-    {2 * 256, 120},
-    {3 * 256, 140},
-    {4 * 256, 140},
-    {5 * 256, 140},
-    {6 * 256, 140},
-    {7 * 256, 140},
-    {8 * 256, 140},
-    {9 * 256, 140},
-    {10 * 256, 140}};
+    {0 * 256, 50},  //155
+    {1 * 256, 55},  //155
+    {2 * 256, 70},  //155
+    {3 * 256, 80},  //155
+    {4 * 256, 85},  //255 4 int
+    {5 * 256, 85},  //255 4 int
+    {6 * 256, 120},  //255 4 int
+    {7 * 256, 130}}; //255 4 int
 
 static uint16_t _calibration_sinter_thresh1[][2] = {
-    {0 * 256, 10},
-    {1 * 256, 10},
-    {2 * 256, 12},
-    {3 * 256, 13},
-    {4 * 256, 14},
+    {0 * 256, 6},
+    {1 * 256, 6},
+    {2 * 256, 8},
+    {3 * 256, 10},
+    {4 * 256, 12},
     {5 * 256, 14},
-    {6 * 256, 15}};
+    {6 * 256, 20}};
 
 static uint16_t _calibration_sinter_thresh4[][2] = {
-    {0 * 256, 10},
-    {1 * 256, 12},
-    {2 * 256, 14},
-    {3 * 256, 15},
-    {4 * 256, 64},
-    {5 * 256, 64},
+    {0 * 256, 40},
+    {1 * 256, 50},
+    {2 * 256, 70},
+    {3 * 256, 85},
+    {4 * 256, 105},
+    {5 * 256, 114},
     {6 * 256, 128}};
 
 static uint16_t _calibration_sinter_intConfig[][2] = {
     {0 * 256, 10},
-    {1 * 256, 10},
+    {1 * 256, 8},
     {2 * 256, 8},
-    {3 * 256, 8},
-    {4 * 256, 7},
-    {5 * 256, 5},
-    {6 * 256, 4}};
+    {3 * 256, 7},
+    {4 * 256, 6},
+    {5 * 256, 4},
+    {6 * 256, 2}};
 
 static uint8_t _calibration_sinter_radial_lut[] = {0, 0, 0, 0, 0, 0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24};
 
 static uint16_t _calibration_sinter_radial_params[] = {
-    0,        // rm_enable
-    1920 / 2, // rm_centre_x
-    1080 / 2, // rm_centre_y
-    1770      // rm_off_centre_mult: round((2^31)/((rm_centre_x^2)+(rm_centre_y^2)))
+    0,    // rm_enable
+    1920, // rm_centre_x
+    1080, // rm_centre_y
+    442   // rm_off_centre_mult: round((2^31)/((rm_centre_x^2)+(rm_centre_y^2)))
 };
 
 static uint16_t _calibration_sinter_sad[][2] = {
     {0, 8},
     {1 * 256, 8},
-    {2 * 256, 5},
-    {3 * 256, 5},
-    {4 * 256, 9},
-    {5 * 256, 11},
+    {2 * 256, 10},
+    {3 * 256, 12},
+    {4 * 256, 12},
+    {5 * 256, 13},
     {6 * 256, 13}};
-
 // ------------ Sharpening and demosaic
 static uint16_t _calibration_sharp_alt_d[][2] = {
-    {0 * 256, 36},
-    {1 * 256, 36},
-    {2 * 256, 36},
-    {3 * 256, 36},
-    {4 * 256, 36},
-    {5 * 256, 25},
-    {6 * 256, 21},
-    {7 * 256, 15},
-    {8 * 256, 10},
-    {9 * 256, 10},
-    {10 * 256, 5}};
+    {0 * 256, 100},
+    {1 * 256, 96},
+    {2 * 256, 86},
+    {3 * 256, 80},
+    {4 * 256, 80},
+    {5 * 256, 80},
+    {6 * 256, 60},
+    {7 * 256, 60}};
 
 static uint16_t _calibration_sharp_alt_ud[][2] = {
-    {0 * 256, 20},
-    {1 * 256, 12},
-    {2 * 256, 12},
-    {3 * 256, 10},
-    {4 * 256, 9},
-    {5 * 256, 7},
-    {6 * 256, 5},
-    {7 * 256, 5},
-    {8 * 256, 5},
-    {9 * 256, 5},
-    {10 * 256, 5}};
+    {0 * 256, 40},
+    {1 * 256, 35},
+    {2 * 256, 25},
+    {3 * 256, 22},
+    {4 * 256, 20},
+    {5 * 256, 15},
+    {6 * 256, 8},
+    {7 * 256, 5}};
+
 
 static uint16_t _calibration_sharp_alt_du[][2] = {
-    {0 * 256, 70},
-    {1 * 256, 70},
-    {2 * 256, 68},
-    {3 * 256, 65},
-    {4 * 256, 60},
-    {5 * 256, 60},
-    {6 * 256, 55},
-    {7 * 256, 15},
-    {8 * 256, 10},
-    {9 * 256, 10},
-    {10 * 256, 5}};
+    {0 * 256, 140},
+    {1 * 256, 135},
+    {2 * 256, 125},
+    {3 * 256, 120},
+    {4 * 256, 120},
+    {5 * 256, 110},
+    {6 * 256, 65},
+    {7 * 256, 65}};
 
 static uint16_t _calibration_sharpen_fr[][2] = {
-    {0 * 256, 72},
-    {1 * 256, 70},
-    {2 * 256, 70},
-    {3 * 256, 70},
-    {4 * 256, 70},
-    {5 * 256, 65},
-    {6 * 256, 55},
-    {7 * 256, 50},
-    {8 * 256, 45},
-    {9 * 256, 55}};
+    {0 * 256, 140},
+    {1 * 256, 140},
+    {2 * 256, 125},
+    {3 * 256, 120},
+    {4 * 256, 120},
+    {5 * 256, 110},
+    {6 * 256, 85},
+    {7 * 256, 85},};
 
 static uint16_t _calibration_demosaic_np_offset[][2] = {
     {0 * 256, 1},
     {1 * 256, 1},
     {2 * 256, 1},
     {3 * 256, 3},
-    {4 * 256, 3},
-    {5 * 256, 3},
-    {6 * 256, 5},
-    {7 * 256, 7},
-    {8 * 256, 10}};
-
+    {4 * 256, 18},
+    {5 * 256, 18},
+    {6 * 256, 15}};
 
 static uint16_t _calibration_mesh_shading_strength[][2] = {
-    {0 * 256, 4096}};
+    {0 * 256, 4096},
+    {1 * 256, 2048},
+    {2 * 256, 1024},
+    {3 * 256, 512},
+    {4 * 256, 512},
+    {5 * 256, 512},
+    {6 * 256, 512},
+    {7 * 256, 64}};
 
 static uint16_t _calibration_saturation_strength[][2] = {
-    {0 * 256, 128},
-    {1 * 256, 128},
-    {2 * 256, 128},
-    {3 * 256, 128},
-    {4 * 256, 110},
-    {5 * 256, 100},
-    {6 * 256, 100},
-    {7 * 256, 90},
-    {8 * 256, 60},
-    {9 * 256, 60},
-    {10 * 256, 60}};
+    {0 * 256, 105},
+    {1 * 256, 105},
+    {2 * 256, 105},
+    {3 * 256, 105},
+    {4 * 256, 85},
+    {5 * 256, 75},
+    {6 * 256, 60},
+    {7 * 256, 60}};
 
 // ----------- Frame stitching motion
 static uint16_t _calibration_stitching_lm_np[][2] = {
-    {0 * 256, 50},
-    {1 * 256, 50},
-    {2 * 256, 50},
-    {3 * 256, 50},
-    {4 * 256, 50},
-    {5 * 256, 50},
-    {6 * 256, 50},
-    {7 * 256, 50}};
+    {0 * 256, 150},
+    {1 * 256, 150},
+    {2 * 256, 200},
+    {3 * 256, 200},
+    {4 * 256, 200},
+    {5 * 256, 250},
+    {6 * 256, 300},
+    {7 * 256, 300}};
 
 static uint16_t _calibration_stitching_lm_mov_mult[][2] = {
-    {0 * 256, 512},
-    {1 * 256, 384},
-    {2 * 256, 256},
-    {3 * 256, 256},
+    {0 * 256, 640},
+    {1 * 256, 512},
+    {2 * 256, 512},
+    {3 * 256, 384},
     {4 * 256, 256},
     {5 * 256, 256},
     {6 * 256, 256},
-    {7 * 256, 256},
-    {8 * 256, 256}};
+    {7 * 256, 128},
+    {8 * 256, 128}};
 
 static uint16_t _calibration_stitching_lm_med_noise_intensity_thresh[][2] = {
     {0, 32},
@@ -245,33 +230,54 @@ static uint16_t _calibration_stitching_svs_mov_mult[][2] = {
     {2 * 256, 128}};
 
 static uint16_t _calibration_dp_slope[][2] = {
-    {0 * 256, 268},
-    {1 * 256, 1700},
-    {2 * 256, 1700},
+    {0 * 256, 1500},
+    {1 * 256, 1500},
+    {2 * 256, 1500},
     {3 * 256, 1800},
     {4 * 256, 1911},
     {5 * 256, 2200},
     {6 * 256, 2400},
-    {7 * 256, 2400},
-    {8 * 256, 2400}};
-
+    {7 * 256, 2400}};
 
 static uint16_t _calibration_dp_threshold[][2] = {
-    {0 * 256, 4095},
-    {1 * 256, 100},
-    {2 * 256, 100},
-    {3 * 256, 100},
-    {4 * 256, 100},
-    {5 * 256, 100},
-    {6 * 256, 100},
-    {7 * 256, 95},
-    {8 * 256, 95},
-    {9 * 256, 90}};
+    {0 * 256, 20},
+    {1 * 256, 20},
+    {2 * 256, 20},
+    {3 * 256, 20},
+    {4 * 256, 10},
+    {5 * 256, 10},
+    {6 * 256, 10},
+    {7 * 256, 10}};
 
 static uint16_t _calibration_AWB_bg_max_gain[][2] = {
     {0 * 256, 100},
     {1 * 256, 100},
     {7 * 256, 200}};
+
+// *** NOTE: to add/remove items in partition luts, please also update SYSTEM_EXPOSURE_PARTITION_VALUE_COUNT.
+static uint16_t _calibration_cmos_exposure_partition_luts[][10] = {
+    // {integration time, gain }
+    // value: for integration time - milliseconds, for gains - multiplier.
+    //		  Zero value means maximum.
+
+    // lut partitions_balanced
+    {
+        10, 2,
+        30, 4,
+        60, 6,
+        100, 8,
+        0, 0,
+    },
+
+    // lut partition_int_priority
+    {
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+    },
+};
 
 static uint32_t _calibration_cmos_control[] = {
     0,   // enable antiflicker
@@ -284,8 +290,8 @@ static uint32_t _calibration_cmos_control[] = {
     0,   // max integration time
     120, // max sensor AG
     0,   // max sensor DG
-    112, // 159 max isp DG
-    6, // max exposure ratio
+    110, // 159 max isp DG
+    16, // max exposure ratio
     0,   // integration time.
     0,   // sensor analog gain. log2 fixed - 5 bits
     0,   // sensor digital gain. log2 fixed - 5 bits
@@ -303,59 +309,59 @@ static uint32_t _calibration_status_info[] = {
 };
 
 static uint32_t _calibration_iridix8_strength_dk_enh_control[] = {
-    20,      // dark_prc
-    98,      // bright_prc
-    1200,    // min_dk: minimum dark enhancement
+    25,      // dark_prc
+    95,      // bright_prc
+    1300,     // min_dk: minimum dark enhancement
     2500,    // max_dk: maximum dark enhancement
-    8,       // pD_cut_min: minimum intensity cut for dark regions in which dk_enh will be applied
-    30,      // pD_cut_max: maximum intensity cut for dark regions in which dk_enh will be applied
-    10 << 8, // dark contrast min
-    30 << 8, // dark contrast max
+    4,       // pD_cut_min: minimum intensity cut for dark regions in which dk_enh will be applied
+    12,      // pD_cut_max: maximum intensity cut for dark regions in which dk_enh will be applied
+    30 << 8, // dark contrast min
+    50 << 8, // dark contrast max
     0,       // min_str: iridix strength in percentage
     50,      // max_str: iridix strength in percentage: 50 = 1x gain. 100 = 2x gain
     40,      // dark_prc_gain_target: target in histogram (percentage) for dark_prc after iridix is applied
-    16 << 8, // contrast_min: clip factor of strength for LDR scenes.
-    28 << 8, // contrast_max: clip factor of strength for HDR scenes.
-    32,      // max iridix gain
+    30 << 8, // contrast_min: clip factor of strength for LDR scenes.
+    40 << 8, // contrast_max: clip factor of strength for HDR scenes.
+    20,      // max iridix gain
     0        // print debug
 };
 
 static uint32_t _calibration_ae_control[] = {
-    30,  // AE convergance
+    60,  // AE convergance
     236, // LDR AE target -> this should match the 18% grey of teh output gamma
-    16,  // AE tail weight
+    0,  // AE tail weight
     77,  // WDR mode only: Max percentage of clipped pixels for long exposure: WDR mode only: 256 = 100% clipped pixels
     15,  // WDR mode only: Time filter for exposure ratio
     100, // control for clipping: bright percentage of pixels that should be below hi_target_prc
     99,  // control for clipping: highlights percentage (hi_target_prc): target for tail of histogram
-    1,   // 1:0 enable | disable iridix global gain.
-    10,  // AE tolerance
+    0,   // 1:0 enable | disable iridix global gain.
+    40,  // AE tolerance
 };
 
 static uint16_t _calibration_ae_control_HDR_target[][2] = {
-    {0 * 256, 100}, // HDR AE target should not be higher than LDR target
-    {1 * 256, 100},
-    {4 * 256, 100},
-    {5 * 256, 100},
-    {6 * 256, 100},
-    {7 * 256, 100},
-    {8 * 256, 100},
-    {9 * 256, 100}};
+    {0 * 256, 20}, // HDR AE target should not be higher than LDR target
+    {1 * 256, 20},
+    {4 * 256, 20},
+    {5 * 256, 20},
+    {6 * 256, 20},
+    {7 * 256, 20},
+    {8 * 256, 20},
+    {9 * 256, 20}};
 
-static uint8_t _calibration_pf_radial_lut[] = {255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
+static uint8_t _calibration_pf_radial_lut[] = {0, 0, 0, 0, 100, 180, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
 
 static uint16_t _calibration_pf_radial_params[] = {
-    1920 / 2, // rm_centre_x
-    1080 / 2, // rm_centre_y
-    1770      // rm_off_centre_mult: round((2^31)/((540^2)+(960^2)))
+    1920, // rm_centre_x
+    1080, // rm_centre_y
+    442   // rm_off_centre_mult: round((2^31)/((540^2)+(960^2)))
 };
 
 static uint32_t _calibration_auto_level_control[] = {
     1,  // black_percentage
     99, // white_percentage
-    0,  // auto_black_min
+    20,  // auto_black_min
     50, // auto_black_max
-    75, // auto_white_prc
+    90, // auto_white_prc
     15, // avg_coeff
     1   // enable_auto_level
 };
@@ -363,20 +369,23 @@ static uint32_t _calibration_auto_level_control[] = {
 
 static uint16_t _calibration_exposure_ratio_adjustment[][2] = {
     //contrast u8.8, adjustment u8.8
-    {1 * 256, 256}};
-
+    {1 * 256, 256},
+    {2 * 256, 256},
+    {3 * 256, 256},
+    {4 * 256, 256},
+    {5 * 256, 256},
+    {6 * 256, 256}};
 
 static uint16_t _calibration_cnr_uv_delta12_slope[][2] = {
-    {0 * 256, 1500},
-    {1 * 256, 2000},
-    {2 * 256, 2100},
-    {3 * 256, 2100},
-    {4 * 256, 2100},
-    {5 * 256, 3500},
-    {6 * 256, 3500},
-    {7 * 256, 3500},
-    {8 * 256, 2700},
-    {9 * 256, 2500}};
+    {0 * 256, 600}, //3800
+    {1 * 256, 800},
+    {2 * 256, 1000},
+    {3 * 256, 3000},
+    {4 * 256, 6000},
+    {5 * 256, 8000},
+    {6 * 256, 10000},
+    {7 * 256, 12000},
+};
 
 
 static uint16_t _calibration_fs_mc_off[] = {
@@ -389,21 +398,24 @@ static int16_t _AWB_colour_preference[] = {7500, 6000, 4700, 2800};
 
 static uint32_t _calibration_awb_mix_light_parameters[] = {
     1,    // 1 = enable, 0 = disable
-    1100,  //lux low boundary for mix light lux range : range = {500: inf}
-    20000, // lux high boundary for mix light range : range = {500: inf}
-    700, // contrast threshold for mix light: range = {200:2000}
-    300,  //BG threshold {255:400}
-    0,    // BG weight
-    310,  // rgHigh_LUT_max
-    252,  // rgHigh_LUT_min
+    10,  //lux low boundary for mix light lux range : range = {500: inf}
+    3000, // lux high boundary for mix light range : range = {500: inf}
+    1000, // contrast threshold for mix light: range = {200:2000}
+    500,  //BG threshold {255:400}
+    5,    // BG weight
+    180,  // rgHigh_LUT_max
+    440,  // rgHigh_LUT_min
     0     // print debug
 };
 
 static uint16_t _calibration_rgb2yuv_conversion[] = {76, 150, 29, 0x8025, 0x8049, 111, 157, 0x8083, 0x8019, 0, 512, 512};
-static uint16_t _calibration_ae_zone_wght_hor[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
-static uint16_t _calibration_ae_zone_wght_ver[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
-static uint16_t _calibration_awb_zone_wght_hor[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
-static uint16_t _calibration_awb_zone_wght_ver[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
+
+
+static uint16_t _calibration_ae_zone_wght_hor[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
+static uint16_t _calibration_ae_zone_wght_ver[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
+
+static uint16_t _calibration_awb_zone_wght_hor[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
+static uint16_t _calibration_awb_zone_wght_ver[] = {16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16};
 
 static uint32_t _scaler_h_filter[] = {
     0x27f70200, 0x0002f727, 0x29f70200, 0x0002f824, 0x2cf70200, 0x0002f821, 0x2ef70200, 0x0002f91e, 0x30f70200, 0x0002f91c, 0x33f70200, 0x0001fa19, 0x35f70200, 0x0001fa17, 0x37f70200, 0x0001fb14, 0x39f70200, 0x0001fc11, 0x3af80200, 0x0001fc0f, 0x3bf90200, 0x0001fd0c, 0x3cfa0200, 0x0001fd0a, 0x3efb0100, 0x0000fe08, 0x3efc0100, 0x0000ff06, 0x3ffd0100, 0x0000ff04, 0x40fe0000, 0x00000002, 0x40000000, 0x00000000, 0x40020000, 0x000000fe, 0x3f04ff00, 0x000001fd, 0x3e06ff00, 0x000001fc, 0x3e08fe00, 0x000001fb, 0x3c0afd01, 0x000002fa, 0x3b0cfd01, 0x000002f9, 0x3a0ffc01, 0x000002f8, 0x3911fc01, 0x000002f7, 0x3714fb01, 0x000002f7, 0x3517fa01, 0x000002f7, 0x3319fa01, 0x000002f7, 0x301cf902, 0x000002f7, 0x2e1ef902, 0x000002f7, 0x2c21f802, 0x000002f7, 0x2924f802, 0x000002f7,
@@ -427,18 +439,15 @@ static uint16_t _calibration_sharpen_ds1[][2] = {
     {6 * 256, 40},
     {7 * 256, 25},
     {8 * 256, 10}};
-
 static uint16_t _calibration_temper_strength[][2] = {
-    {0 * 256, 100},
-    {1 * 256, 100},
-    {2 * 256, 100},
+    {0 * 256, 80},
+    {1 * 256, 85},
+    {2 * 256, 90},
     {3 * 256, 110},
-    {4 * 256, 110},
-    {5 * 256, 110},
-    {6 * 256, 110},
-    {7 * 256, 110},
-    {8 * 256, 130},
-    {9 * 256, 130}};
+    {4 * 256, 120},
+    {5 * 256, 140},
+    {6 * 256, 150},
+    {7 * 256, 150}};
 
 static uint32_t _calibration_af_lms[] = {
 	70 << 6,  // Down_FarEnd
@@ -463,26 +472,47 @@ static uint32_t _calibration_af_lms[] = {
 	4 << ( LOG2_GAIN_SHIFT - 4 ),  // caf_stable_th
 	0,							   // print_debug
 };
-	
+
 static uint16_t _calibration_af_zone_wght_hor[] = {0, 0, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 0, 0};
 
 static uint16_t _calibration_af_zone_wght_ver[] = {0, 0, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 0, 0};
 
-static int32_t _calibration_gamma_threshold[] = {3357408, 4357408};
+static int32_t _calibration_gamma_threshold[] = {0, 3057408, 4357408};
 
 // CALIBRATION_GAMMA_EV1
 static uint16_t _calibration_gamma_ev1[] =
     /*sRGB highcontrast{0, 150, 261, 359, 452, 541, 623, 702, 781, 859, 937, 1014, 1087, 1158, 1224, 1288, 1348, 1407, 1464, 1519, 1572, 1625, 1676, 1727, 1775, 1823, 1869, 1913, 1956, 1999, 2041, 2082, 2123, 2162, 2201, 2238, 2276, 2312, 2348, 2383, 2417, 2451, 2485, 2516, 2549, 2580, 2611, 2641, 2671, 2701, 2730, 2759, 2787, 2816, 2843, 2871, 2897, 2923, 2950, 2975, 3000, 3025, 3048, 3071, 3095, 3118, 3139, 3161, 3182, 3204, 3224, 3244, 3263, 3283, 3302, 3322, 3340, 3358, 3377, 3394, 3412, 3429, 3447, 3464, 3481, 3497, 3514, 3530, 3546, 3562, 3579, 3594, 3610, 3625, 3641, 3656, 3671, 3686, 3701, 3716, 3731, 3745, 3759, 3774, 3788, 3802, 3816, 3830, 3843, 3857, 3871, 3884, 3898, 3911, 3924, 3936, 3949, 3962, 3974, 3987, 4000, 4011, 4024, 4036, 4048, 4060, 4072, 4083, 4095}; */
     /*sRGB 65{0,192,318,419,511,596,675,749,820,887,950,1012,1070,1126,1180,1231,1282,1332,1380,1428,1475,1521,1568,1614,1660,1706,1751,1796,1842,1890,1938,1988,2037,2085,2133,2180,2228,2273,2319,2363,2406,2447,2489,2528,2566,2603,2638,2671,2703,2734,2762,2790,2818,2845,2871,2897,2921,2946,2970,2993,3016,3038,3060,3081,3103,3123,3143,3163,3183,3203,3222,3241,3259,3278,3296,3315,3333,3351,3369,3386,3403,3420,3438,3455,3472,3489,3506,3522,3539,3555,3572,3588,3604,3620,3635,3651,3666,3681,3696,3712,3726,3741,3755,3770,3784,3798,3813,3827,3840,3854,3868,3881,3895,3908,3921,3934,3947,3960,3972,3985,3998,4010,4023,4035,4048,4060,4071,4083,4095}; */
-    {0, 250, 406, 527, 630, 723, 807, 889, 969, 1045, 1120, 1192, 1260, 1327, 1391, 1453, 1512, 1570, 1625, 1677, 1728, 1777, 1824, 1870, 1913, 1955, 1995, 2033, 2069, 2105, 2140, 2174, 2207, 2238, 2270, 2300, 2330, 2359, 2387, 2415, 2443, 2469, 2496, 2522, 2548, 2573, 2598, 2622, 2646, 2671, 2694, 2717, 2740, 2763, 2786, 2809, 2830, 2852, 2875, 2896, 2918, 2939, 2960, 2981, 3002, 3023, 3043, 3064, 3084, 3105, 3125, 3145, 3164, 3184, 3203, 3223, 3242, 3262, 3281, 3299, 3318, 3336, 3355, 3373, 3391, 3409, 3427, 3445, 3463, 3480, 3498, 3515, 3532, 3549, 3567, 3584, 3600, 3617, 3633, 3650, 3667, 3683, 3699, 3715, 3731, 3748, 3764, 3780, 3795, 3811, 3827, 3842, 3858, 3873, 3888, 3904, 3919, 3934, 3948, 3964, 3979, 3993, 4008, 4023, 4038, 4052, 4066, 4081, 4095};
-
+    //{0,101,217,347,537,738,925,1087,1222,1323,1407,1482,1550,1612,1670,1723,1773,1822,1867,1910,1952,1993,2033,2071,2110,2147,2184,2220,2255,2289,2322,2355,2387,2418,2448,2478,2507,2535,2564,2591,2618,2644,2671,2696,2722,2747,2772,2796,2821,2845,2868,2891,2914,2938,2960,2984,3005,3028,3051,3073,3094,3116,3137,3158,3180,3201,3220,3241,3261,3281,3301,3320,3339,3358,3376,3395,3413,3431,3449,3465,3483,3499,3516,3532,3548,3564,3579,3594,3609,3624,3639,3653,3668,3682,3696,3710,3723,3737,3750,3764,3777,3790,3803,3816,3828,3841,3854,3866,3878,3890,3902,3913,3925,3937,3948,3959,3970,3982,3992,4003,4014,4024,4035,4045,4056,4066,4075,4085,4095};
+    //{0,137,273,435,588,714,820,917,1007,1089,1166,1239,1308,1374,1437,1497,1554,1610,1664,1715,1764,1812,1858,1903,1947,1990,2031,2072,2111,2149,2187,2224,2261,2295,2330,2364,2398,2430,2462,2493,2524,2554,2585,2614,2643,2671,2700,2727,2753,2780,2806,2832,2857,2883,2907,2933,2956,2981,3005,3028,3052,3076,3098,3121,3146,3169,3191,3214,3236,3260,3282,3304,3324,3346,3367,3388,3408,3428,3448,3467,3486,3504,3523,3540,3557,3574,3590,3605,3621,3636,3652,3667,3682,3696,3711,3725,3738,3753,3766,3780,3793,3806,3819,3831,3844,3857,3869,3881,3893,3905,3916,3927,3939,3950,3961,3971,3982,3992,4002,4012,4022,4032,4041,4051,4060,4069,4078,4086,4095};
+    //{0, 238, 437, 592, 717, 831, 935, 1031, 1120, 1200, 1274, 1342, 1403, 1460, 1511, 1559, 1604, 1647, 1687, 1726, 1763, 1799, 1833, 1867, 1900, 1933, 1964, 1995, 2025, 2055, 2084, 2112, 2140, 2167, 2193, 2219, 2245, 2270, 2295, 2319, 2344, 2367, 2392, 2415, 2439, 2462, 2486, 2508, 2531, 2553, 2575, 2597, 2619, 2641, 2662, 2684, 2704, 2726, 2747, 2767, 2788, 2809, 2828, 2848, 2869, 2888, 2907, 2927, 2946, 2966, 2986, 3005, 3023, 3042, 3060, 3079, 3097, 3115, 3133, 3150, 3168, 3186, 3204, 3222, 3239, 3257, 3275, 3293, 3311, 3329, 3348, 3366, 3384, 3403, 3422, 3441, 3460, 3479, 3498, 3518, 3537, 3556, 3575, 3594, 3614, 3634, 3654, 3674, 3693, 3713, 3733, 3752, 3773, 3793, 3812, 3832, 3853, 3873, 3892, 3912, 3933, 3953, 3974, 3993, 4014, 4034, 4055, 4075, 4095};
+    {0, 347, 539, 679, 794, 894, 982, 1062, 1136, 1204, 1268, 1329, 1386, 1441, 1493, 1543, 1591, 1638, 1683, 1726, 1768, 1809, 1849, 1888, 1926, 1963, 1999, 2034, 2068, 2102, 2135, 2168, 2200, 2231, 2262, 2292, 2322, 2351, 2380, 2408, 2436, 2463, 2491, 2517, 2544, 2570, 2596, 2621, 2646, 2671, 2695, 2719, 2743, 2767, 2790, 2814, 2836, 2859, 2882, 2904, 2926, 2948, 2969, 2990, 3012, 3033, 3053, 3074, 3094, 3115, 3135, 3155, 3174, 3194, 3213, 3233, 3252, 3271, 3290, 3308, 3327, 3345, 3364, 3382, 3400, 3418, 3436, 3453, 3471, 3488, 3506, 3523, 3540, 3557, 3574, 3591, 3607, 3624, 3640, 3657, 3673, 3689, 3705, 3721, 3737, 3753, 3769, 3785, 3800, 3816, 3831, 3846, 3862, 3877, 3892, 3907, 3922, 3937, 3951, 3966, 3981, 3995, 4010, 4024, 4039, 4053, 4067, 4081, 4095};
 
 // CALIBRATION_GAMMA_EV2
 static uint16_t _calibration_gamma_ev2[] =
     /*sRGB highcontrast{0, 150, 261, 359, 452, 541, 623, 702, 781, 859, 937, 1014, 1087, 1158, 1224, 1288, 1348, 1407, 1464, 1519, 1572, 1625, 1676, 1727, 1775, 1823, 1869, 1913, 1956, 1999, 2041, 2082, 2123, 2162, 2201, 2238, 2276, 2312, 2348, 2383, 2417, 2451, 2485, 2516, 2549, 2580, 2611, 2641, 2671, 2701, 2730, 2759, 2787, 2816, 2843, 2871, 2897, 2923, 2950, 2975, 3000, 3025, 3048, 3071, 3095, 3118, 3139, 3161, 3182, 3204, 3224, 3244, 3263, 3283, 3302, 3322, 3340, 3358, 3377, 3394, 3412, 3429, 3447, 3464, 3481, 3497, 3514, 3530, 3546, 3562, 3579, 3594, 3610, 3625, 3641, 3656, 3671, 3686, 3701, 3716, 3731, 3745, 3759, 3774, 3788, 3802, 3816, 3830, 3843, 3857, 3871, 3884, 3898, 3911, 3924, 3936, 3949, 3962, 3974, 3987, 4000, 4011, 4024, 4036, 4048, 4060, 4072, 4083, 4095}; */
     /*sRGB 65{0,192,318,419,511,596,675,749,820,887,950,1012,1070,1126,1180,1231,1282,1332,1380,1428,1475,1521,1568,1614,1660,1706,1751,1796,1842,1890,1938,1988,2037,2085,2133,2180,2228,2273,2319,2363,2406,2447,2489,2528,2566,2603,2638,2671,2703,2734,2762,2790,2818,2845,2871,2897,2921,2946,2970,2993,3016,3038,3060,3081,3103,3123,3143,3163,3183,3203,3222,3241,3259,3278,3296,3315,3333,3351,3369,3386,3403,3420,3438,3455,3472,3489,3506,3522,3539,3555,3572,3588,3604,3620,3635,3651,3666,3681,3696,3712,3726,3741,3755,3770,3784,3798,3813,3827,3840,3854,3868,3881,3895,3908,3921,3934,3947,3960,3972,3985,3998,4010,4023,4035,4048,4060,4071,4083,4095}; */
-    {0, 65, 132, 190, 240, 296, 356, 416, 478, 537, 596, 655, 710, 765, 817, 869, 922, 977, 1032, 1087, 1143, 1198, 1254, 1309, 1363, 1416, 1467, 1518, 1566, 1615, 1662, 1708, 1752, 1796, 1840, 1883, 1926, 1968, 2010, 2051, 2092, 2132, 2173, 2211, 2251, 2289, 2327, 2363, 2399, 2435, 2470, 2504, 2538, 2572, 2605, 2639, 2671, 2704, 2738, 2770, 2802, 2834, 2865, 2895, 2927, 2958, 2986, 3016, 3045, 3074, 3102, 3130, 3156, 3183, 3209, 3235, 3260, 3284, 3308, 3330, 3353, 3375, 3397, 3418, 3438, 3458, 3478, 3497, 3516, 3535, 3554, 3573, 3591, 3609, 3627, 3644, 3661, 3678, 3695, 3712, 3728, 3744, 3760, 3775, 3791, 3806, 3821, 3836, 3850, 3865, 3879, 3892, 3906, 3920, 3933, 3946, 3959, 3971, 3983, 3995, 4007, 4019, 4031, 4042, 4053, 4064, 4074, 4085, 4095};
+    //sRGB
+    //{0, 238, 437, 592, 717, 831, 935, 1031, 1120, 1200, 1274, 1342, 1403, 1460, 1511, 1559, 1604, 1647, 1687, 1726, 1763, 1799, 1833, 1867, 1900, 1933, 1964, 1995, 2025, 2055, 2084, 2112, 2140, 2167, 2193, 2219, 2245, 2270, 2295, 2319, 2344, 2367, 2392, 2415, 2439, 2462, 2486, 2508, 2531, 2553, 2575, 2597, 2619, 2641, 2662, 2684, 2704, 2726, 2747, 2767, 2788, 2809, 2828, 2848, 2869, 2888, 2907, 2927, 2946, 2966, 2986, 3005, 3023, 3042, 3060, 3079, 3097, 3115, 3133, 3150, 3168, 3186, 3204, 3222, 3239, 3257, 3275, 3293, 3311, 3329, 3348, 3366, 3384, 3403, 3422, 3441, 3460, 3479, 3498, 3518, 3537, 3556, 3575, 3594, 3614, 3634, 3654, 3674, 3693, 3713, 3733, 3752, 3773, 3793, 3812, 3832, 3853, 3873, 3892, 3912, 3933, 3953, 3974, 3993, 4014, 4034, 4055, 4075, 4095};
+    //{0,137,273,435,588,714,820,917,1007,1089,1166,1239,1308,1374,1437,1497,1554,1610,1664,1715,1764,1812,1858,1903,1947,1990,2031,2072,2111,2149,2187,2224,2261,2295,2330,2364,2398,2430,2462,2493,2524,2554,2585,2614,2643,2671,2700,2727,2753,2780,2806,2832,2857,2883,2907,2933,2956,2981,3005,3028,3052,3076,3098,3121,3146,3169,3191,3214,3236,3260,3282,3304,3324,3346,3367,3388,3408,3428,3448,3467,3486,3504,3523,3540,3557,3574,3590,3605,3621,3636,3652,3667,3682,3696,3711,3725,3738,3753,3766,3780,3793,3806,3819,3831,3844,3857,3869,3881,3893,3905,3916,3927,3939,3950,3961,3971,3982,3992,4002,4012,4022,4032,4041,4051,4060,4069,4078,4086,4095};
+    {0, 347, 539, 679, 794, 894, 982, 1062, 1136, 1204, 1268, 1329, 1386, 1441, 1493, 1543, 1591, 1638, 1683, 1726, 1768, 1809, 1849, 1888, 1926, 1963, 1999, 2034, 2068, 2102, 2135, 2168, 2200, 2231, 2262, 2292, 2322, 2351, 2380, 2408, 2436, 2463, 2491, 2517, 2544, 2570, 2596, 2621, 2646, 2671, 2695, 2719, 2743, 2767, 2790, 2814, 2836, 2859, 2882, 2904, 2926, 2948, 2969, 2990, 3012, 3033, 3053, 3074, 3094, 3115, 3135, 3155, 3174, 3194, 3213, 3233, 3252, 3271, 3290, 3308, 3327, 3345, 3364, 3382, 3400, 3418, 3436, 3453, 3471, 3488, 3506, 3523, 3540, 3557, 3574, 3591, 3607, 3624, 3640, 3657, 3673, 3689, 3705, 3721, 3737, 3753, 3769, 3785, 3800, 3816, 3831, 3846, 3862, 3877, 3892, 3907, 3922, 3937, 3951, 3966, 3981, 3995, 4010, 4024, 4039, 4053, 4067, 4081, 4095};
 
+static uint32_t _calibration_custom_settings_context[][4] = {
+    //stop sequence - address is 0x0000
+    { 0x1abfc, 0x1f1fe449L, 0xffffffff,4},//shading mesh scale
+    { 0x1ac4c, 0xc8c80a01L, 0xffffffff,4},//iridix
+    { 0x1ae7c, 0x76c3c8aaL, 0xffffffff,4 }, // UU Slope/VA Slope/AA Slope/VH Slope
+    { 0x1ae84, 0x00f0078L, 0xfff0fff,4 }, //AA Thresh/VH Thresh
+    { 0x1ae88, 0x0000096L, 0xfff0fff,4 }, //UU Thresh/VA Thresh
+    { 0x1aec0, 0x80adcL, 0xffffff,4 }, //grey det thresh/lg det thresh/UU SH Slope
+    { 0x1aec4, 0x000000b4L, 0xfff0fff,4 }, //UU SH Offset/UU SH Thresh
+    { 0x1aec8, 0x40740bf7L, 0xffffffff,4 }, //grey det slope/lg det slope
+    { 0x1aed4, 0x1f40L, 0xfffff,4 }, //luma slope low d
+    { 0x1aedc, 0x1f40L, 0xfffff,4 }, //luma slope high d
+    { 0x1aee0, 0x8L, 0xff0fff,4 }, //luma offset low ud/luma thresh low ud
+    { 0x1aee4, 0x3e8L, 0xfffff,4 }, //luma slope low ud
+    { 0x1aeec, 0x1f40L, 0xfffff,4 }, //luma slope high ud
+    {0x0000, 0x0000, 0x0000, 0x0000}};
 
 static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_threshold, .rows = 1, .cols = sizeof( _calibration_gamma_threshold ) / sizeof( _calibration_gamma_threshold[0] ), .width = sizeof( _calibration_gamma_threshold[0] )};
 static LookupTable calibration_gamma_ev1 = {.ptr = _calibration_gamma_ev1, .rows = 1, .cols = sizeof( _calibration_gamma_ev1 ) / sizeof( _calibration_gamma_ev1[0] ), .width = sizeof( _calibration_gamma_ev1[0] )};
@@ -529,6 +559,7 @@ static LookupTable calibration_demosaic_np_offset = {.ptr = _calibration_demosai
 static LookupTable calibration_mesh_shading_strength = {.ptr = _calibration_mesh_shading_strength, .rows = sizeof( _calibration_mesh_shading_strength ) / sizeof( _calibration_mesh_shading_strength[0] ), .cols = 2, .width = sizeof( _calibration_mesh_shading_strength[0][0] )};
 static LookupTable calibration_saturation_strength = {.ptr = _calibration_saturation_strength, .rows = sizeof( _calibration_saturation_strength ) / sizeof( _calibration_saturation_strength[0] ), .cols = 2, .width = sizeof( _calibration_saturation_strength[0][0] )};
 static LookupTable calibration_ccm_one_gain_threshold = {.ptr = _calibration_ccm_one_gain_threshold, .cols = sizeof( _calibration_ccm_one_gain_threshold ) / sizeof( _calibration_ccm_one_gain_threshold[0] ), .rows = 1, .width = sizeof( _calibration_ccm_one_gain_threshold[0] )};
+static LookupTable calibration_cmos_exposure_partition_luts = {.ptr = _calibration_cmos_exposure_partition_luts, .rows = sizeof( _calibration_cmos_exposure_partition_luts ) / sizeof( _calibration_cmos_exposure_partition_luts[0] ), .cols = 10, .width = sizeof( _calibration_cmos_exposure_partition_luts[0][0] )};
 static LookupTable calibration_cmos_control = {.ptr = _calibration_cmos_control, .rows = 1, .cols = sizeof( _calibration_cmos_control ) / sizeof( _calibration_cmos_control[0] ), .width = sizeof( _calibration_cmos_control[0] )};
 static LookupTable calibration_status_info = {.ptr = _calibration_status_info, .rows = 1, .cols = sizeof( _calibration_status_info ) / sizeof( _calibration_status_info[0] ), .width = sizeof( _calibration_status_info[0] )};
 static LookupTable calibration_ae_control = {.ptr = _calibration_ae_control, .rows = 1, .cols = sizeof( _calibration_ae_control ) / sizeof( _calibration_ae_control[0] ), .width = sizeof( _calibration_ae_control[0] )};
@@ -548,6 +579,7 @@ static LookupTable calibration_scaler_h_filter = {.ptr = _scaler_h_filter, .rows
 static LookupTable calibration_scaler_v_filter = {.ptr = _scaler_v_filter, .rows = 1, .cols = sizeof( _scaler_v_filter ) / sizeof( _scaler_v_filter[0] ), .width = sizeof( _scaler_v_filter[0] )};
 static LookupTable calibration_sharpen_ds1 = {.ptr = _calibration_sharpen_ds1, .rows = sizeof( _calibration_sharpen_ds1 ) / sizeof( _calibration_sharpen_ds1[0] ), .cols = 2, .width = sizeof( _calibration_sharpen_ds1[0][0] )};
 static LookupTable calibration_temper_strength = {.ptr = _calibration_temper_strength, .rows = sizeof( _calibration_temper_strength ) / sizeof( _calibration_temper_strength[0] ), .cols = 2, .width = sizeof( _calibration_temper_strength[0][0] )};
+static LookupTable calibration_custom_settings_context = {.ptr = _calibration_custom_settings_context, .rows = sizeof( _calibration_custom_settings_context ) / sizeof( _calibration_custom_settings_context[0] ), .cols = 4, .width = sizeof( _calibration_custom_settings_context[0][0] )};
 
 uint32_t get_calibrations_dynamic_fs_lin_os08a10( ACameraCalibrations *c )
 {
@@ -564,6 +596,7 @@ uint32_t get_calibrations_dynamic_fs_lin_os08a10( ACameraCalibrations *c )
         c->calibrations[CALIBRATION_SINTER_RADIAL_PARAMS] = &calibration_sinter_radial_params;
         c->calibrations[CALIBRATION_AWB_BG_MAX_GAIN] = &calibration_AWB_bg_max_gain;
         c->calibrations[CALIBRATION_IRIDIX8_STRENGTH_DK_ENH_CONTROL] = &calibration_iridix8_strength_dk_enh_control;
+        c->calibrations[CALIBRATION_CMOS_EXPOSURE_PARTITION_LUTS] = &calibration_cmos_exposure_partition_luts;
         c->calibrations[CALIBRATION_CMOS_CONTROL] = &calibration_cmos_control;
         c->calibrations[CALIBRATION_STATUS_INFO] = &calibration_status_info;
         c->calibrations[CALIBRATION_AUTO_LEVEL_CONTROL] = &calibration_auto_level_control;
@@ -617,6 +650,7 @@ uint32_t get_calibrations_dynamic_fs_lin_os08a10( ACameraCalibrations *c )
         c->calibrations[CALIBRATION_GAMMA_EV1] = &calibration_gamma_ev1;
         c->calibrations[CALIBRATION_GAMMA_EV2] = &calibration_gamma_ev2;
         c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
+        c->calibrations[CALIBRATION_CUSTOM_SETTINGS_CONTEXT] = &calibration_custom_settings_context;
     } else {
         result = -1;
     }

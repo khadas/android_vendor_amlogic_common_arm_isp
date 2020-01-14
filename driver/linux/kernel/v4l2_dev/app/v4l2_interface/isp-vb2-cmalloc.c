@@ -115,80 +115,34 @@ static void *vb2_cmalloc_alloc(struct device *dev, unsigned long attrs,
 	return buf;
 }
 
-static void *vb2_cmalloc_get_userptr(struct device *dev, unsigned long vaddr,
-				     unsigned long size,
-				     enum dma_data_direction dma_dir)
+void *vb2_get_userptr(struct device *dev, unsigned long vaddr,
+				unsigned long size,
+				enum dma_data_direction dma_dir)
 {
 	struct vb2_cmalloc_buf *buf;
-	struct frame_vector *vec;
-	int n_pages, offset, i;
-	int ret = -ENOMEM;
 
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
-	if (!buf)
-		return ERR_PTR(-ENOMEM);
+	if (buf == NULL) {
+		pr_err("%s: Failed to alloc mem\n", __func__);
+		return NULL;
+	}
 
+	buf->dbuf = (void *)dev;
+	buf->vaddr = (void *)vaddr;
 	buf->dma_dir = dma_dir;
-	offset = vaddr & ~PAGE_MASK;
 	buf->size = size;
-	vec = vb2_create_framevec(vaddr, size, dma_dir == DMA_FROM_DEVICE);
-	if (IS_ERR(vec)) {
-		ret = PTR_ERR(vec);
-		goto fail_pfnvec_create;
-	}
-	buf->vec = vec;
-	n_pages = frame_vector_count(vec);
-	if (frame_vector_to_pages(vec) < 0) {
-		unsigned long *nums = frame_vector_pfns(vec);
 
-		/*
-		 * We cannot get page pointers for these pfns. Check memory is
-		 * physically contiguous and use direct mapping.
-		 */
-		for (i = 1; i < n_pages; i++)
-			if (nums[i-1] + 1 != nums[i])
-				goto fail_map;
-		buf->vaddr = (__force void *)
-				ioremap_nocache(nums[0] << PAGE_SHIFT, size);
-	} else {
-		buf->vaddr = vm_map_ram(frame_vector_pages(vec), n_pages, -1,
-					PAGE_KERNEL);
-	}
-
-	if (!buf->vaddr)
-		goto fail_map;
-	buf->vaddr += offset;
 	return buf;
-
-fail_map:
-	vb2_destroy_framevec(vec);
-fail_pfnvec_create:
-	kfree(buf);
-
-	return ERR_PTR(ret);
 }
 
-static void vb2_cmalloc_put_userptr(void *buf_priv)
+void vb2_put_userptr(void *buf_priv)
 {
-	struct vb2_cmalloc_buf *buf = buf_priv;
-	unsigned long vaddr = (unsigned long)buf->vaddr & PAGE_MASK;
-	unsigned int i;
-	struct page **pages;
-	unsigned int n_pages;
-
-	if (!buf->vec->is_pfns) {
-		n_pages = frame_vector_count(buf->vec);
-		pages = frame_vector_pages(buf->vec);
-		if (vaddr)
-			vm_unmap_ram((void *)vaddr, n_pages);
-		if (buf->dma_dir == DMA_FROM_DEVICE)
-			for (i = 0; i < n_pages; i++)
-				set_page_dirty_lock(pages[i]);
-	} else {
-		iounmap((__force void __iomem *)buf->vaddr);
+	if (buf_priv == NULL) {
+		pr_err("%s: Error input param\n", __func__);
+		return;
 	}
-	vb2_destroy_framevec(buf->vec);
-	kfree(buf);
+
+	kfree(buf_priv);
 }
 
 static void *vb2_cmalloc_vaddr(void *buf_priv)
@@ -288,7 +242,7 @@ static int vb2_cmalloc_dmabuf_ops_attach(struct dma_buf *dbuf,
 		return ret;
 	}
 
-	struct page *page = vaddr;	
+	struct page *page = vaddr;
 	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
 		if (!page) {
 			sg_free_table(sgt);
@@ -388,7 +342,11 @@ static void *vb2_cmalloc_dmabuf_ops_vmap(struct dma_buf *dbuf)
 {
 	struct vb2_cmalloc_buf *buf = dbuf->priv;
 
+#ifdef CONFIG_ANDROID_OS
 	return buf->vaddr;
+#else
+	return page_to_virt(buf->vaddr);
+#endif
 }
 
 static int vb2_cmalloc_dmabuf_ops_mmap(struct dma_buf *dbuf,
@@ -443,8 +401,8 @@ static struct dma_buf *vb2_cmalloc_get_dmabuf(void *buf_priv, unsigned long flag
 const struct vb2_mem_ops vb2_cmalloc_memops = {
 	.alloc		= vb2_cmalloc_alloc,
 	.put		= vb2_cmalloc_put,
-	.get_userptr	= vb2_cmalloc_get_userptr,
-	.put_userptr	= vb2_cmalloc_put_userptr,
+	.get_userptr	= vb2_get_userptr,
+	.put_userptr	= vb2_put_userptr,
 #ifdef CONFIG_HAS_DMA
 	.get_dmabuf	= vb2_cmalloc_get_dmabuf,
 #endif

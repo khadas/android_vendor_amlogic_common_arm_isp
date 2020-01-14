@@ -391,6 +391,18 @@ case  TSCENE_MODES:
 		case  HUE_THETA_ID:
 			ret = hue_theta(instance, value, direction, ret_value);
 			break;
+		case  SNR_MANUAL_ID:
+			ret = snr_manual(instance, value, direction, ret_value);
+			break;
+		case  SNR_OFFSET_ID:
+			ret = snr_offset(instance, value, direction, ret_value);
+			break;
+		case  TNR_MANUAL_ID:
+			ret = tnr_manual(instance, value, direction, ret_value);
+			break;
+		case  TNR_OFFSET_ID:
+			ret = tnr_offset(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TREGISTERS:
