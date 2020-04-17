@@ -3100,6 +3100,142 @@ uint8_t antiflicker_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
 }
 #endif
 
+uint8_t defog_alg_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t ret = 0;
+    uint32_t d_size = 0;
+    uint32_t ctx_id = 0;
+    defog_calibration_control_t *d_base;
+    defog_calibration_control_t d_param;
+
+    d_base = (void *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+    d_size = _GET_SIZE(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+
+    system_memcpy(&d_param, d_base, d_size);
+
+    if (direction == COMMAND_SET) {
+        switch (value) {
+            case DEFOG_DISABLE:
+                d_param.defog_en = 0;
+            break;
+            case DEFOG_ONLY:
+                d_param.defog_en = 1;
+            break;
+            case DEFOG_BLEND:
+                d_param.defog_en = 2;
+            break;
+            default:
+            break;
+        }
+        ctx_id = acamera_get_api_context();
+        acamera_api_calibration(ctx_id, DYNAMIC_CALIBRATIONS_ID,
+                            CALIBRATION_DEFOG_CONTROL,
+                            COMMAND_SET, &d_param, sizeof(d_param), &ret);
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        switch (d_base->defog_en) {
+            case 0:
+                *ret_value = DEFOG_DISABLE;
+            break;
+            case 1:
+                *ret_value = DEFOG_ONLY;
+            break;
+            case 2:
+                *ret_value = DEFOG_BLEND;
+            break;
+            default:
+                *ret_value = NOT_SUPPORTED;
+            break;
+        }
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+
+uint8_t defog_alg_ratio_delta( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t ret = 0;
+    uint32_t d_size = 0;
+    uint32_t ctx_id = 0;
+    defog_calibration_control_t *d_base;
+    defog_calibration_control_t d_param;
+
+    d_base = (void *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+    d_size = _GET_SIZE(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+
+    system_memcpy(&d_param, d_base, d_size);
+
+    if (direction == COMMAND_SET) {
+        d_param.ratio_delta = value;
+        ctx_id = acamera_get_api_context();
+        acamera_api_calibration(ctx_id, DYNAMIC_CALIBRATIONS_ID,
+                            CALIBRATION_DEFOG_CONTROL,
+                            COMMAND_SET, &d_param, sizeof(d_param), &ret);
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        *ret_value = d_base->ratio_delta;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+
+uint8_t defog_alg_black_pctg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t ret = 0;
+    uint32_t d_size = 0;
+    uint32_t ctx_id = 0;
+    defog_calibration_control_t *d_base;
+    defog_calibration_control_t d_param;
+
+    d_base = (void *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+    d_size = _GET_SIZE(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+
+    system_memcpy(&d_param, d_base, d_size);
+
+    if (direction == COMMAND_SET) {
+        d_param.black_percentage = value;
+        ctx_id = acamera_get_api_context();
+        acamera_api_calibration(ctx_id, DYNAMIC_CALIBRATIONS_ID,
+                            CALIBRATION_DEFOG_CONTROL,
+                            COMMAND_SET, &d_param, sizeof(d_param), &ret);
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        *ret_value = d_base->black_percentage;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+
+uint8_t defog_alg_white_pctg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t ret = 0;
+    uint32_t d_size = 0;
+    uint32_t ctx_id = 0;
+    defog_calibration_control_t *d_base;
+    defog_calibration_control_t d_param;
+
+    d_base = (void *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+    d_size = _GET_SIZE(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DEFOG_CONTROL);
+
+    system_memcpy(&d_param, d_base, d_size);
+
+    if (direction == COMMAND_SET) {
+        d_param.white_percentage = value;
+        ctx_id = acamera_get_api_context();
+        acamera_api_calibration(ctx_id, DYNAMIC_CALIBRATIONS_ID,
+                            CALIBRATION_DEFOG_CONTROL,
+                            COMMAND_SET, &d_param, sizeof(d_param), &ret);
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        *ret_value = d_base->white_percentage;
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
 
 // ------------------------------------------------------------------------------ //
 //    TREGISTERS

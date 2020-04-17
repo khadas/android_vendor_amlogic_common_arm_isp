@@ -225,6 +225,7 @@ void configure_buffers( acamera_context_ptr_t p_ctx, uint32_t start_addr, uint16
 void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask );
 
 int acamera_3aalg_enable(void);
+int32_t acamera_extern_param_calculate(void *param);
 
 #define ACAMERA_MGR2CTX_PTR( p_fsm_mgr ) \
     ( ( p_fsm_mgr )->p_ctx )

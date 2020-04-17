@@ -291,6 +291,54 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
     LOG( LOG_NOTICE, "Sensor initialization is complete, ID 0x%04X resolution %dx%d", p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height );
 }
 
+static void sqrt_ext_param_update(sensor_fsm_ptr_t p_fsm)
+{
+    int32_t rtn = 0;
+    int32_t t_gain = 0;
+    struct sqrt_ext_param_t p_result;
+    fsm_ext_param_ctrl_t p_ctrl;
+
+    acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &t_gain, sizeof(t_gain));
+
+    p_ctrl.ctx = (void *)(ACAMERA_FSM2CTX_PTR(p_fsm));
+    p_ctrl.id = CALIBRATION_SQRT_EXT_CONTROL;
+    p_ctrl.total_gain = t_gain;
+    p_ctrl.result = (void *)&p_result;
+
+    rtn = acamera_extern_param_calculate(&p_ctrl);
+    if (rtn != 0) {
+        LOG(LOG_CRIT, "Failed to calculate sqrt ext");
+        return;
+    }
+
+    acamera_isp_sqrt_black_level_in_write(p_fsm->cmn.isp_base, p_result.black_level_in);
+    acamera_isp_sqrt_black_level_out_write(p_fsm->cmn.isp_base, p_result.black_level_out);
+}
+
+static void square_be_ext_param_update(sensor_fsm_ptr_t p_fsm)
+{
+    int32_t rtn = 0;
+    int32_t t_gain = 0;
+    struct square_be_ext_param_t p_result;
+    fsm_ext_param_ctrl_t p_ctrl;
+
+    acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &t_gain, sizeof(t_gain));
+
+    p_ctrl.ctx = (void *)(ACAMERA_FSM2CTX_PTR(p_fsm));
+    p_ctrl.id = CALIBRATION_SQUARE_BE_EXT_CONTROL;
+    p_ctrl.total_gain = t_gain;
+    p_ctrl.result = (void *)&p_result;
+
+    rtn = acamera_extern_param_calculate(&p_ctrl);
+    if (rtn != 0) {
+        LOG(LOG_CRIT, "Failed to square be ext");
+        return;
+    }
+
+    acamera_isp_square_be_black_level_in_write(p_fsm->cmn.isp_base, p_result.black_level_in);
+    acamera_isp_square_be_black_level_out_write(p_fsm->cmn.isp_base, p_result.black_level_out);
+}
+
 void sensor_update_black( sensor_fsm_ptr_t p_fsm )
 {
     int32_t stub = 0;
@@ -327,6 +375,9 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
             acamera_isp_sensor_offset_pre_shading_offset_01_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr )->y << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_10_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gb )->y << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_11_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_b )->y << BLACK_LEVEL_SHIFT_WB );
+
+            sqrt_ext_param_update(p_fsm);
+            square_be_ext_param_update(p_fsm);
         }
 
         acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr )->y << BLACK_LEVEL_SHIFT_DG );
@@ -336,6 +387,9 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
             acamera_isp_sensor_offset_pre_shading_offset_01_write( p_fsm->cmn.isp_base, gr << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_10_write( p_fsm->cmn.isp_base, gb << BLACK_LEVEL_SHIFT_WB );
             acamera_isp_sensor_offset_pre_shading_offset_11_write( p_fsm->cmn.isp_base, b << BLACK_LEVEL_SHIFT_WB );
+
+            sqrt_ext_param_update(p_fsm);
+            square_be_ext_param_update(p_fsm);
         }
 
         acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)p_fsm->black_level << BLACK_LEVEL_SHIFT_DG );

@@ -170,12 +170,20 @@
 #define CALIBRATION_GAMMA_EV1                             0x00000078
 #define CALIBRATION_GAMMA_EV2                             0x00000079
 #define CALIBRATION_GAMMA_THRESHOLD                       0x0000007A
+#define CALIBRATION_DEFOG_CONTROL                         0x0000007B
+#define CALIBRATION_DEMOSAIC_RGB_EXT_CONTROL              0x0000007C
+#define CALIBRATION_FR_SHARPEN_EXT_CONTROL                0x0000007D
+#define CALIBRATION_DS_SHARPEN_EXT_CONTROL                0x0000007E
+#define CALIBRATION_CNR_EXT_CONTROL                       0x0000007F
+#define CALIBRATION_IRIDIX_EXT_CONTROL                    0x00000080
+#define CALIBRATION_SQRT_EXT_CONTROL                      0x00000081
+#define CALIBRATION_SQUARE_BE_EXT_CONTROL                 0x00000082
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 123
+#define CALIBRATION_TOTAL_SIZE 131
 //------------------FILE TRANSFER-------------------
 
 

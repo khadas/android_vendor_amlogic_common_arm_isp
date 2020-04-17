@@ -369,6 +369,18 @@ case  TALGORITHMS:
 		case AWB_ZONE_WEIGHT:
 			ret = awb_zone_weight(instance, value, direction, ret_value);
 			break;
+		case DEFOG_MODE_ID:
+			ret = defog_alg_mode(instance, value, direction, ret_value);
+			break;
+		case DEFOG_RATIO_DELTA:
+			ret = defog_alg_ratio_delta(instance, value, direction, ret_value);
+			break;
+		case DEFOG_BLACK_PERCENTAGE:
+			ret = defog_alg_black_pctg(instance, value, direction, ret_value);
+			break;
+		case DEFOG_WHITE_PERCENTAGE:
+			ret = defog_alg_white_pctg(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TSCENE_MODES:
