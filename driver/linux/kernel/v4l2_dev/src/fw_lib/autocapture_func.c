@@ -144,7 +144,6 @@ static int autocapture_fops_mmap( struct file *f, struct vm_area_struct *vma )
 		return rc;
 	}
 
-	LOG( LOG_INFO, "mmap of %ld bytes OK.", user_buf_len );
 	return 0;
 }
 
@@ -184,11 +183,7 @@ static int autocapture_fops_open( struct inode *inode, struct file *f )
 	} else {
 		p_ctx->dev_opened = 1;
 		rc = 0;
-		LOG( LOG_INFO, "open succeed." );
-
-		LOG( LOG_INFO, "Bf set, private_data: %p.", f->private_data );
 		f->private_data = p_ctx;
-		LOG( LOG_INFO, "Af set, private_data: %p.", f->private_data );
 	}
 
 	mutex_unlock( &p_ctx->fops_lock );
@@ -200,8 +195,6 @@ static int autocapture_fops_release( struct inode *inode, struct file *f )
 {
 	int rc = 0;
 	struct autocapture_context *p_ctx = (struct autocapture_context *)f->private_data;
-
-	LOG( LOG_INFO, "p_ctx: %p, name: %s, fw_id: %d, minor_id: %d.", p_ctx, p_ctx->dev_name, p_ctx->fw_id, p_ctx->dev_minor_id );
 
 	rc = mutex_lock_interruptible( &p_ctx->fops_lock );
 	if ( rc ) {
@@ -297,7 +290,6 @@ static ssize_t autocapture_fops_write( struct file *file, const char __user *buf
 	}
 
 	rc = count;
-	LOG( LOG_INFO, "autocapture_fops_write:%x, %x",p_ctx->get_fr_ds, rc);
 
 	if(p_ctx->get_fr_ds == 0xAA)
 	{
@@ -458,8 +450,6 @@ uint32_t autocap_get_frame_addr(struct autocapture_context *p_ctx, struct frame_
 	t_frm.framesize = p_ctx->autocap_frame[type].imagebufferstride;
 	t_frm.phy_addr = p_ctx->autocap_frame[type].n_address;
 
-	LOG( LOG_INFO, "t_frm.phy_addr:%x,%x,%x",index, t_frm.phy_addr, t_frm.framesize );
-
 	ret = copy_to_user((void *)frm, &t_frm, sizeof(struct frame_info));
 	if ( ret ) {
 		LOG( LOG_CRIT, "copy_to_user failed, ret: %d.", ret );
@@ -614,8 +604,6 @@ void autocapture_initialize( autocapture_fsm_t *p_fsm )
 		LOG( LOG_ERR, "init failed, error: register autocap device failed, ret: %d.", rc );
 		return;
 	}
-
-	LOG( LOG_INFO, "autocap dev '%s' register ok, dev: %p, minor: %d.", p_dev->name, p_dev->this_device, p_dev->minor );
 
 	p_ctx->fw_id = fw_id;
 	p_ctx->dev_minor_id = p_dev->minor;

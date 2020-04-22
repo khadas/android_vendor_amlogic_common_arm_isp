@@ -190,8 +190,6 @@ int isp_fw_init( uint32_t hw_isp_addr )
     int result = 0;
     uint32_t i;
 
-    LOG( LOG_INFO, "fw_init start" );
-
     isp_update_setting();
 	
     for ( i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++ ) {
@@ -216,18 +214,14 @@ int isp_fw_init( uint32_t hw_isp_addr )
         // It can be changed by a customer discretion.
         system_interrupt_set_handler( interrupt_handler, NULL );
     } else {
-        LOG( LOG_INFO, "Failed to start firmware processing thread. " );
+        LOG( LOG_ERR, "Failed to start firmware processing thread. " );
     }
 
-    LOG( LOG_INFO, "isp_fw_init result %d", result );
     if ( result == 0 ) {
 
 #if ISP_HAS_STREAM_CONNECTION && CONNECTION_IN_THREAD
-        LOG( LOG_INFO, "start connection thread %d", result );
         isp_fw_connections_thread = kthread_run( connection_thread, NULL, "isp_connection" );
 #endif
-
-        LOG( LOG_INFO, "start fw thread %d", result );
         isp_fw_process_thread = kthread_run( isp_fw_process, NULL, "isp_process" );
     }
 

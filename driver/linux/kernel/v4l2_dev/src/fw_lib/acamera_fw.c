@@ -150,7 +150,7 @@ void acamera_fw_error_routine( acamera_context_t *p_ctx, uint32_t irq_mask )
 
     acamera_isp_input_port_mode_request_write( p_ctx->settings.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
 
-    LOG( LOG_INFO, "starting isp from error" );
+    LOG( LOG_ERR, "starting isp from error" );
 }
 
 
@@ -871,12 +871,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 	p_ctx->context_ref = (uint32_t *)p_ctx;
 	p_ctx->p_gfw = g_fw;
 	if ( p_ctx->sw_reg_map.isp_sw_config_map != NULL ) {
-
-        LOG( LOG_INFO, "Allocated memory for config space of size %d bytes", ACAMERA_ISP1_SIZE );
-        LOG( LOG_INFO, "Allocated memory for metering of size %d bytes", ACAMERA_METERING_STATS_MEM_SIZE );
         // copy settings
         system_memcpy( (void *)&p_ctx->settings, (void *)settings, sizeof( acamera_settings ) );
-
 
         p_ctx->settings.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
 
@@ -900,10 +896,6 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 #if defined( SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_FPGA ) && ISP_HAS_FPGA_WRAPPER
         // these settings are loaded only for ARM FPGA demo platform and must be ignored on other systems
         acamera_load_isp_sequence( 0, p_ctx->isp_sequence, SENSOR_ISP_SEQUENCE_DEFAULT_SETTINGS_FPGA );
-#endif
-
-#if ISP_DMA_RAW_CAPTURE
-        dma_raw_capture_init( g_fw );
 #endif
 
         // reset frame counters

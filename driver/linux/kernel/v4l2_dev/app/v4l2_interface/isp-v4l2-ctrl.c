@@ -43,8 +43,8 @@ static int isp_v4l2_ctrl_s_ctrl_standard( struct v4l2_ctrl *ctrl )
 
     isp_v4l2_ctrl_t *isp_ctrl = std_hdl_to_isp_ctrl( hdl );
     int ctx_id = isp_ctrl->ctx_id;
-	
-    LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
+
+    LOG( LOG_DEBUG, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
          ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum );
 
     if ( isp_v4l2_ctrl_check_valid( ctrl ) < 0 ) {
@@ -115,9 +115,8 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
 
     isp_v4l2_ctrl_t *isp_ctrl = cst_hdl_to_isp_ctrl( hdl );
     int ctx_id = isp_ctrl->ctx_id;
-	
 
-    LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
+    LOG( LOG_DEBUG, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
          ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum);
 
     if ( isp_v4l2_ctrl_check_valid( ctrl ) < 0 ) {
@@ -276,7 +275,7 @@ static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
     isp_v4l2_ctrl_t *isp_ctrl = cst_hdl_to_isp_ctrl( hdl );
     int ctx_id = isp_ctrl->ctx_id;
 
-    LOG( LOG_INFO, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
+    LOG( LOG_DEBUG, "Control - id:0x%x, val:%d, is_int:%d, min:%d, max:%d.\n",
          ctrl->id, ctrl->val, ctrl->is_int, ctrl->minimum, ctrl->maximum);
 
     switch ( ctrl->id ) {

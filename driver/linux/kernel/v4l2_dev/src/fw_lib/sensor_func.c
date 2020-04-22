@@ -95,10 +95,6 @@ uint32_t sensor_boot_init( sensor_fsm_ptr_t p_fsm )
 
     for ( idx = 0; idx < param->modes_num; idx++ ) {
         param->modes_table[idx] = ksensor_info.modes[idx];
-
-        LOG( LOG_INFO, "Sensor_mode[%d]: wdr_mode: %d, exp: %d.", idx,
-             param->modes_table[idx].wdr_mode,
-             param->modes_table[idx].exposures );
     }
 #endif
 
@@ -171,7 +167,6 @@ void sensor_configure_buffers( sensor_fsm_ptr_t p_fsm )
     uint32_t temper_frame_size = acamera_isp_top_active_width_read( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base ) * acamera_isp_top_active_height_read( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base ) * 4;
     if ( temper_frames != NULL && temper_frames_num != 0 && ( ( temper_frames_num > 1 ) ? ( temper_frames[0].size + temper_frames[1].size >= temper_frame_size * 2 ) : ( temper_frames[0].size >= temper_frame_size ) ) ) {
         if ( temper_frames_num == 1 ) {
-            LOG( LOG_INFO, "Only one output buffer will be used for temper." );
             acamera_isp_temper_dma_lsb_bank_base_reader_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, temper_frames[0].address );
             acamera_isp_temper_dma_lsb_bank_base_writer_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, temper_frames[0].address );
             acamera_isp_temper_temper2_mode_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 ); //temper 2

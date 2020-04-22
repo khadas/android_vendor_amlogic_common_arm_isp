@@ -1233,11 +1233,11 @@ uint8_t system_integration_time( acamera_fsm_mgr_t *instance, uint32_t value, ui
     } else if ( direction == COMMAND_SET ) {
          if ( value == 0 ) {
              param_cmos->global_integration_time = 1;
-             LOG(LOG_INFO, "Warning: manual integration time rang: 1 - %d", param->integration_time_limit );
+             LOG(LOG_WARNING, "Warning: manual integration time rang: 1 - %d", param->integration_time_limit );
          }
          else if ( param->integration_time_limit < value ) {
              param_cmos->global_integration_time = param->integration_time_limit;
-             LOG(LOG_INFO, "Warning: manual integration time rang: 1 - %d", param->integration_time_limit );
+             LOG(LOG_WARNING, "Warning: manual integration time rang: 1 - %d", param->integration_time_limit );
          }
          else {
              param_cmos->global_integration_time = value;
@@ -1319,7 +1319,7 @@ uint8_t system_sensor_analog_gain( acamera_fsm_mgr_t *instance, uint32_t value, 
     } else if ( direction == COMMAND_SET ) {
         if ( value > param->global_max_sensor_analog_gain ) {
             param->global_sensor_analog_gain = param->global_max_sensor_analog_gain;
-            LOG(LOG_INFO, "Warning: manual sensor analog gain rang: 0 - %d", param->global_max_sensor_analog_gain );
+            LOG(LOG_WARNING, "Warning: manual sensor analog gain rang: 0 - %d", param->global_max_sensor_analog_gain );
         } else {
             param->global_sensor_analog_gain = value;
         }
@@ -1368,7 +1368,7 @@ uint8_t system_sensor_digital_gain( acamera_fsm_mgr_t *instance, uint32_t value,
     } else if ( direction == COMMAND_SET ) {
         if ( value > param->global_max_sensor_digital_gain ) {
             param->global_sensor_digital_gain = param->global_max_sensor_digital_gain;
-            LOG(LOG_INFO, "Warning: manual sensor digital gain rang: 0 - %d", param->global_max_sensor_digital_gain );
+            LOG(LOG_WARNING, "Warning: manual sensor digital gain rang: 0 - %d", param->global_max_sensor_digital_gain );
         } else {
             param->global_sensor_digital_gain = value;
         }
@@ -1417,7 +1417,7 @@ uint8_t system_isp_digital_gain( acamera_fsm_mgr_t *instance, uint32_t value, ui
     } else if ( direction == COMMAND_SET ) {
         if ( value > param->global_max_isp_digital_gain ) {
             param->global_isp_digital_gain = param->global_max_isp_digital_gain;
-            LOG(LOG_INFO, "Warning: manual isp digital gain rang: 0 - %d", param->global_max_isp_digital_gain );
+            LOG(LOG_WARNING, "Warning: manual isp digital gain rang: 0 - %d", param->global_max_isp_digital_gain );
         } else
             param->global_isp_digital_gain = value;
         LOG( LOG_INFO, "manual_isp_digital_gain =  %d", param->global_isp_digital_gain );
@@ -3945,7 +3945,6 @@ uint8_t scaler_width(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direct
     } else if (direction == COMMAND_SET){
         //first get fr width as amloigc scaler src width
         uint32_t width_cur = acamera_isp_top_active_width_read(instance->isp_base);
-        LOG(LOG_INFO, "FR width = %d, scaler out width = %d", width_cur, value);
         am_sc_set_width(width_cur, value);
     } else {
         result = NOT_SUPPORTED;
@@ -3962,7 +3961,6 @@ uint8_t scaler_height(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direc
     } else if (direction == COMMAND_SET) {
         //first get fr height as amlogic scaler src height
         uint32_t height_cur = acamera_isp_top_active_height_read(instance->isp_base);
-        LOG(LOG_INFO, "FR height = %d, scaler out height = %d", height_cur, value);
         am_sc_set_height(height_cur, value);
     } else {
         result = NOT_SUPPORTED;
@@ -3978,7 +3976,6 @@ uint8_t scaler_src_width(acamera_fsm_mgr_t *instance, uint32_t value,
     if ( direction == COMMAND_GET ) {
 
     } else if (direction == COMMAND_SET) {
-        LOG(LOG_INFO, "LIKE:sc src width %d", value);
         am_sc_set_src_width(value);
     } else {
         result = NOT_SUPPORTED;
@@ -3994,7 +3991,6 @@ uint8_t scaler_src_height(acamera_fsm_mgr_t *instance, uint32_t value,
     if ( direction == COMMAND_GET ) {
 
     } else if (direction == COMMAND_SET) {
-        LOG(LOG_INFO, "LIKE:sc src height %d", value);
         am_sc_set_src_height(value);
     } else {
         result = NOT_SUPPORTED;

@@ -60,9 +60,8 @@ uint16_t *cmos_get_partition_lut( cmos_fsm_ptr_t p_fsm, cmos_partition_lut_index
 
     p_luts += lut_len * lut_idx;
 
-    LOG( LOG_INFO, "Dump partition lut: %d", lut_idx );
     for ( i = 0; i < lut_len; i += 2 ) {
-        LOG( LOG_INFO, "%d - %d", p_luts[i], p_luts[i + 1] );
+        LOG( LOG_DEBUG, "%d - %d", p_luts[i], p_luts[i + 1] );
     }
 
     return p_luts;
@@ -624,8 +623,6 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
                     ae_flow.frame_id_current = acamera_fsm_util_get_cur_frame_id( &( (cmos_fsm_ptr_t)p_fsm )->cmn );
                     ae_flow.flow_state = MON_ALG_FLOW_STATE_APPLIED;
                     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_AE_FLOW, &ae_flow, sizeof( ae_flow ) );
-
-                    LOG( LOG_INFO, "AE flow: APPLIED: frame_id_tracking: %d, cur frame_id: %u.", ae_flow.frame_id_tracking, ae_flow.frame_id_current );
                 }
             }
 
@@ -776,7 +773,6 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
             mon_err.err_param = cur_frame_id - p_fsm->exp_write_set.frame_id_tracking - sensor_info.integration_time_apply_delay;
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_ERROR_REPORT, &mon_err, sizeof( mon_err ) );
             ( (cmos_fsm_ptr_t)p_fsm )->prev_dgain_frame_id = p_fsm->exp_write_set.frame_id_tracking;
-            LOG( LOG_INFO, "cmos_dgain_upd_wrong: cur: %u, tracking: %u, delay: %u.", cur_frame_id, p_fsm->exp_write_set.frame_id_tracking, sensor_info.integration_time_apply_delay );
         }
 
         // frame_id should not be 0, at the beginning, it's initialized to 0 and we should skip it.
@@ -789,8 +785,6 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
             awb_flow.frame_id_current = cur_frame_id;
             awb_flow.flow_state = MON_ALG_FLOW_STATE_APPLIED;
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_AWB_FLOW, &awb_flow, sizeof( awb_flow ) );
-
-            LOG( LOG_INFO, "AWB flow: APPLIED: frame_id_tracking: %d, cur frame_id: %u.", awb_flow.frame_id_tracking, awb_flow.frame_id_current );
         }
 
 #endif //ISP_HAS_AWB_MESH_NBP_FSM

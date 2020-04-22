@@ -135,7 +135,7 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
         break;
     }
 
-    LOG( LOG_INFO, "cfa_pattern: %d, plane_count: %d, cac_mem_len: %d", cfa_pattern, plane_count, cac_mem_len );
+    LOG( LOG_DEBUG, "cfa_pattern: %d, plane_count: %d, cac_mem_len: %d", cfa_pattern, plane_count, cac_mem_len );
 
     for ( component = 0; component < plane_count * 2; component++ ) {
         // Generate s15.0 ca_model (int32) from u16.0 ca_model_u (uint16)
@@ -366,7 +366,6 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 #if defined( ACAMERA_CA_CORRECTION_FILTER_MEM_ARRAY_DATA_DEFAULT )
     uint32_t ca_filter_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CA_FILTER_MEM );
     const uint32_t *p_ca_filter_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CA_FILTER_MEM );
-    LOG( LOG_INFO, "ca_filter_mem_len: %d", ca_filter_mem_len );
     for ( i = 0; i < ca_filter_mem_len; i++ ) {
         acamera_ca_correction_filter_mem_array_data_write( p_fsm->cmn.isp_base, i, p_ca_filter_mem[i] );
     }
@@ -382,7 +381,6 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 #if defined( ACAMERA_LUT3D_MEM_ARRAY_DATA_DEFAULT )
         uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
         const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
-        LOG( LOG_INFO, "lut3d_mem_len: %d", lut3d_mem_len );
         for ( i = 0; i < lut3d_mem_len; i++ ) {
             acamera_lut3d_mem_array_data_write( p_fsm->cmn.isp_base, i, p_lut3d_mem[i] );
         }
@@ -425,8 +423,6 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 #endif
 
     p_fsm->gamma2_enable = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0];
-    LOG(LOG_INFO, "Gamma2 Enable: %d",	p_fsm->gamma2_enable);
-
 #if FW_HAS_CUSTOM_SETTINGS
     // the custom initialization may be required for a context
     const acam_reg_t *p_custom_settings_context = (const acam_reg_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CUSTOM_SETTINGS_CONTEXT );

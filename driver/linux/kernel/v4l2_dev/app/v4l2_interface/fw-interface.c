@@ -150,7 +150,6 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
 
 #if defined( TSENSOR ) && defined( SENSOR_SUPPORTED_PRESETS ) && defined( SENSOR_INFO_PRESET ) && \
     defined( SENSOR_INFO_FPS ) && defined( SENSOR_INFO_WIDTH ) && defined( SENSOR_INFO_HEIGHT )
-    LOG( LOG_INFO, "API found, initializing sensor_info from API." );
     int i, j;
     uint32_t ret_val;
     uint32_t preset_num;
@@ -221,22 +220,15 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
         }
     }
 
-    LOG( LOG_INFO, "Sensor info current preset:%d v4l2 preset:%d", sensor_info->preset[i].fps_cur, sensor_info->preset_cur );
-
     //check current sensor settings
-
-    LOG( LOG_INFO, "/* dump sensor info -----------------" );
     for ( i = 0; i < sensor_info->preset_num; i++ ) {
-        LOG( LOG_INFO, "   Idx#%02d - W:%04d H:%04d",
+        LOG( LOG_DEBUG, "   Idx#%02d - W:%04d H:%04d",
              i, sensor_info->preset[i].width, sensor_info->preset[i].height );
         for ( j = 0; j < sensor_info->preset[i].fps_num; j++ )
-            LOG( LOG_INFO, "            FPS#%d: %d (preset index = %d) exposures:%d  wdr_mode:%d",
+            LOG( LOG_DEBUG, "            FPS#%d: %d (preset index = %d) exposures:%d  wdr_mode:%d",
                  j, sensor_info->preset[i].fps[j] / 256, sensor_info->preset[i].idx[j],
                  sensor_info->preset[i].exposures[j], sensor_info->preset[i].wdr_mode[j] );
     }
-
-    LOG( LOG_INFO, "-----------------------------------*/" );
-
 #else
     /* returning default setting (1080p) */
     LOG( LOG_ERR, "API not found, initializing sensor_info to default." );
@@ -275,7 +267,6 @@ int fw_intf_isp_set_sensor_preset( uint32_t ctx_id, uint32_t preset )
     }
 
 #if defined( TSENSOR ) && defined( SENSOR_PRESET )
-    LOG( LOG_INFO, "V4L2 setting sensor preset to %d\n", preset );
     acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, preset, COMMAND_SET, &value );
 #endif
 
@@ -287,7 +278,6 @@ int fw_intf_isp_set_sensor_preset( uint32_t ctx_id, uint32_t preset )
  */
 int fw_intf_stream_start( uint32_t ctx_id, isp_v4l2_stream_type_t streamType )
 {
-    LOG( LOG_DEBUG, "Starting stream type %d", streamType );
     uint32_t rc = 0;
 
 #if ISP_DMA_RAW_CAPTURE && ISP_HAS_RAW_CB
@@ -459,7 +449,6 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
                          if ( sensor_info->preset[i].fps[j] > (*fps)) {
                              idx = sensor_info->preset[i].idx[j];
                              *fps = sensor_info->preset[i].fps[j];
-                             LOG( LOG_INFO, "idx = %d, fps = %d\n", idx, *fps);
                              *( (char *)&sensor_info->preset[i].fps_cur ) = j;
                          }
                      }
@@ -517,7 +506,7 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
         acamera_command( ctx_id, TSENSOR, SENSOR_EXPOSURES, 0, COMMAND_GET, &exposure_cur );
         acamera_command( ctx_id, TSENSOR, SENSOR_WDR_MODE, 0, COMMAND_GET, &wdr_mode_cur );
         acamera_command( ctx_id, TSENSOR, SENSOR_FPS, 0, COMMAND_GET, &fps_cur );
-        LOG( LOG_INFO, "target (width = %d, height = %d, fps = %d) current (w=%d h=%d exposure_cur = %d wdr_mode_cur = %d, fps = %d)",
+        LOG( LOG_DEBUG, "target (width = %d, height = %d, fps = %d) current (w=%d h=%d exposure_cur = %d wdr_mode_cur = %d, fps = %d)",
         w, h, custom_fps, width_cur, height_cur, exposure_cur, wdr_mode_cur, fps_cur / 256);
 
         if ( width_cur != w || height_cur != h || exposure_cur != custom_exp || wdr_mode_cur != custom_wdr_mode || fps_cur / 256 != custom_fps) {
@@ -552,7 +541,6 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
         //check if we need to change sensor preset
         acamera_command( ctx_id, TSENSOR, SENSOR_WIDTH, 0, COMMAND_GET, &width_cur );
         acamera_command( ctx_id, TSENSOR, SENSOR_HEIGHT, 0, COMMAND_GET, &height_cur );
-        LOG( LOG_INFO, "target (width = %d, height = %d) current (w=%d h=%d)", w, h, width_cur, height_cur );
         if ( w > width_cur || h > height_cur ) {
             LOG( LOG_ERR, "Invalid target size: (width = %d, height = %d), current (w=%d h=%d)", w, h, width_cur, height_cur );
             return -EINVAL;
@@ -692,7 +680,6 @@ int fw_intf_stream_set_output_format( uint32_t ctx_id, isp_v4l2_stream_type_t st
         uint32_t ret_val;
 
         result = acamera_command( ctx_id, TIMAGE, FR_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
-        LOG( LOG_INFO, "set format for stream %d to %d (0x%x)", streamType, value, format );
         if ( result ) {
             LOG( LOG_ERR, "TIMAGE - FR_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
         }
@@ -704,7 +691,6 @@ int fw_intf_stream_set_output_format( uint32_t ctx_id, isp_v4l2_stream_type_t st
         uint32_t ret_val;
 
         result = acamera_command( ctx_id, TIMAGE, DS1_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
-        LOG( LOG_INFO, "set format for stream %d to %d (0x%x)", streamType, value, format );
         if ( result ) {
             LOG( LOG_ERR, "TIMAGE - DS1_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
         }
@@ -897,8 +883,6 @@ static int isp_fw_do_set_test_pattern_type( uint32_t ctx_id, int pattern_type )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "test_pattern_type: %d.", pattern_type );
-
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
         return -EBUSY;
@@ -953,8 +937,6 @@ static int isp_fw_do_set_brightness( uint32_t ctx_id, int brightness )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "brightness: %d.", brightness );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -978,8 +960,6 @@ static int isp_fw_do_set_contrast( uint32_t ctx_id, int contrast )
 #if defined( TSCENE_MODES ) && defined( CONTRAST_STRENGTH_ID )
     int result;
     uint32_t ret_val;
-
-    LOG( LOG_INFO, "contrast: %d.", contrast );
 
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
@@ -1005,8 +985,6 @@ static int isp_fw_do_set_saturation( uint32_t ctx_id, int saturation )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "saturation: %d.", saturation );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1030,8 +1008,6 @@ static int isp_fw_do_set_hue( uint32_t ctx_id, int hue )
 #if defined( TSCENE_MODES ) && defined( HUE_THETA_ID )
     int result;
     uint32_t ret_val;
-
-    LOG( LOG_INFO, "hue: %d.", hue );
 
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
@@ -1057,8 +1033,6 @@ static int isp_fw_do_set_sharpness( uint32_t ctx_id, int sharpness )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "sharpness: %d.", sharpness );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1083,8 +1057,6 @@ static int isp_fw_do_set_color_fx( uint32_t ctx_id, int idx )
     int result;
     uint32_t ret_val;
     int color_idx;
-
-    LOG( LOG_INFO, "idx: %d.", idx );
 
     switch ( idx ) {
     case V4L2_COLORFX_NONE:
@@ -1131,8 +1103,6 @@ static int isp_fw_do_set_hflip( uint32_t ctx_id, bool enable )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "hflip enable: %d.", enable );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1156,8 +1126,6 @@ static int isp_fw_do_set_vflip( uint32_t ctx_id, bool enable )
 #if defined( TIMAGE ) && defined( ORIENTATION_VFLIP_ID )
     int result;
     uint32_t ret_val;
-
-    LOG( LOG_INFO, "vflip enable: %d.", enable );
 
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
@@ -1184,8 +1152,6 @@ static int isp_fw_do_set_manual_gain( uint32_t ctx_id, bool enable )
     uint32_t mode = 0;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "manual_gain enable: %d.", enable );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1195,14 +1161,13 @@ static int isp_fw_do_set_manual_gain( uint32_t ctx_id, bool enable )
     }
 
     result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
-    LOG( LOG_INFO, "AE_MODE_ID = %d", ret_val );
     if ( enable ) {
         if ( ret_val == AE_AUTO ) {
             mode = AE_MANUAL_GAIN;
         } else if ( ret_val == AE_MANUAL_EXPOSURE_TIME ) {
             mode = AE_FULL_MANUAL;
         } else {
-            LOG( LOG_INFO, "Manual gain is already enabled." );
+            LOG( LOG_DEBUG, "Manual gain is already enabled." );
             return 0;
         }
     } else {
@@ -1211,7 +1176,7 @@ static int isp_fw_do_set_manual_gain( uint32_t ctx_id, bool enable )
         } else if ( ret_val == AE_FULL_MANUAL ) {
             mode = AE_MANUAL_EXPOSURE_TIME;
         } else {
-            LOG( LOG_INFO, "Manual gain is already disabled." );
+            LOG( LOG_DEBUG, "Manual gain is already disabled." );
             return 0;
         }
     }
@@ -1233,8 +1198,6 @@ static int isp_fw_do_set_gain( uint32_t ctx_id, int gain )
     int gain_frac;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "gain: %d.", gain );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1244,7 +1207,6 @@ static int isp_fw_do_set_gain( uint32_t ctx_id, int gain )
     }
 
     result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
-    LOG( LOG_INFO, "AE_MODE_ID = %d", ret_val );
     if ( ret_val != AE_FULL_MANUAL && ret_val != AE_MANUAL_GAIN ) {
         LOG( LOG_ERR, "Cannot set gain while AE_MODE is %d", ret_val );
         return 0;
@@ -1270,8 +1232,6 @@ static int isp_fw_do_set_exposure_auto( uint32_t ctx_id, int enable )
     uint32_t mode = 0;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "manual_exposure enable: %d.", enable );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1281,7 +1241,6 @@ static int isp_fw_do_set_exposure_auto( uint32_t ctx_id, int enable )
     }
 
     result = acamera_command( ctx_id, TALGORITHMS, AE_MODE_ID, 0, COMMAND_GET, &ret_val );
-    LOG( LOG_CRIT, "AE_MODE_ID = %d", ret_val );
     switch ( enable ) {
     case true:
         if ( ret_val == AE_AUTO ) {
@@ -1289,7 +1248,7 @@ static int isp_fw_do_set_exposure_auto( uint32_t ctx_id, int enable )
         } else if ( ret_val == AE_MANUAL_GAIN ) {
             mode = AE_FULL_MANUAL;
         } else {
-            LOG( LOG_INFO, "Manual exposure is already enabled." );
+            LOG( LOG_DEBUG, "Manual exposure is already enabled." );
             return 0;
         }
         break;
@@ -1299,7 +1258,7 @@ static int isp_fw_do_set_exposure_auto( uint32_t ctx_id, int enable )
         } else if ( ret_val == AE_FULL_MANUAL ) {
             mode = AE_MANUAL_GAIN;
         } else {
-            LOG( LOG_INFO, "Manual exposure is already disabled." );
+            LOG( LOG_DEBUG, "Manual exposure is already disabled." );
             return 0;
         }
         break;
@@ -1367,8 +1326,6 @@ static int isp_fw_do_set_exposure( uint32_t ctx_id, int exp )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "exp in ms: %d.", exp );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1404,8 +1361,6 @@ static int isp_fw_do_set_white_balance_mode( uint32_t ctx_id, int wb_mode )
     uint32_t mode = 0;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "new white balance request: %d.", wb_mode );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1426,7 +1381,7 @@ static int isp_fw_do_set_white_balance_mode( uint32_t ctx_id, int wb_mode )
         if ( ret_val != AWB_AUTO ) {
             mode = wb_mode;
         } else {
-            LOG( LOG_INFO, "Auto WB is already enabled." );
+            LOG( LOG_DEBUG, "Auto WB is already enabled." );
             return 0;
         }
         break;
@@ -1442,7 +1397,7 @@ static int isp_fw_do_set_white_balance_mode( uint32_t ctx_id, int wb_mode )
             mode = wb_mode;
         } else {
             /* wb mode is not updated when it's in auto mode */
-            LOG( LOG_INFO, "Auto WB is enabled, remembering mode." );
+            LOG( LOG_DEBUG, "Auto WB is enabled, remembering mode." );
             last_wb_request = wb_mode;
             return 0;
         }
@@ -1468,8 +1423,6 @@ static int isp_fw_do_set_focus_auto( uint32_t ctx_id, int enable )
     uint32_t mode = 0;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "new auto focus request: %d.", enable );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1479,14 +1432,13 @@ static int isp_fw_do_set_focus_auto( uint32_t ctx_id, int enable )
     }
 
     result = acamera_command( ctx_id, TALGORITHMS, AF_MODE_ID, 0, COMMAND_GET, &ret_val );
-    LOG( LOG_CRIT, "AF_MODE_ID = %d", ret_val );
     switch ( enable ) {
     case 1:
         /* we set the last mode instead of MANUAL */
         if ( ret_val != AF_AUTO_CONTINUOUS ) {
             mode = AF_AUTO_CONTINUOUS;
         } else {
-            LOG( LOG_INFO, "Auto focus is already enabled." );
+            LOG( LOG_DEBUG, "Auto focus is already enabled." );
             return 0;
         }
         break;
@@ -1495,7 +1447,7 @@ static int isp_fw_do_set_focus_auto( uint32_t ctx_id, int enable )
             mode = AF_MANUAL;
         } else {
             /* wb mode is not updated when it's in auto mode */
-            LOG( LOG_INFO, "Auto WB is enabled, remembering mode." );
+            LOG( LOG_DEBUG, "Auto WB is enabled, remembering mode." );
             return 0;
         }
         break;
@@ -1519,8 +1471,6 @@ static int isp_fw_do_set_focus( uint32_t ctx_id, int focus )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "focus: %d.", focus );
-
     /* some controls(such brightness) will call acamera_command()
      * before isp_fw initialed, so we need to check.
      */
@@ -1543,8 +1493,6 @@ static int isp_fw_do_set_ae_compensation( uint32_t ctx_id, int val )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "ae_compensation: %d.", val );
-
     if ( val < 0 )
         return -EIO;
 
@@ -1565,8 +1513,6 @@ static int isp_fw_do_set_max_integration_time( uint32_t ctx_id, int val )
 {
     int result;
     uint32_t ret_val;
-
-    LOG( LOG_INFO, "_max_integration_time: %d.", val );
 
     if ( val < 0 )
         return -EIO;
@@ -1589,8 +1535,6 @@ static int isp_fw_do_set_snr_manual( uint32_t ctx_id, int val )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "snr maunal: %d.", val );
-
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
         return -EBUSY;
@@ -1610,8 +1554,6 @@ static int isp_fw_do_set_snr_offset( uint32_t ctx_id, int val )
 {
     int result;
     uint32_t ret_val;
-
-    LOG( LOG_INFO, "snr offset: %d.", val );
 
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
@@ -1633,8 +1575,6 @@ static int isp_fw_do_set_tnr_manual( uint32_t ctx_id, int val )
     int result;
     uint32_t ret_val;
 
-    LOG( LOG_INFO, "tnr maunal: %d.", val );
-
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
         return -EBUSY;
@@ -1654,8 +1594,6 @@ static int isp_fw_do_set_tnr_offset( uint32_t ctx_id, int val )
 {
     int result;
     uint32_t ret_val;
-
-    LOG( LOG_INFO, "tnr offset: %d.", val );
 
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );
@@ -1677,8 +1615,6 @@ static int isp_fw_do_set_temper_mode( uint32_t ctx_id, int val )
     int result;
     uint32_t ret_val;
     uint32_t temper_mode;
-
-    LOG( LOG_INFO, "temper mode: %d.", val );
 
     if ( !isp_started ) {
         LOG( LOG_ERR, "ISP FW not inited yet" );

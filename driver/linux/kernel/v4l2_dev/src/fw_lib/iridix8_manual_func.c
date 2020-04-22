@@ -179,7 +179,6 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
             iridix_flow.frame_id_current = acamera_fsm_util_get_cur_frame_id( &( (iridix_fsm_t *)p_fsm )->cmn );
             iridix_flow.flow_state = MON_ALG_FLOW_STATE_APPLIED;
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_IRIDIX_FLOW, &iridix_flow, sizeof( iridix_flow ) );
-            LOG( LOG_INFO, "Iridix8 flow: APPLIED: frame_id_tracking: %d, cur frame_id: %u.", iridix_flow.frame_id_tracking, iridix_flow.frame_id_current );
             ( (iridix_fsm_ptr_t)p_fsm )->frame_id_tracking = 0;
         }
 
@@ -239,7 +238,7 @@ int iridix_set_tracking_frame_id( iridix_fsm_ptr_t p_fsm, uint32_t frame_id )
 {
     // check whether previous frame_id_tracking finished.
     if ( p_fsm->frame_id_tracking ) {
-        LOG( LOG_INFO, "Iridix flow: Overwrite: prev frame_id_tracking: %d, new: %u.", p_fsm->frame_id_tracking, frame_id );
+        LOG( LOG_DEBUG, "Iridix flow: Overwrite: prev frame_id_tracking: %d, new: %u.", p_fsm->frame_id_tracking, frame_id );
     }
 
     p_fsm->frame_id_tracking = frame_id;
@@ -251,7 +250,6 @@ int iridix_set_tracking_frame_id( iridix_fsm_ptr_t p_fsm, uint32_t frame_id )
     iridix_flow.frame_id_current = acamera_fsm_util_get_cur_frame_id( &p_fsm->cmn );
     iridix_flow.flow_state = MON_ALG_FLOW_STATE_INPUT_READY;
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_IRIDIX_FLOW, &iridix_flow, sizeof( iridix_flow ) );
-    LOG( LOG_INFO, "Iridix8 flow: INPUT_READY: frame_id_tracking: %d, cur frame_id: %u.", iridix_flow.frame_id_tracking, iridix_flow.frame_id_current );
 
     return 0;
 }
@@ -273,7 +271,6 @@ void iridix_set_new_param( iridix_fsm_ptr_t p_fsm, sbuf_iridix_t *p_sbuf_iridix 
     iridix_flow.frame_id_current = acamera_fsm_util_get_cur_frame_id( &p_fsm->cmn );
     iridix_flow.flow_state = MON_ALG_FLOW_STATE_OUTPUT_READY;
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_IRIDIX_FLOW, &iridix_flow, sizeof( iridix_flow ) );
-    LOG( LOG_INFO, "Iridix8 flow: OUTPUT_READY: frame_id_tracking: %d, cur frame_id: %u.", iridix_flow.frame_id_tracking, iridix_flow.frame_id_current );
 
     p_fsm->is_output_ready = 1;
 }

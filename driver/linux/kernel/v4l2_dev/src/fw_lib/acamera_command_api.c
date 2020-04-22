@@ -472,7 +472,7 @@ if(ret!=SUCCESS)
 }
 else
 {
-	LOG(LOG_DEBUG,"API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
+	LOG(LOG_NOTICE,"API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
 }
 	return ret;
 }
