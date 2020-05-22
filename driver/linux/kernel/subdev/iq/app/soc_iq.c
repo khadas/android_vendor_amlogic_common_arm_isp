@@ -32,6 +32,11 @@
 #include "runtime_initialization_settings.h"
 
 static int cali_name;
+int otp_enable = 0;
+
+module_param(otp_enable, int, 0664);
+MODULE_PARM_DESC(otp_enable, "Use OTP memory for calibrations");
+
 module_param(cali_name, int, 0664);
 
 #define ARGS_TO_PTR( arg ) ( (struct soc_iq_ioctl_args *)arg )
@@ -45,26 +50,93 @@ static ACameraCalibrations g_luts_arr[FIRMWARE_CONTEXT_NUMBER];
 
 struct IqConversion {
     uint32_t (*calibration_init)(uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c);
+    uint32_t (*calibration_otp)(uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c);
     const char *sensor_name;
 };
 
 struct IqConversion IqConversionTable[] = {
-    {CALIBRATION_SUBDEV_FUNCTIONS_OS08A10, "os08a10"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, "imx290"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, "imx227"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_IMX481, "imx481"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, "imx307"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_IMX224, "imx224"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_OV13858, "ov13858"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_SC2232H, "sc2232h"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_SC4238, "sc4238"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_OS08A10, CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_OTP, "os08a10"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, NULL, "imx290"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, NULL, "imx227"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX481, NULL, "imx481"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, NULL, "imx307"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX224, NULL, "imx224"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_OV13858, NULL, "ov13858"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_SC2232H, NULL, "sc2232h"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_SC4238, NULL, "sc4238"},
 };
 
 uint32_t ( *CALIBRATION_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c ) = {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, CALIBRATION_SUBDEV_FUNCTIONS_IMX290};
+uint32_t ( *CALIBRATION_OTP_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c ) = {CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_OTP, CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_OTP};
 
 static int iq_log_status( struct v4l2_subdev *sd )
 {
     LOG( LOG_INFO, "log status called" );
+    return 0;
+}
+
+static int get_cali_name_id( int cali_name_id, int sensor_name_id )
+{
+
+    if (strcmp(IqConversionTable[sensor_name_id].sensor_name, "os08a10") == 0) {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_IPC;
+            LOG( LOG_CRIT, "Loading Calibration for OS08A10_IPC\n" );
+            break;
+        case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_SLT;
+            LOG( LOG_CRIT, "Loading Calibration for OS08A10_SLT\n" );
+            break;
+        case 2:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_TV;
+            LOG( LOG_CRIT, "Loading Calibration for OS08A10_TV\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_IPC;
+            LOG( LOG_CRIT, "Loading Calibration for OS08A10_IPC\n" );
+            break;
+        }
+    }
+
+    if (strcmp(IqConversionTable[sensor_name_id].sensor_name, "imx290") == 0) {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
+            LOG( LOG_CRIT, "get_calibrations_imx290\n" );
+            break;
+        case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_8mm;
+            LOG( LOG_CRIT, "get_calibrations_imx290_lens_8mm\n" );
+            break;
+        case 2:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_4mm;
+            LOG( LOG_CRIT, "get_calibrations_imx290_lens_4mm\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
+            LOG( LOG_CRIT, "get_calibrations_imx290\n" );
+            break;
+        }
+    }
+
+    if (strcmp(IqConversionTable[sensor_name_id].sensor_name, "imx307") == 0) {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307_DEMO;
+            LOG( LOG_CRIT, "get_calibrations_imx307_demo\n" );
+            break;
+        case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307;
+            LOG( LOG_CRIT, "get_calibrations_imx307\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307_DEMO;
+            LOG( LOG_CRIT, "get_calibrations_imx307_demo\n" );
+            break;
+        }
+    }
+
     return 0;
 }
 
@@ -79,12 +151,14 @@ static int iq_init( struct v4l2_subdev *sd, u32 val )
 static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
 {
     long rc = 0;
+    int i = 0;
     switch ( cmd ) {
     case V4L2_SOC_IQ_IOCTL_REQUEST_INFO: {
         int32_t context = ARGS_TO_PTR( arg )->ioctl.request_info.context;
         void *sensor_arg = ARGS_TO_PTR( arg )->ioctl.request_info.sensor_arg;
         int32_t id = ARGS_TO_PTR( arg )->ioctl.request_info.id;
         if ( context < FIRMWARE_CONTEXT_NUMBER && id < CALIBRATION_TOTAL_SIZE ) {
+            memset(&g_luts_arr[context], 0, sizeof(g_luts_arr[0]));
             CALIBRATION_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context] );
             ACameraCalibrations *luts_ptr = &g_luts_arr[context];
             ARGS_TO_PTR( arg )
@@ -141,6 +215,35 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
             rc = -1;
         }
     } break;
+    case V4L2_SOC_IQ_IOCTL_SET_SENSOR_NAME: {
+        int32_t context = ARGS_TO_PTR( arg )->ioctl.request_data.context;
+        void *sensor_arg = ARGS_TO_PTR( arg )->ioctl.request_data.sensor_arg;
+        if (sensor_arg) {
+            for (i = 0; i < NELEM(IqConversionTable); ++i) {
+                if (strcmp(IqConversionTable[i].sensor_name, sensor_arg) == 0) {
+                    CALIBRATION_FUNC_ARR[context] = IqConversionTable[i].calibration_init;
+                    CALIBRATION_OTP_FUNC_ARR[context] = IqConversionTable[i].calibration_otp;
+                    get_cali_name_id( cali_name, i );
+                    LOG(LOG_CRIT, "soc_iq get config %s according to sensor drv", sensor_arg);
+                    rc = 0;
+                    break;
+                }
+            }
+        } else {
+            LOG(LOG_CRIT, "set sensor name null, use default");
+        }
+    } break;
+    case V4L2_SOC_IQ_IOCTL_REQUEST_OTP: {
+        int32_t context = ARGS_TO_PTR( arg )->ioctl.request_data.context;
+        void *sensor_arg = ARGS_TO_PTR( arg )->ioctl.request_data.sensor_arg;
+        if ( context < FIRMWARE_CONTEXT_NUMBER ) {
+            if (CALIBRATION_OTP_FUNC_ARR[context])
+                rc = CALIBRATION_OTP_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context] );
+        } else {
+            LOG( LOG_ERR, "Request OTP Fail.");
+            rc = -1;
+        }
+    } break;
     default:
         LOG( LOG_WARNING, "Unknown soc iq ioctl cmd %d", cmd );
         rc = -1;
@@ -162,131 +265,6 @@ static const struct v4l2_subdev_ops iq_ops = {
     .core = &core_ops,
 };
 
-static int get_cali_name_id( int cali_name_id, int sensor_name_id )
-{
-    switch ( sensor_name_id ) {
-    case 0: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10;
-            LOG( LOG_ERR, "get_calibrations_os08a10\n" );
-            break;
-        case 1:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_SLT;
-            LOG( LOG_CRIT, "Loading Calibration for OS08A10_SLT\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10;
-            LOG( LOG_ERR, "get_calibrations_os08a10\n" );
-            break;
-        }
-    } break;
-    case 1: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
-            LOG( LOG_ERR, "get_calibrations_imx290\n" );
-            break;
-        case 1:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_8mm;
-            LOG( LOG_ERR, "get_calibrations_imx290_lens_8mm\n" );
-            break;
-        case 2:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_4mm;
-            LOG( LOG_ERR, "get_calibrations_imx290_lens_4mm\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
-            LOG( LOG_ERR, "get_calibrations_imx290\n" );
-            break;
-        }
-    } break;
-    case 2: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX227;
-            LOG( LOG_ERR, "get_calibrations_imx227\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX227;
-            LOG( LOG_ERR, "get_calibrations_imx227\n" );
-            break;
-        }
-    } break;
-    case 3: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX481;
-            LOG( LOG_ERR, "get_calibrations_imx481\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX481;
-            LOG( LOG_ERR, "get_calibrations_imx481\n" );
-            break;
-        }
-    } break;
-    case 4: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307;
-            LOG( LOG_ERR, "get_calibrations_imx307\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX307;
-            LOG( LOG_ERR, "get_calibrations_imx307\n" );
-            break;
-        }
-    } break;
-    case 5: {
-        switch ( cali_name_id ) {
-        case 0:
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX224;
-            LOG( LOG_ERR, "get_calibrations_imx224\n" );
-            break;
-        }
-    } break;
-    case 6: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OV13858;
-            LOG( LOG_ERR, "get_calibrations_ov13858\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OV13858;
-            LOG( LOG_ERR, "get_calibrations_ov13858\n" );
-            break;
-        }
-    } break;
-    case 7: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC2232H;
-            LOG( LOG_ERR, "get_calibrations_sc2232h\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC2232H;
-            LOG( LOG_ERR, "get_calibrations_sc2232h\n" );
-            break;
-        }
-    } break;
-    case 8: {
-        switch ( cali_name_id ) {
-        case 0:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC4238;
-            LOG( LOG_ERR, "get_calibrations_sc4238\n" );
-            break;
-        default:
-            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_SC4238;
-            LOG( LOG_ERR, "get_calibrations_sc4238\n" );
-            break;
-        }
-    } break;
-    default:
-      break;
-    }
-    return 0;
-}
 
 static char* sensor = NULL;
 module_param(sensor, charp, 0);
@@ -326,7 +304,7 @@ static int32_t soc_iq_probe( struct platform_device *pdev )
     }
 
     if (i == NELEM(IqConversionTable)) {
-      pr_err("Fatal error: Wrong sensor name %s!\n", sensor_name);
+      pr_err("Fatal error:cant find %s iq with dts config!\n", sensor_name);
       return -1;
     }
 

@@ -306,10 +306,10 @@ static uint32_t _calibration_cmos_control[] = {
     0,   // manual isp digital gain
     0,   // manual max integration time
     0,   // max integration time
-    120, // max sensor AG
+    126, // max sensor AG
     0,   // max sensor DG
-    112, // 159 max isp DG
-    6, // max exposure ratio
+    0, // 159 max isp DG
+    16, // max exposure ratio
     0,   // integration time.
     0,   // sensor analog gain. log2 fixed - 5 bits
     0,   // sensor digital gain. log2 fixed - 5 bits
