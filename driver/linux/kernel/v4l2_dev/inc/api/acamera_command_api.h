@@ -85,7 +85,7 @@
 #define CALIBRATION_IRIDIX_REC709TORGB                    0x00000028
 #define CALIBRATION_IRIDIX_ASYMMETRY                      0x00000029
 #define CALIBRATION_AWB_SCENE_PRESETS                     0x0000002A
-#define CALIBRATION_SKIN_TONE_CCM                         0x0000002B
+#define CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT        0x0000002B
 #define CALIBRATION_GAMMA_FE_0                            0x0000002C
 #define CALIBRATION_GAMMA_FE_1                            0x0000002D
 #define CALIBRATION_WDR_NP_LUT                            0x0000002E
@@ -426,7 +426,7 @@
 #define NOT_PERMITTED                                     0x00000003
 #define NOT_EXISTS                                        0x00000004
 #define FAIL                                              0x00000005
-
+#define IMPLEMENTED                                       0x00000006
 
 
 // ------------------------------------------------------------------------------ //

@@ -262,6 +262,22 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         LOG( LOG_INFO, "set temper mode: %d.\n", ctrl->val );
         ret = fw_intf_set_customer_temper_mode(ctx_id, ctrl->val);
         break;
+     case ISP_V4L2_CID_CUSTOM_WDR_SWITCH:
+        LOG( LOG_INFO, "set wdr mode: %d.\n", ctrl->val );
+        ret = fw_intf_set_customer_sensor_mode(ctx_id, ctrl->val);
+        break;
+     case ISP_V4L2_CID_CUSTOM_ANTIFLICKER:
+        LOG( LOG_INFO, "set anti flicker: %d.\n", ctrl->val );
+        ret = fw_intf_set_customer_antiflicker(ctx_id, ctrl->val);
+        break;
+     case ISP_V4L2_CID_CUSTOM_DEFOG_SWITCH:
+        LOG( LOG_INFO, "set defog mode: %d.\n", ctrl->val );
+        ret = fw_intf_set_customer_defog_mode(ctx_id, ctrl->val);
+        break;
+     case ISP_V4L2_CID_CUSTOM_DEFOG_STRENGTH:
+        LOG( LOG_INFO, "set defog strength: %d.\n", ctrl->val );
+        ret = fw_intf_set_customer_defog_ratio(ctx_id, ctrl->val);
+        break;
     }
 
     return ret;
@@ -302,6 +318,14 @@ static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
     case ISP_V4L2_CID_CUSTOM_TEMPER_MODE:
         LOG( LOG_INFO, "get temper mode: %d.\n" );
         ctrl->val = fw_intf_get_custom_temper_mode(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_WDR_SWITCH:
+        LOG( LOG_INFO, "get wdr mode: %d.\n" );
+        ctrl->val = fw_intf_get_customer_sensor_mode(ctx_id);
+        break;
+    case ISP_V4L2_CID_CUSTOM_ANTIFLICKER:
+        LOG( LOG_INFO, "get anti flicker: %d.\n" );
+        ctrl->val = fw_intf_get_customer_antiflicker(ctx_id);
         break;
     default:
         ret = 1;
@@ -661,6 +685,50 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_temper_mode = {
     .def = 1,
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_wdr_mode = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_WDR_SWITCH,
+    .name = "ISP WDR mode",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 2,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_antiflicker = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_ANTIFLICKER,
+    .name = "ISP Anti Flicker mode",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 60,
+    .step = 5,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_defog_mode = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_DEFOG_SWITCH,
+    .name = "Defog alg mode",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 2,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_defog_ratio = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_CUSTOM_DEFOG_STRENGTH,
+    .name = "Defog alg ratio delta",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 4096,
+    .step = 1,
+    .def = 0,
+};
+
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_standard,
 };
@@ -800,6 +868,14 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_tnr_offset, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_TEMPER_MODE,
                   &isp_v4l2_ctrl_temper_mode, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_WDR_SWITCH,
+                  &isp_v4l2_ctrl_wdr_mode, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_ANTIFLICKER,
+                  &isp_v4l2_ctrl_antiflicker, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_DEFOG_SWITCH,
+                  &isp_v4l2_ctrl_defog_mode, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_DEFOG_STRENGTH,
+                  &isp_v4l2_ctrl_defog_ratio, NULL);
     /* Add control handler to v4l2 device */
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL );
     ctrl->video_dev->ctrl_handler = hdl_std_ctrl;

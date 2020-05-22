@@ -639,6 +639,111 @@ uint8_t sensor_ir_cut_set( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 }
 #endif
 
+#ifdef SENSOR_WDRMODE_ID
+uint8_t sensor_mode_dynamic_switch( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t result = SUCCESS;
+    uint32_t wdr_mode = value;
+    uint32_t preset_mode = 0;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    uint32_t cur_mode;
+    acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+
+    cur_mode = param->mode;
+
+    if ( direction == COMMAND_GET ) {
+        *ret_value = param->modes_table[cur_mode].wdr_mode;
+        result = SUCCESS;
+    }
+    else {
+        int i = 0;
+        for (i = 0; i < param->modes_num; i ++)
+        {
+            if ((param->modes_table[cur_mode].resolution.width == param->modes_table[i].resolution.width) &&
+                (param->modes_table[cur_mode].resolution.height == param->modes_table[i].resolution.height) &&
+                (param->modes_table[cur_mode].fps == param->modes_table[i].fps) &&
+                (param->modes_table[i].wdr_mode == wdr_mode))
+            {
+                preset_mode = i;
+                break;
+            }
+        }
+
+        if ( i == param->modes_num )
+        {
+            preset_mode = cur_mode;
+            result = NOT_SUPPORTED;
+            return result;
+        }
+
+        if ( i != cur_mode )
+        {
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_MODE_SWITCH, &preset_mode, sizeof( preset_mode ) );
+            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+        }
+        else
+            result = IMPLEMENTED;
+    }
+
+    return result;
+}
+#endif
+
+#ifdef SENSOR_ANTIFLICKER_ID
+uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t result = SUCCESS;
+    uint32_t fps = value * 256;
+    uint32_t preset_mode = 0;
+    *ret_value = 0;
+
+    const sensor_param_t *param = NULL;
+    uint32_t cur_mode;
+    acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+
+    cur_mode = param->mode;
+
+    if ( direction == COMMAND_GET ) {
+        *ret_value = param->modes_table[cur_mode].wdr_mode;
+        result = SUCCESS;
+    }
+    else {
+        int i = 0;
+        for (i = 0; i < param->modes_num; i ++)
+        {
+            if ((param->modes_table[cur_mode].resolution.width == param->modes_table[i].resolution.width) &&
+                (param->modes_table[cur_mode].resolution.height == param->modes_table[i].resolution.height) &&
+                (param->modes_table[cur_mode].exposures== param->modes_table[i].exposures) &&
+                (param->modes_table[cur_mode].wdr_mode == param->modes_table[i].wdr_mode) &&
+                (param->modes_table[i].fps == fps))
+            {
+                preset_mode = i;
+                break;
+            }
+        }
+
+        if ( i == param->modes_num )
+        {
+            preset_mode = cur_mode;
+            result = NOT_SUPPORTED;
+            return result;
+        }
+
+        if ( i != cur_mode )
+        {
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_MODE_SWITCH, &preset_mode, sizeof( preset_mode ) );
+            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+        }
+        else
+            result = IMPLEMENTED;
+    }
+
+    return result;
+}
+#endif
+
 #ifdef SENSOR_HWID
 uint8_t sensor_hw_id( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {

@@ -422,6 +422,36 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
     }
 #endif
 
+#if defined(CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT)
+    uint16_t len_cm = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT );
+    uint16_t *radial_shading_lut_cm = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT );
+
+    if ( len_cm == 16 ) {
+        //R
+        acamera_isp_radial_shading_centerr_x_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[0] );
+        acamera_isp_radial_shading_centerr_y_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[1] );
+        acamera_isp_radial_shading_off_center_multrx_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[2] );
+        acamera_isp_radial_shading_off_center_multry_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[3] );
+        //G
+        acamera_isp_radial_shading_centerg_x_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[4] );
+        acamera_isp_radial_shading_centerg_y_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[5] );
+        acamera_isp_radial_shading_off_center_multgx_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[6] );
+        acamera_isp_radial_shading_off_center_multgy_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[7] );
+        //B
+        acamera_isp_radial_shading_centerb_x_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[8] );
+        acamera_isp_radial_shading_centerb_y_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[9] );
+        acamera_isp_radial_shading_off_center_multbx_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[10] );
+        acamera_isp_radial_shading_off_center_multby_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[11] );
+        //IR
+        acamera_isp_radial_shading_centerir_x_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[12] );
+        acamera_isp_radial_shading_centerir_y_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[13] );
+        acamera_isp_radial_shading_off_center_multirx_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[14] );
+        acamera_isp_radial_shading_off_center_multiry_write( p_fsm->cmn.isp_base, radial_shading_lut_cm[15] );
+    } else {
+        LOG( LOG_ERR, "CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT has wrong size %d but expected 16", len_cm );
+    }
+#endif
+
     p_fsm->gamma2_enable = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0];
 #if FW_HAS_CUSTOM_SETTINGS
     // the custom initialization may be required for a context

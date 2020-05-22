@@ -422,6 +422,9 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
 
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
+    else
+        if (pstream->stream_started)
+            return -EBUSY;
 
     rc = vb2_streamon( &sp->vb2_q, i );
     if ( rc != 0 ) {

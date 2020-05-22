@@ -175,6 +175,7 @@ void isp_update_setting(void)
 
 	    for (i = 0; i < fr_num; i++) {
 	        aframe[i].address = paddr;
+	        aframe[i].size = temper_frame_size;
 
 	        paddr = aframe[i].address + temper_frame_size;
 

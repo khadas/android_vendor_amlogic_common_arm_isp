@@ -463,8 +463,12 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
 
     if ( i >= sensor_info->preset_num ) {
         LOG( LOG_CRIT, "invalid resolution (width = %d, height = %d)\n", w, h);
-        return 0;
+        return -1;
     }
+
+    custom_wdr_mode = sensor_info->preset[i].wdr_mode[idx];
+    custom_exp = sensor_info->preset[i].exposures[idx];
+    custom_fps = sensor_info->preset[i].fps[idx] / 256;
 
     return idx;
 }
@@ -519,7 +523,7 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
             *( (char *)&sensor_info->preset_cur ) = idx;
             if ( result ) {
                 LOG( LOG_CRIT, "Failed to set preset to %u, ret_value: %d.", idx, result );
-                return result;
+                return -EINVAL;
             }
         } else {
             acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, 0, COMMAND_GET, &idx );
@@ -1636,6 +1640,119 @@ static int isp_fw_do_set_temper_mode( uint32_t ctx_id, int val )
 
 }
 
+static int isp_fw_do_set_sensor_dynamic_mode( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+    uint32_t preset_mode = val;
+
+    result = acamera_command( ctx_id, TSENSOR, SENSOR_WDRMODE_ID, preset_mode, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_MODE_SWITCH to %d, ret_value: %d.", preset_mode, result );
+        return result;
+    }
+
+    return 0;
+}
+
+static int isp_fw_do_set_sensor_antiflicker( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+    uint32_t fps = val;
+
+    result = acamera_command( ctx_id, TSENSOR, SENSOR_ANTIFLICKER_ID, fps, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_ANTIFLICKER to %d, ret_value: %d.", fps, result );
+        return result;
+    }
+
+    return 0;
+}
+
+static int isp_fw_do_set_defog_mode( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+    uint32_t mode = 0;
+
+    switch (val) {
+    case 0:
+        mode = DEFOG_DISABLE;
+    break;
+    case 1:
+        mode = DEFOG_ONLY;
+    break;
+    case 2:
+        mode = DEFOG_BLEND;
+    break;
+    default:
+        mode = DEFOG_DISABLE;
+    break;
+    }
+
+    result = acamera_command( ctx_id, TALGORITHMS, DEFOG_MODE_ID, mode, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_MODE_SWITCH to %d, ret_value: %d.", mode, result );
+        return result;
+    }
+
+    return 0;
+}
+
+static int isp_fw_do_set_defog_ratio( uint32_t ctx_id, int val )
+{
+    int result;
+    uint32_t ret_val;
+    uint32_t ratio = val;
+
+    result = acamera_command( ctx_id, TALGORITHMS, DEFOG_RATIO_DELTA, ratio, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_MODE_SWITCH to %d, ret_value: %d.", ratio, result );
+        return result;
+    }
+
+    return 0;
+}
+
+static int isp_fw_do_get_sensor_dynamic_mode( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_NOTICE, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSENSOR, SENSOR_WDRMODE_ID, 0, COMMAND_GET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to get SENSOR_MODE_SWITCH, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+}
+
+static int isp_fw_do_get_sensor_antiflicker( uint32_t ctx_id )
+{
+    int result;
+    uint32_t ret_val;
+
+    if ( !isp_started ) {
+        LOG( LOG_NOTICE, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSENSOR, SENSOR_ANTIFLICKER_ID, 0, COMMAND_GET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to get SENSOR_ANTIFLICKER, ret_value: %d.", result );
+        return result;
+    }
+
+    return ret_val;
+}
+
 static int isp_fw_do_get_ae_compensation( uint32_t ctx_id )
 {
     int result;
@@ -2114,6 +2231,53 @@ int fw_intf_set_customer_max_integration_time(uint32_t ctx_id, uint32_t ctrl_val
        return 0;
     }
     return isp_fw_do_set_max_integration_time(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_customer_sensor_mode(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    if ( ctrl_val < 0) {
+       return 0;
+    }
+
+    return isp_fw_do_set_sensor_dynamic_mode(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_customer_antiflicker(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    if ( ctrl_val < 0) {
+       return 0;
+    }
+
+    return isp_fw_do_set_sensor_antiflicker(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_customer_defog_mode(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    if ( ctrl_val < 0 || ctrl_val > 2) {
+       return -1;
+    }
+
+    return isp_fw_do_set_defog_mode(ctx_id, ctrl_val);
+}
+
+int fw_intf_set_customer_defog_ratio(uint32_t ctx_id, uint32_t ctrl_val)
+{
+    if ( ctrl_val < 0 || ctrl_val > 4096) {
+       return -1;
+    }
+
+    return isp_fw_do_set_defog_ratio(ctx_id, ctrl_val);
+}
+
+
+int fw_intf_get_customer_sensor_mode( uint32_t ctx_id )
+{
+    return isp_fw_do_get_sensor_dynamic_mode( ctx_id );
+}
+
+int fw_intf_get_customer_antiflicker( uint32_t ctx_id )
+{
+    return isp_fw_do_get_sensor_antiflicker( ctx_id );
 }
 
 int fw_intf_set_customer_temper_mode(uint32_t ctx_id, uint32_t ctrl_val)

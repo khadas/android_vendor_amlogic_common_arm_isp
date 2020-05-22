@@ -234,11 +234,10 @@ static ssize_t autocapture_fops_read( struct file *file, char __user *buf, size_
 
 	if(p_ctx->get_fr_ds == GET_FR)
 	{
-		p_ctx->autocap_frame[dma_fr].format = acamera_isp_fr_dma_writer_format_read(p_ctx->p_fsm->cmn.isp_base);
-		p_ctx->autocap_frame[dma_fr].imagesize = acamera_isp_fr_dma_writer_active_width_read( p_ctx->p_fsm->cmn.isp_base) << 16;
-		p_ctx->autocap_frame[dma_fr].imagesize |= acamera_isp_fr_dma_writer_active_height_read( p_ctx->p_fsm->cmn.isp_base);
+		p_ctx->autocap_frame[dma_fr].format = system_hw_read_32(0x1c0ec) & 0xFF;
+		p_ctx->autocap_frame[dma_fr].imagesize = acamera_isp_input_port_frame_width_read(0) << 16;
+		p_ctx->autocap_frame[dma_fr].imagesize |= acamera_isp_input_port_frame_height_read(0);
 
-		p_ctx->autocap_frame[dma_fr].count = acamera_isp_fr_dma_writer_frame_wcount_read( p_ctx->p_fsm->cmn.isp_base);
 #ifdef AUTOWRITE_MODULE
 		p_ctx->autocap_frame[dma_fr].imagebufferstride = autowrite_fr_image_buffer_stride_read();
 		p_ctx->autocap_frame[dma_fr].count = autowrite_fr_writer_frame_wcount_read();
@@ -247,11 +246,10 @@ static ssize_t autocapture_fops_read( struct file *file, char __user *buf, size_
 	}
 	else if(p_ctx->get_fr_ds == GET_DS1)
 	{
-		p_ctx->autocap_frame[dma_ds1].format = acamera_isp_ds1_dma_writer_format_read(p_ctx->p_fsm->cmn.isp_base);
-		p_ctx->autocap_frame[dma_ds1].imagesize = acamera_isp_ds1_dma_writer_active_width_read( p_ctx->p_fsm->cmn.isp_base) << 16;
-		p_ctx->autocap_frame[dma_ds1].imagesize |= acamera_isp_ds1_dma_writer_active_height_read( p_ctx->p_fsm->cmn.isp_base);
+		p_ctx->autocap_frame[dma_ds1].format = system_hw_read_32(0x1c260) & 0xFF;
+		p_ctx->autocap_frame[dma_ds1].imagesize = (system_hw_read_32(0x1c264) & 0xFFFF) << 16;
+		p_ctx->autocap_frame[dma_ds1].imagesize |= ((system_hw_read_32(0x1c264) >> 16) & 0xFFFF);
 
-		p_ctx->autocap_frame[dma_ds1].count = acamera_isp_ds1_dma_writer_frame_wcount_read( p_ctx->p_fsm->cmn.isp_base);
 #ifdef AUTOWRITE_MODULE
 		p_ctx->autocap_frame[dma_ds1].imagebufferstride = autowrite_ds1_image_buffer_stride_read();
 		p_ctx->autocap_frame[dma_ds1].count = autowrite_ds1_writer_frame_wcount_read();
@@ -330,7 +328,7 @@ uint32_t autocap_get_frame_info(struct autocapture_context *p_ctx, uint32_t type
 	{
 		case dma_fr:
 			realcount = autowrite_fr_writer_memsize_read()/autowrite_fr_image_buffer_stride_read();
-			p_ctx->autocap_frame[dma_fr].format = acamera_isp_fr_dma_writer_format_read(p_ctx->p_fsm->cmn.isp_base);
+			p_ctx->autocap_frame[dma_fr].format = system_hw_read_32(0x1c0ec) & 0xFF;
 			p_ctx->autocap_frame[dma_fr].imagesize = acamera_isp_input_port_frame_width_read(0) << 16;
 			p_ctx->autocap_frame[dma_fr].imagesize |= acamera_isp_input_port_frame_height_read(0);
 			p_ctx->autocap_frame[dma_fr].imagebufferstride = autowrite_fr_image_buffer_stride_read();
@@ -345,9 +343,9 @@ uint32_t autocap_get_frame_info(struct autocapture_context *p_ctx, uint32_t type
 		    break;
 		case dma_ds1:
 			realcount = autowrite_ds1_writer_memsize_read()/autowrite_ds1_image_buffer_stride_read();
-			p_ctx->autocap_frame[dma_ds1].format = acamera_isp_ds1_dma_writer_format_read(p_ctx->p_fsm->cmn.isp_base);
-			p_ctx->autocap_frame[dma_ds1].imagesize = acamera_isp_ds1_dma_writer_active_width_read( p_ctx->p_fsm->cmn.isp_base) << 16;
-			p_ctx->autocap_frame[dma_ds1].imagesize |= acamera_isp_ds1_dma_writer_active_height_read( p_ctx->p_fsm->cmn.isp_base);
+			p_ctx->autocap_frame[dma_ds1].format = system_hw_read_32(0x1c260) & 0xFF;
+			p_ctx->autocap_frame[dma_ds1].imagesize = (system_hw_read_32(0x1c264) & 0xFFFF) << 16;
+			p_ctx->autocap_frame[dma_ds1].imagesize |= ((system_hw_read_32(0x1c264) >> 16) & 0xFFFF);
 			p_ctx->autocap_frame[dma_ds1].imagebufferstride = autowrite_ds1_image_buffer_stride_read();
 			p_ctx->autocap_frame[dma_ds1].memory_size = autowrite_ds1_writer_memsize_read();
 			p_ctx->autocap_frame[dma_ds1].count = autowrite_ds1_writer_frame_wcount_read();
@@ -361,7 +359,7 @@ uint32_t autocap_get_frame_info(struct autocapture_context *p_ctx, uint32_t type
 		case dma_ds2:
 			realcount = autowrite_ds2_writer_memsize_read()/autowrite_ds2_image_buffer_stride_read();
 			p_ctx->autocap_frame[dma_ds2].format = am_sc_get_output_format();
-			p_ctx->autocap_frame[dma_ds2].imagesize = am_sc_get_width();
+			p_ctx->autocap_frame[dma_ds2].imagesize = am_sc_get_width() << 16;
 			p_ctx->autocap_frame[dma_ds2].imagesize |= am_sc_get_height();
 			p_ctx->autocap_frame[dma_ds2].imagebufferstride = autowrite_ds2_image_buffer_stride_read();
 			p_ctx->autocap_frame[dma_ds2].memory_size = autowrite_ds2_writer_memsize_read();
@@ -736,14 +734,15 @@ void autocapture_hwreset(autocapture_fsm_ptr_t p_fsm )
 		return;
 
 	system_hw_write_32(0x9c, 0);
-	system_hw_write_32(0x1C260, 0);
-	system_hw_write_32(0x1C2B8, 0);
-	system_hw_write_32(0x34220, 0);
-	system_hw_write_32(0x34278, 0);	
 
 	autocap_get_frame_info(p_ctx, dma_fr);
 	autocap_get_frame_info(p_ctx, dma_ds1);
 	autocap_get_frame_info(p_ctx, dma_ds2);
+
+	system_hw_write_32(0x1C260, 0);
+	system_hw_write_32(0x1C2B8, 0);
+	system_hw_write_32(0x34220, 0);
+	system_hw_write_32(0x34278, 0);
 
 	p_ctx->hw_reset = 1;
 

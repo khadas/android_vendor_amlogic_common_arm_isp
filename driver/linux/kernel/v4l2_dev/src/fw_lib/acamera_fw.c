@@ -395,7 +395,7 @@ error_exit:
     set_fs(fs);
 }
 
-int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
+int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx, char* s_name)
 {
     int32_t result = 0;
     void *sensor_arg = 0;
@@ -409,7 +409,7 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
                 sensor_arg = &( param->modes_table[cur_mode] );
             }
         }
-        if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations ) != 0 ) {
+        if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, s_name) != 0 ) {
             LOG( LOG_CRIT, "Failed to get calibration set for. Fatal error" );
         }
 
@@ -443,8 +443,7 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
     return result;
 }
 
-
-int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx )
+int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx , char* s_name)
 {
     int32_t result = 0;
     void *sensor_arg = 0;
@@ -456,7 +455,7 @@ int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx )
     // we need to update the calibration data and update some FSM variables which
     // depends on calibration data.
     if ( p_ctx->initialized == 1 ) {
-        acamera_update_calibration_set( p_ctx );
+        acamera_update_calibration_set( p_ctx, s_name );
     } else {
         if ( p_ctx->settings.get_calibrations != NULL ) {
             const sensor_param_t *param = NULL;
@@ -467,7 +466,7 @@ int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx )
                 sensor_arg = &( param->modes_table[cur_mode] );
             }
 
-            if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations ) != 0 ) {
+            if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, s_name ) != 0 ) {
                 LOG( LOG_CRIT, "Failed to get calibration set for. Fatal error" );
             }
 
@@ -774,7 +773,7 @@ void acamera_3aalg_preset(acamera_fsm_mgr_t *p_fsm_mgr)
 		iridix_param.skip_cnt = 90;
 		iridix_param.strength_target = 30681;
 		iridix_param.iridix_contrast = 3986;
-		iridix_param.dark_enh = 1500;
+		iridix_param.dark_enh = 1000;
 		iridix_param.iridix_global_DG = 256;
 		iridix_param.diff = 256;
 		iridix_param.iridix_strength = 30681;

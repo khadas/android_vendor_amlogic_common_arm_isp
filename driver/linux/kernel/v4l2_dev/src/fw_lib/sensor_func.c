@@ -152,7 +152,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_WDR_MODE, &set_wdr_param, sizeof( set_wdr_param ) );
 
     // 3): Init or update the calibration data.
-    acamera_init_calibrations( ACAMERA_FSM2CTX_PTR( p_fsm ) );
+    acamera_init_calibrations( ACAMERA_FSM2CTX_PTR( p_fsm ), ((sensor_param_t *)(p_fsm->sensor_ctx))->s_name.name );
 
     // 4). update new settings to ISP if necessary
     //acamera_update_cur_settings_to_isp(0xff);
@@ -202,6 +202,23 @@ void sensor_configure_buffers( sensor_fsm_ptr_t p_fsm )
 #endif
 }
 
+static void sensor_check_mirror_bayer(sensor_fsm_ptr_t p_fsm)
+{
+    uint8_t mirror_bypass = acamera_isp_top_bypass_mirror_read(p_fsm->cmn.isp_base);
+
+    if (mirror_bypass == 1)
+        return;
+
+    uint8_t bayer = acamera_isp_top_rggb_start_post_mirror_read(p_fsm->cmn.isp_base);
+    if (bayer == BAYER_RGGB)
+        acamera_isp_top_rggb_start_post_mirror_write( p_fsm->cmn.isp_base, BAYER_GRBG );
+    else if (bayer == BAYER_GRBG)
+        acamera_isp_top_rggb_start_post_mirror_write( p_fsm->cmn.isp_base, BAYER_RGGB );
+    else if (bayer == BAYER_GBRG)
+        acamera_isp_top_rggb_start_post_mirror_write( p_fsm->cmn.isp_base, BAYER_BGGR );
+    else if (bayer == BAYER_BGGR)
+        acamera_isp_top_rggb_start_post_mirror_write( p_fsm->cmn.isp_base, BAYER_GBRG );
+}
 
 static void sensor_update_bayer_bits(sensor_fsm_ptr_t p_fsm)
 {
@@ -237,6 +254,8 @@ static void sensor_update_bayer_bits(sensor_fsm_ptr_t p_fsm)
     acamera_isp_top_rggb_start_pre_mirror_write(p_fsm->cmn.isp_base, isp_bayer);
     acamera_isp_top_rggb_start_post_mirror_write(p_fsm->cmn.isp_base, isp_bayer);
     acamera_isp_input_formatter_input_bitwidth_select_write(p_fsm->cmn.isp_base, isp_bit_width);
+
+    sensor_check_mirror_bayer(p_fsm);
 }
 
 

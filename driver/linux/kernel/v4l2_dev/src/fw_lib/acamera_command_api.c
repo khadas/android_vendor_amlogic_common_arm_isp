@@ -108,7 +108,12 @@ case  TSENSOR:
 		case  SENSOR_HWID:
 			ret = sensor_hw_id(instance, value, direction, ret_value);
 			break;
-
+		case  SENSOR_WDRMODE_ID:
+			ret = sensor_mode_dynamic_switch(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_ANTIFLICKER_ID:
+			ret = sensor_antiflicker_switch(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TSYSTEM:
@@ -463,16 +468,18 @@ case TAML_SCALER:
 }//switch (command_type)
 
 #if FW_HAS_CONTROL_CHANNEL
-	ctrl_channel_handle_command( ctx_id, command_type, command, value, direction );
+	if (ret == SUCCESS)
+		ctrl_channel_handle_command( ctx_id, command_type, command, value, direction );
 #endif
 
-if(ret!=SUCCESS)
-{
-	LOG(LOG_WARNING,"API COMMAND FAILED: type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
-}
-else
-{
-	LOG(LOG_NOTICE,"API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
-}
+	if (ret == IMPLEMENTED)
+		ret = SUCCESS;
+
+	if (ret != SUCCESS) {
+		LOG(LOG_WARNING,"API COMMAND FAILED: type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
+	} else {
+		LOG(LOG_NOTICE,"API type %d, cmd %d, value %lu, direction %d, ret_value %lu, result %d",command_type, command, (unsigned long)value, direction, (unsigned long)*ret_value, ret);
+	}
+
 	return ret;
 }
