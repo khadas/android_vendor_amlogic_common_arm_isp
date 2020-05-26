@@ -424,6 +424,7 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
                                *fps = sensor_info->preset[i].fps[j];
                                idx = sensor_info->preset[i].idx[j];
                                *( (char *)&sensor_info->preset[i].fps_cur ) = j;
+                               break;
                            }
                        } else {
                            if ( sensor_info->preset[i].fps[j] > (*fps)) {
@@ -444,6 +445,7 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
                              *fps = sensor_info->preset[i].fps[j];
                              idx = sensor_info->preset[i].idx[j];
                              *( (char *)&sensor_info->preset[i].fps_cur ) = j;
+                             break;
                          }
                      } else {
                          if ( sensor_info->preset[i].fps[j] > (*fps)) {
@@ -466,9 +468,9 @@ uint32_t fw_intf_find_proper_present_idx(const isp_v4l2_sensor_info *sensor_info
         return -1;
     }
 
-    custom_wdr_mode = sensor_info->preset[i].wdr_mode[idx];
-    custom_exp = sensor_info->preset[i].exposures[idx];
-    custom_fps = sensor_info->preset[i].fps[idx] / 256;
+    custom_wdr_mode = sensor_info->preset[i].wdr_mode[sensor_info->preset[i].fps_cur];
+    custom_exp = sensor_info->preset[i].exposures[sensor_info->preset[i].fps_cur];
+    custom_fps = sensor_info->preset[i].fps[sensor_info->preset[i].fps_cur] / 256;
 
     return idx;
 }
