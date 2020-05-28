@@ -58,6 +58,7 @@
 
 
 #define ACAMERA_MAX_INT16  (65535)
+
 #define IMX290_ID        0
 #define OS08A10_ID       1
 
@@ -170,7 +171,6 @@ static int32_t sensor_otp_read_memory( acamera_sbus_t *p_sbus, uint32_t otp_star
  */
 static int32_t sensor_otp_validate( uint8_t* p_otp, uint32_t size, uint16_t checksum_target) {
     // do check sum verification here
-    return 0;
     int32_t  result = 0;
     uint32_t idx = 0;
     uint32_t checksum = 0;
