@@ -30,6 +30,7 @@
 #include "soc_iq.h"
 
 #include "runtime_initialization_settings.h"
+#include "acamera_get_calibration_otp.h"
 
 static int cali_name;
 int otp_enable = 0;
@@ -57,7 +58,7 @@ struct IqConversion {
 struct IqConversion IqConversionTable[] = {
     {CALIBRATION_SUBDEV_FUNCTIONS_OS08A10, CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_OTP, "os08a10"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, NULL, "imx290"},
-    {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, NULL, "imx227"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, CALIBRATION_SUBDEV_FUNCTIONS_IMX227_OTP, "imx227"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX481, NULL, "imx481"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, NULL, "imx307"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX224, NULL, "imx224"},

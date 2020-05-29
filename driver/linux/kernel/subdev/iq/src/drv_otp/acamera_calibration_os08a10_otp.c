@@ -28,6 +28,7 @@
 #include "acamera_sbus_api.h"
 #include "system_hw_io.h"
 #include "system_sw_io.h"
+#include "acamera_get_calibration_otp.h"
 
 #define ACAMERA_OTP_TOTAL_SIZE 16318
 #define ACAMERA_OTP_SIZE 10483
@@ -120,9 +121,22 @@ static int32_t sensor_otp_read_memory( acamera_sbus_t *p_sbus, uint32_t otp_star
                 uint32_t read_bytes = 0 ;
                 uint32_t offset = 0 ;
                 uint8_t *temp_ptr;
+                uint8_t check_otp_flag;
                 temp_ptr = buffer;
                 o_sbus = *p_sbus;
                 o_sbus.device = 0;
+
+                /*
+                 * check_otp_flag   - 0: no eeprom or otp data forbidden
+                                    - 1: have eeprom and otp data enable
+                */
+                check_otp_flag = acamera_sbus_read_u8( &o_sbus, 0 );
+                LOG(LOG_ERR, "check_flag = %d", check_otp_flag);
+                if ( check_otp_flag != 1) {
+                   LOG(LOG_CRIT, "--no eeprom or otp data forbidden--");
+                   return -1;
+                }
+
                 while ( read_bytes < otp_size ) {
                     for ( offset = start ; offset < otp_size; offset ++ ) {
                         uint8_t data = acamera_sbus_read_u8( &o_sbus, ACAMERA_OTP_PAGE_START + offset ) ;
@@ -344,7 +358,7 @@ static int32_t acamera_wb_component_update( uint8_t* p_otp, uint32_t awb_start, 
  *
  *   @return 0 on success, otherwise return -1
  */
-int32_t acamera_sensor_otp_soc( ACameraCalibrations *c ) {
+int32_t acamera_calibration_os08a10_otp( ACameraCalibrations *c ) {
     int32_t result = 0 ;
     uint16_t sensor_id = 0xff;
 
