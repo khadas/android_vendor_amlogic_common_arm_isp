@@ -31,6 +31,7 @@ extern uint32_t get_calibrations_imx290_lens_4mm( uint32_t ctx_num, void * senso
 extern uint32_t get_calibrations_os08a10_ipc( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
 extern uint32_t get_calibrations_os08a10_slt( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
 extern uint32_t get_calibrations_os08a10_tv( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
+extern uint32_t get_calibrations_os08a10_panel( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
 extern uint32_t get_calibrations_imx481( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
 extern uint32_t get_calibrations_imx307_demo( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
 extern uint32_t get_calibrations_imx307( uint32_t ctx_num, void * sensor_arg, ACameraCalibrations *) ;
@@ -50,6 +51,7 @@ extern uint32_t get_calibrations_sc4238( uint32_t ctx_num, void * sensor_arg, AC
 #define CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_IPC  get_calibrations_os08a10_ipc
 #define CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_SLT  get_calibrations_os08a10_slt
 #define CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_TV  get_calibrations_os08a10_tv
+#define CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_PANEL  get_calibrations_os08a10_panel
 #define CALIBRATION_SUBDEV_FUNCTIONS_IMX481  get_calibrations_imx481
 #define CALIBRATION_SUBDEV_FUNCTIONS_IMX307_DEMO get_calibrations_imx307_demo
 #define CALIBRATION_SUBDEV_FUNCTIONS_IMX307  get_calibrations_imx307

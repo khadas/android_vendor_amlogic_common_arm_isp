@@ -57,6 +57,9 @@ extern uint32_t get_calibrations_dynamic_linear_os08a10_tv( ACameraCalibrations 
 extern uint32_t get_calibrations_static_fs_lin_os08a10_tv( ACameraCalibrations *c );
 extern uint32_t get_calibrations_dynamic_fs_lin_os08a10_tv( ACameraCalibrations *c );
 
+extern uint32_t get_calibrations_static_linear_os08a10_panel( ACameraCalibrations *c );
+extern uint32_t get_calibrations_dynamic_linear_os08a10_panel( ACameraCalibrations *c );
+
 extern uint32_t get_calibrations_static_linear_imx481( ACameraCalibrations *c );
 extern uint32_t get_calibrations_dynamic_linear_imx481( ACameraCalibrations *c );
 

@@ -300,6 +300,40 @@ uint32_t get_calibrations_os08a10_tv( uint32_t ctx_id, void *sensor_arg, ACamera
     return ret;
 }
 
+uint32_t get_calibrations_os08a10_panel( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c )
+{
+
+    uint8_t ret = 0;
+    if ( !sensor_arg ) {
+        LOG( LOG_CRIT, "calibration sensor_arg is NULL" );
+        return ret;
+    }
+
+    int32_t preset = ( (sensor_mode_t *)sensor_arg )->wdr_mode;
+
+    //logic which calibration to apply
+    switch ( preset ) {
+    case WDR_MODE_LINEAR:
+        LOG( LOG_DEBUG, "calibration switching to WDR_MODE_LINEAR %d ", (int)preset );
+        ret += ( get_calibrations_dynamic_linear_os08a10_panel( c ) + get_calibrations_static_linear_os08a10_panel( c ) );
+        break;
+    case WDR_MODE_NATIVE:
+        LOG( LOG_DEBUG, "calibration switching to WDR_MODE_NATIVE %d ", (int)preset );
+        //ret += (get_calibrations_dynamic_wdr_dummy(c)+get_calibrations_static_wdr_dummy(c));
+        break;
+    case WDR_MODE_FS_LIN:
+        LOG( LOG_DEBUG, "calibration switching to WDR mode on mode %d ", (int)preset );
+        //ret += ( get_calibrations_dynamic_fs_lin_os08a10_panel( c ) + get_calibrations_static_fs_lin_os08a10_panel( c ) );
+        break;
+    default:
+        LOG( LOG_DEBUG, "calibration defaults to WDR_MODE_LINEAR %d ", (int)preset );
+        ret += ( get_calibrations_dynamic_linear_os08a10_panel( c ) + get_calibrations_static_linear_os08a10_panel( c ) );
+        break;
+    }
+
+    return ret;
+}
+
 uint32_t get_calibrations_imx481( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c )
 {
 

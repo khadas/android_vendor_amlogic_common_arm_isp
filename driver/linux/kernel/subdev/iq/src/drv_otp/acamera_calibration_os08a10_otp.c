@@ -37,23 +37,27 @@
 #define ACAMERA_OTP_LSC_SIZE (ACAMERA_OTP_LSC_DIM * ACAMERA_OTP_LSC_DIM)
 #define ACAMERA_ARM_LSC_DIM 32
 #define ACAMERA_LSC_SIZE (ACAMERA_ARM_LSC_DIM * ACAMERA_ARM_LSC_DIM)
-#define ACAMERA_OTP_WB_START 10250
+#define ACAMERA_OTP_WB_START 16
 #define ACAMERA_OTP_WB_SIZE  6
-#define ACAMERA_OTP_LSC_3000_R_START 8
-#define ACAMERA_OTP_LSC_3000_G_START 1032
-#define ACAMERA_OTP_LSC_3000_B_START 2056
-#define ACAMERA_OTP_LSC_4000_R_START 3080
-#define ACAMERA_OTP_LSC_4000_G_START 4104
-#define ACAMERA_OTP_LSC_4000_B_START 5128
-#define ACAMERA_OTP_LSC_5000_R_START 6152
-#define ACAMERA_OTP_LSC_5000_G_START 7176
-#define ACAMERA_OTP_LSC_5000_B_START 8200
+#define ACAMERA_OTP_LSC_3000_R_START 6208
+#define ACAMERA_OTP_LSC_3000_G_START 7232
+#define ACAMERA_OTP_LSC_3000_B_START 8256
+#define ACAMERA_OTP_LSC_4000_R_START 3120
+#define ACAMERA_OTP_LSC_4000_G_START 4144
+#define ACAMERA_OTP_LSC_4000_B_START 5168
+#define ACAMERA_OTP_LSC_5000_R_START 32
+#define ACAMERA_OTP_LSC_5000_G_START 1056
+#define ACAMERA_OTP_LSC_5000_B_START 2080
 #define ACAMERA_LRC_LEFT_START 10262
 #define ACAMERA_LRC_RIGHT_START 10332
 #define ACAMERA_LRC_SIZE 70
 #define ACAMERA_SENSOR_LEFT_LRC_START 0x7520
 #define ACAMERA_SENSOR_RIGHT_LRC_START 0x7568
-#define ACAMERA_OTP_CHECKSUM_ADDR 10482
+#define ACAMERA_OTP_BASE_CHECKSUM_ADDR 0x0001
+#define ACAMERA_OTP_WB_CHECKSUM_ADDR 0x001C
+#define ACAMERA_OTP_LSC_5000_CHECKSUM_ADDR 0x0C20
+#define ACAMERA_OTP_LSC_4000_CHECKSUM_ADDR 0x1830
+#define ACAMERA_OTP_LSC_3000_CHECKSUM_ADDR 0x2440
 #define ACAMERA_OTP_PAGE_START  0x0000
 #define ACAMERA_OTP_PAGE_SELECT 0x0A02
 
@@ -131,8 +135,8 @@ static int32_t sensor_otp_read_memory( acamera_sbus_t *p_sbus, uint32_t otp_star
                                     - 1: have eeprom and otp data enable
                 */
                 check_otp_flag = acamera_sbus_read_u8( &o_sbus, 0 );
-                LOG(LOG_ERR, "check_flag = %d", check_otp_flag);
-                if ( check_otp_flag != 1) {
+                LOG(LOG_CRIT, "check_flag = %d", check_otp_flag);
+                if ( check_otp_flag != 2) {
                    LOG(LOG_CRIT, "--no eeprom or otp data forbidden--");
                    return -1;
                 }
@@ -171,6 +175,21 @@ static int32_t sensor_otp_read_memory( acamera_sbus_t *p_sbus, uint32_t otp_star
     return result;
 }
 
+static int32_t checksum_func( uint8_t* p_otp, uint32_t start_addr, uint32_t offset) {
+    uint32_t idx = start_addr;
+    uint32_t checksum = 0;
+    uint32_t range = start_addr + offset;
+
+    for ( ;idx < range ;idx++ ) {
+        uint32_t data = p_otp[idx];
+        checksum += data;
+    }
+
+    // only lower two bytes are counted
+    checksum = checksum % 255;
+    return checksum;
+}
+
 /**
  *   Validate OTP buffer by checksum
  *
@@ -186,8 +205,6 @@ static int32_t sensor_otp_read_memory( acamera_sbus_t *p_sbus, uint32_t otp_star
 static int32_t sensor_otp_validate( uint8_t* p_otp, uint32_t size, uint16_t checksum_target) {
     // do check sum verification here
     int32_t  result = 0;
-    uint32_t idx = 0;
-    uint32_t checksum = 0;
 
     uint8_t id  = p_otp[1] ;
     uint8_t Lens_type = p_otp[2] ;
@@ -195,23 +212,13 @@ static int32_t sensor_otp_validate( uint8_t* p_otp, uint32_t size, uint16_t chec
     uint8_t month = p_otp[4] ;
     uint8_t day = p_otp[5] ;
 
-    for ( idx = 0 ; idx < size ; idx ++ ) {
-        uint32_t data = p_otp[idx];
-        checksum += data;
-    }
-
-    // only lower two bytes are counted
-    checksum = checksum % 255;
-
-
     LOG(LOG_CRIT, "OTP INFO: ID %d, Lens Type %d, Built on %d.%d.20%d", id, Lens_type, day, month, year) ;
-    if ( checksum == checksum_target ) {
+    if ( checksum_target ) {
         result = 0 ;
         LOG(LOG_CRIT, "OTP MEMORY CHECKSUM - OK" ) ;
     } else {
         result = -1;
         LOG(LOG_CRIT, "OTP MEMORY CHECKSUM - FAILED. " ) ;
-        LOG(LOG_CRIT, "Expected 0x%x, calculated 0x%x", checksum_target, checksum ) ;
     }
     return result;
 }
@@ -322,9 +329,9 @@ static int32_t acamera_wb_component_update( uint8_t* p_otp, uint32_t awb_start, 
     int32_t result = 0 ;
     if ( p_otp != NULL && awb_size != 0 && wb_ptr != NULL && wb_length != 0 ) {
         // update wb coefficients here from otp memory
-        uint16_t otp_r = ((uint16_t)p_otp[awb_start+0]) << 8 | (p_otp[awb_start+1]);
-        uint16_t otp_g = ((uint16_t)p_otp[awb_start+2]) << 8 | (p_otp[awb_start+3]);
-        uint16_t otp_b = ((uint16_t)p_otp[awb_start+4]) << 8 | (p_otp[awb_start+5]);
+        uint16_t otp_r = ((uint16_t)p_otp[awb_start+1]) << 8 | (p_otp[awb_start+0]);
+        uint16_t otp_g = ((uint16_t)p_otp[awb_start+3]) << 8 | (p_otp[awb_start+2]);
+        uint16_t otp_b = ((uint16_t)p_otp[awb_start+5]) << 8 | (p_otp[awb_start+4]);
 
 
         uint32_t rg = (otp_g*256)/otp_r;
@@ -380,10 +387,30 @@ int32_t acamera_calibration_os08a10_otp( ACameraCalibrations *c ) {
 
     result = sensor_otp_read_memory( &sbus, 0, ACAMERA_OTP_SIZE, otp_memory, sizeof(otp_memory) );
 
+    uint32_t base_addr = 0x0002;
+    uint32_t base_offest = 9;
+    uint32_t wb_offest = 12;
+    uint32_t lsc_offest = 3072;
+
+    uint32_t base_checksum = checksum_func(otp_memory, base_addr, base_offest);
+    uint32_t wb_checksum = checksum_func(otp_memory, ACAMERA_OTP_WB_START, wb_offest);
+    uint32_t lsc_5000_checksum = checksum_func(otp_memory, ACAMERA_OTP_LSC_5000_R_START, lsc_offest);
+    uint32_t lsc_4000_checksum = checksum_func(otp_memory, ACAMERA_OTP_LSC_4000_R_START, lsc_offest);
+    uint32_t lsc_3000_checksum = checksum_func(otp_memory, ACAMERA_OTP_LSC_3000_R_START, lsc_offest);
+
     if ( result == 0 ) {
-        uint16_t checksum = otp_memory[ACAMERA_OTP_CHECKSUM_ADDR];
+        uint16_t checksum = 0;
         // validate only data before high byte of the checksum.
-        result = sensor_otp_validate(otp_memory, ACAMERA_OTP_CHECKSUM_ADDR, checksum);
+        if ( base_checksum == otp_memory[ACAMERA_OTP_BASE_CHECKSUM_ADDR] &&
+            wb_checksum == otp_memory[ACAMERA_OTP_WB_CHECKSUM_ADDR] &&
+            lsc_5000_checksum == otp_memory[ACAMERA_OTP_LSC_5000_CHECKSUM_ADDR]&&
+            lsc_4000_checksum == otp_memory[ACAMERA_OTP_LSC_4000_CHECKSUM_ADDR]&&
+            lsc_3000_checksum == otp_memory[ACAMERA_OTP_LSC_3000_CHECKSUM_ADDR]) {
+            checksum = 1;
+        } else {
+          checksum = 0;
+        }
+        result = sensor_otp_validate(otp_memory, ACAMERA_OTP_LSC_3000_CHECKSUM_ADDR, checksum);
 
         if ( result == 0 ) {
             // read static white balance

@@ -93,6 +93,10 @@ static int get_cali_name_id( int cali_name_id, int sensor_name_id )
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_TV;
             LOG( LOG_CRIT, "Loading Calibration for OS08A10_TV\n" );
             break;
+        case 3:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_PANEL;
+            LOG( LOG_CRIT, "Loading Calibration for OS08A10_PANEL\n" );
+            break;
         default:
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_IPC;
             LOG( LOG_CRIT, "Loading Calibration for OS08A10_IPC\n" );
