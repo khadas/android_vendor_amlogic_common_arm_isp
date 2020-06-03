@@ -36,7 +36,7 @@ static uint32_t _calibration_iridix_ev_lim_full_str[] = {2000000};
 
 static uint32_t _calibration_iridix_ev_lim_no_str[] = {4000000, 3000000}; //3574729
 
-static uint8_t _calibration_ae_correction[] = {128, 128, 128, 128, 128, 128, 114, 100, 88, 78, 78, 78};
+static uint8_t _calibration_ae_correction[] = {136, 136, 136, 136, 128, 100, 100, 100, 88, 78, 78, 78};
 
 static uint32_t _calibration_ae_exposure_correction[] = {6710, 15739, 15778, 23282, 56186, 205000, 400000, 600000, 900000, 1400000, 1800000, 2200000}; //500,157778,500325,632161,1406400,6046465 //23282 - Max Lab Exposure
 
