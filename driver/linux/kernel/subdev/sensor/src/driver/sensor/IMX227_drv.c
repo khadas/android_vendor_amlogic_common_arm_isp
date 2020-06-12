@@ -472,21 +472,23 @@ void sensor_init_imx227( void **ctx, sensor_control_t *ctrl, void* sbp)
 {
     // Local sensor data structure
     static sensor_context_t s_ctx;
-	int ret;
-	sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
+    int ret;
+    sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
 
-	ret = pwr_am_enable(sensor_bp, "power-enable", 0);
-	if (ret < 0 )
-		pr_err("set power fail\n");
-	udelay(30);
-	ret = clk_am_enable(sensor_bp, "g12a_24m");
-	if (ret < 0 )
-		pr_err("set mclk fail\n");
-	udelay(30);
-	reset_am_enable(sensor_bp,"reset", 1);
-	if (ret < 0 )
-		pr_err("set reset fail\n");
-	s_ctx.sbp = sbp;
+    ret = pwr_am_enable(sensor_bp, "power-enable", 0);
+    if (ret < 0 )
+        pr_err("set power fail\n");
+    udelay(30);
+
+    ret = clk_am_enable(sensor_bp, "g12a_24m");
+    if (ret < 0 )
+        pr_err("set mclk fail\n");
+    udelay(30);
+
+    reset_am_enable(sensor_bp,"reset", 0);
+    if (ret < 0 )
+        pr_err("set reset fail\n");
+    s_ctx.sbp = sbp;
     *ctx = &s_ctx;
 
     s_ctx.sbus.mask = SBUS_MASK_ADDR_16BITS |
@@ -553,6 +555,26 @@ int sensor_detect_imx227( void* sbp)
     sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
 
 #if NEED_CONFIG_BSP
+    ret = pwr_am_enable(sensor_bp, "vana-enable", 1);
+    if (ret < 0 )
+        pr_err("set vana fail\n");
+    udelay(30);
+
+    ret = pwr_am_enable(sensor_bp, "vdig-enable", 1);
+    if (ret < 0 )
+        pr_err("set vdig fail\n");
+    udelay(30);
+
+    ret = pwr_am_enable(sensor_bp, "mlb-enable", 1);
+    if (ret < 0 )
+        pr_err("set mlb fail\n");
+    udelay(30);
+
+    ret = reset_am_enable(sensor_bp, "reset", 0);
+    if (ret < 0 )
+        pr_err("set reset fail\n");
+    udelay(30);
+
     ret = clk_am_enable(sensor_bp, "g12a_24m");
     if (ret < 0 )
         pr_err("set mclk fail\n");
