@@ -597,26 +597,26 @@ static uint32_t _calibration_iridix_extension_control[][4] = {
 
 // { GAIN_LOG2_ID*256, black_level_in, black_level_out }
 static uint32_t _calibration_sqrt_extension_control[][3] = {
-    {0 * 256, 61440, 2000},
-    {1 * 256, 61440, 2000},
-    {2 * 256, 61440, 2000},
-    {3 * 256, 61440, 2000},
-    {4 * 256, 61440, 2000},
-    {5 * 256, 61440, 2000},
-    {6 * 256, 61440, 2000},
-    {7 * 256, 61440, 2000},
+    {0 * 256, 15872, 992},
+    {1 * 256, 15872, 992},
+    {2 * 256, 15872, 992},
+    {3 * 256, 15872, 992},
+    {4 * 256, 15872, 992},
+    {5 * 256, 15872, 992},
+    {6 * 256, 15872, 992},
+    {7 * 256, 15872, 992},
 };
 
 // { GAIN_LOG2_ID*256, black_level_in, black_level_out }
 static uint32_t _calibration_square_be_extension_control[][3] = {
-    {0 * 256, 2000, 61440},
-    {1 * 256, 2000, 61440},
-    {2 * 256, 2000, 61440},
-    {3 * 256, 2000, 61440},
-    {4 * 256, 2000, 61440},
-    {5 * 256, 2000, 61440},
-    {6 * 256, 2000, 61440},
-    {7 * 256, 2000, 61440},
+    {0 * 256, 992, 15872},
+    {1 * 256, 992, 15872},
+    {2 * 256, 992, 15872},
+    {3 * 256, 992, 15872},
+    {4 * 256, 992, 15872},
+    {5 * 256, 992, 15872},
+    {6 * 256, 992, 15872},
+    {7 * 256, 992, 15872},
 };
 
 static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_threshold, .rows = 1, .cols = sizeof( _calibration_gamma_threshold ) / sizeof( _calibration_gamma_threshold[0] ), .width = sizeof( _calibration_gamma_threshold[0] )};
