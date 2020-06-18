@@ -682,6 +682,7 @@ uint8_t sensor_mode_dynamic_switch( acamera_fsm_mgr_t *instance, uint32_t value,
         {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_MODE_SWITCH, &preset_mode, sizeof( preset_mode ) );
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+            *ret_value = preset_mode;
         }
         else
             result = IMPLEMENTED;

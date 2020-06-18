@@ -110,6 +110,7 @@ case  TSENSOR:
 			break;
 		case  SENSOR_WDRMODE_ID:
 			ret = sensor_mode_dynamic_switch(instance, value, direction, ret_value);
+			value = *ret_value;
 			break;
 		case  SENSOR_ANTIFLICKER_ID:
 			ret = sensor_antiflicker_switch(instance, value, direction, ret_value);
