@@ -1420,6 +1420,8 @@ int am_adap_init(void)
 				dol_buf[i] = (dol_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
 				temp_buf = dol_buf[i];
 			}
+			if ( buf_cnt == 2 )
+				dol_buf[1] = dol_buf[0];
 		}
 	}
 

@@ -259,7 +259,7 @@ static ssize_t autocapture_fops_read( struct file *file, char __user *buf, size_
 	else if(p_ctx->get_fr_ds == GET_DS2)
 	{
 		p_ctx->autocap_frame[dma_ds2].format = am_sc_get_output_format();
-		p_ctx->autocap_frame[dma_ds2].imagesize = am_sc_get_width();
+		p_ctx->autocap_frame[dma_ds2].imagesize = am_sc_get_width() << 16;
 		p_ctx->autocap_frame[dma_ds2].imagesize |= am_sc_get_height();
 
 #ifdef AUTOWRITE_MODULE

@@ -736,6 +736,7 @@ uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, 
         {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_MODE_SWITCH, &preset_mode, sizeof( preset_mode ) );
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+            *ret_value = preset_mode;
         }
         else
             result = IMPLEMENTED;
@@ -4330,29 +4331,29 @@ uint8_t snr_manual( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t directi
 #endif
 
 // ------------------------------------------------------------------------------ //
-// snr offset description:
+// snr strength description:
 // Control the hue
 //
 // Values:[0-255]
 //
 //Default Value: 128
 // ------------------------------------------------------------------------------ //
-#ifdef SNR_OFFSET_ID
-uint8_t snr_offset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+#ifdef SNR_STRENGTH_ID
+uint8_t snr_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
 #if defined( ISP_HAS_SINTER_RADIAL_LUT )
-    uint32_t snr_offset = (uint32_t)value;
+    uint32_t snr_strength = (uint32_t)value;
     *ret_value = 0;
     if ( direction == COMMAND_SET ) {
         if ( value > 255 )
             return NOT_SUPPORTED;
         else
-            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SNR_OFFSET, &snr_offset, sizeof( snr_offset ) );
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SNR_STRENGTH, &snr_strength, sizeof( snr_strength ) );
 
         return SUCCESS;
     } else if ( direction == COMMAND_GET ) {
-        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SNR_OFFSET, NULL, 0, &snr_offset, sizeof( snr_offset ) );
-        *ret_value = snr_offset;
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SNR_STRENGTH, NULL, 0, &snr_strength, sizeof( snr_strength ) );
+        *ret_value = snr_strength;
         return SUCCESS;
     }
 

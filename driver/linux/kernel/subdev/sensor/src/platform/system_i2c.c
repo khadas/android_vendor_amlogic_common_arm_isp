@@ -206,7 +206,10 @@ uint8_t system_i2c_write( uint32_t bus, uint32_t phy_addr, uint8_t *data, uint32
 	addr_type = g_sensor_ctrl->reg_addr_type;
 	data_type = g_sensor_ctrl->reg_data_type;
 
-	saddr = phy_addr >> 1;//g_sensor_ctrl->slave_addr >> 1;
+	if (phy_addr == 0)
+		saddr = g_sensor_ctrl->slave_addr >> 1;
+	else
+		saddr = phy_addr >> 1;
 	struct i2c_msg msgs[] = {
 		{
 			.addr  = saddr,
@@ -250,7 +253,10 @@ uint8_t system_i2c_read( uint32_t bus, uint32_t phy_addr, uint8_t *data, uint32_
 	addr_type = g_sensor_ctrl->reg_addr_type;
 	data_type = g_sensor_ctrl->reg_data_type;
 
-	saddr = phy_addr >> 1;//g_sensor_ctrl->slave_addr >> 1;
+	if (phy_addr == 0)
+		saddr = g_sensor_ctrl->slave_addr >> 1;
+	else
+		saddr = phy_addr >> 1;
 	struct i2c_msg msgs[] = {
 		{
 			.addr  = saddr,

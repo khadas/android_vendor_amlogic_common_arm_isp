@@ -246,9 +246,9 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         LOG( LOG_INFO, "set snr manual: %d.\n", ctrl->val );
         ret = fw_intf_set_custom_snr_manual(ctx_id, ctrl->val);
         break;
-    case ISP_V4L2_CID_CUSTOM_SNR_OFFSET:
-        LOG( LOG_INFO, "set snr offset: %d.\n", ctrl->val );
-        ret = fw_intf_set_custom_snr_offset(ctx_id, ctrl->val);
+    case ISP_V4L2_CID_CUSTOM_SNR_STRENGTH:
+        LOG( LOG_INFO, "set snr strength: %d.\n", ctrl->val );
+        ret = fw_intf_set_custom_snr_strength(ctx_id, ctrl->val);
         break;
     case ISP_V4L2_CID_CUSTOM_TNR_MANUAL:
         LOG( LOG_INFO, "set tnr manual: %d.\n", ctrl->val );
@@ -303,9 +303,9 @@ static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
         LOG( LOG_INFO, "get snr manual: %d.\n" );
         ctrl->val = fw_intf_get_custom_snr_manual(ctx_id);
         break;
-    case ISP_V4L2_CID_CUSTOM_SNR_OFFSET:
-        LOG( LOG_INFO, "get snr offset: %d.\n" );
-        ctrl->val = fw_intf_get_custom_snr_offset(ctx_id);
+    case ISP_V4L2_CID_CUSTOM_SNR_STRENGTH:
+        LOG( LOG_INFO, "get snr strength: %d.\n" );
+        ctrl->val = fw_intf_get_custom_snr_strength(ctx_id);
         break;
     case ISP_V4L2_CID_CUSTOM_TNR_MANUAL:
         LOG( LOG_INFO, "get tnr manual: %d.\n" );
@@ -641,10 +641,10 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_snr_manual = {
     .def = 0,
 };
 
-static const struct v4l2_ctrl_config isp_v4l2_ctrl_snr_offset = {
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_snr_strength = {
     .ops = &isp_v4l2_ctrl_ops_custom,
-    .id = ISP_V4L2_CID_CUSTOM_SNR_OFFSET,
-    .name = "ISP SNR offset",
+    .id = ISP_V4L2_CID_CUSTOM_SNR_STRENGTH,
+    .name = "ISP SNR strength",
     .type = V4L2_CTRL_TYPE_INTEGER,
     .min = 0,
     .max = 255,
@@ -860,8 +860,8 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
                   &isp_v4l2_ctrl_sensor_fps, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SNR_MANUAL,
                   &isp_v4l2_ctrl_snr_manual, NULL);
-    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SNR_OFFSET,
-                  &isp_v4l2_ctrl_snr_offset, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SNR_STRENGTH,
+                  &isp_v4l2_ctrl_snr_strength, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_TNR_MANUAL,
                   &isp_v4l2_ctrl_tnr_manual, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_TNR_OFFSET,

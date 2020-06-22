@@ -1556,7 +1556,7 @@ static int isp_fw_do_set_snr_manual( uint32_t ctx_id, int val )
 
 }
 
-static int isp_fw_do_set_snr_offset( uint32_t ctx_id, int val )
+static int isp_fw_do_set_snr_strength( uint32_t ctx_id, int val )
 {
     int result;
     uint32_t ret_val;
@@ -1566,7 +1566,7 @@ static int isp_fw_do_set_snr_offset( uint32_t ctx_id, int val )
         return -EBUSY;
     }
 
-    result = acamera_command( ctx_id, TSCENE_MODES, SNR_OFFSET_ID, val, COMMAND_SET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, SNR_STRENGTH_ID, val, COMMAND_SET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set SNR_OFFSET_ID to %d, ret_value: %d.", val, result );
         return result;
@@ -1793,7 +1793,7 @@ static int isp_fw_do_get_snr_manual( uint32_t ctx_id )
     return ret_val;
 }
 
-static int isp_fw_do_get_snr_offset( uint32_t ctx_id )
+static int isp_fw_do_get_snr_strength( uint32_t ctx_id )
 {
     int result;
     uint32_t ret_val;
@@ -1803,7 +1803,7 @@ static int isp_fw_do_get_snr_offset( uint32_t ctx_id )
         return -EBUSY;
     }
 
-    result = acamera_command( ctx_id, TSCENE_MODES, SNR_OFFSET_ID, 0, COMMAND_GET, &ret_val );
+    result = acamera_command( ctx_id, TSCENE_MODES, SNR_STRENGTH_ID, 0, COMMAND_GET, &ret_val );
     if ( result ) {
         LOG( LOG_ERR, "Failed to set SNR_OFFSET_ID, ret_value: %d.", result );
         return result;
@@ -2049,9 +2049,9 @@ int fw_intf_set_custom_snr_manual(uint32_t ctx_id, uint32_t ctrl_val)
     return isp_fw_do_set_snr_manual(ctx_id, ctrl_val);
 }
 
-int fw_intf_set_custom_snr_offset(uint32_t ctx_id, uint32_t ctrl_val)
+int fw_intf_set_custom_snr_strength(uint32_t ctx_id, uint32_t ctrl_val)
 {
-    return isp_fw_do_set_snr_offset(ctx_id, ctrl_val);
+    return isp_fw_do_set_snr_strength(ctx_id, ctrl_val);
 }
 
 int fw_intf_set_custom_tnr_manual(uint32_t ctx_id, uint32_t ctrl_val)
@@ -2303,9 +2303,9 @@ int fw_intf_get_custom_snr_manual(uint32_t ctx_id)
     return isp_fw_do_get_snr_manual(ctx_id);
 }
 
-int fw_intf_get_custom_snr_offset(uint32_t ctx_id)
+int fw_intf_get_custom_snr_strength(uint32_t ctx_id)
 {
-    return isp_fw_do_get_snr_offset(ctx_id);
+    return isp_fw_do_get_snr_strength(ctx_id);
 }
 
 int fw_intf_get_custom_tnr_manual(uint32_t ctx_id)

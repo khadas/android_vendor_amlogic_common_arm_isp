@@ -412,8 +412,8 @@ case  TSCENE_MODES:
 		case  SNR_MANUAL_ID:
 			ret = snr_manual(instance, value, direction, ret_value);
 			break;
-		case  SNR_OFFSET_ID:
-			ret = snr_offset(instance, value, direction, ret_value);
+		case  SNR_STRENGTH_ID:
+			ret = snr_strength(instance, value, direction, ret_value);
 			break;
 		case  TNR_MANUAL_ID:
 			ret = tnr_manual(instance, value, direction, ret_value);

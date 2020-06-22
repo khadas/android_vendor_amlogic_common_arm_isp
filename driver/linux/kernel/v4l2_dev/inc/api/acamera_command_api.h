@@ -333,7 +333,7 @@
 #define SENSOR_HWID                                       0x00000080
 #define HUE_THETA_ID                                      0x00000081
 #define SNR_MANUAL_ID                                     0x00000082
-#define SNR_OFFSET_ID                                     0x00000083
+#define SNR_STRENGTH_ID                                   0x00000083
 #define TNR_MANUAL_ID                                     0x00000084
 #define TNR_OFFSET_ID                                     0x00000085
 #define SENSOR_WDRMODE_ID                                 0x00000086
