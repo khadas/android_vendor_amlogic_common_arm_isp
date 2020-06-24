@@ -1218,7 +1218,7 @@ static int isp_fw_do_set_gain( uint32_t ctx_id, int gain )
         return 0;
     }
 
-    gain_frac = gain / 100;
+    gain_frac = ( gain / 100 ) * 256;
     gain_frac += ( gain % 100 ) * 256 / 100;
 
     result = acamera_command( ctx_id, TALGORITHMS, AE_GAIN_ID, gain_frac, COMMAND_SET, &ret_val );
