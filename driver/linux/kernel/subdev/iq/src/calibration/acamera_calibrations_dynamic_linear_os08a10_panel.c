@@ -20,7 +20,7 @@
 #include "acamera_command_api.h"
 #include "acamera_firmware_settings.h"
 // ------------ 3A & iridix
-static uint8_t _calibration_evtolux_probability_enable[] = {0};
+static uint8_t _calibration_evtolux_probability_enable[] = {1};
 
 static uint8_t _calibration_awb_avg_coef[] = {15};
 
@@ -42,14 +42,14 @@ static uint32_t _calibration_ae_exposure_correction[] = {6710, 15739, 15778, 232
 
 // ------------Noise reduction ----------------------//
 static uint16_t _calibration_sinter_strength[][2] = {
-    {0 * 256, 20}, //30
-    {1 * 256, 20}, //30
-    {2 * 256, 30}, //45
-    {3 * 256, 30}, //55
-    {4 * 256, 30}, //73
-    {5 * 256, 30}, //74
-    {6 * 256, 30}, //74
-    {7 * 256, 30}  //82
+    {0 * 256, 25}, //30
+    {1 * 256, 25}, //30
+    {2 * 256, 35}, //45
+    {3 * 256, 35}, //55
+    {4 * 256, 35}, //73
+    {5 * 256, 35}, //74
+    {6 * 256, 35}, //74
+    {7 * 256, 35}  //82
 };
 // ------------Noise reduction ----------------------//
 static uint16_t _calibration_sinter_strength_MC_contrast[][2] = {
@@ -66,19 +66,19 @@ static uint16_t _calibration_sinter_strength1[][2] = {
     {7 * 256, 140}}; //255 4 int
 
 static uint16_t _calibration_sinter_thresh1[][2] = {
-    {0 * 256, 10},
-    {1 * 256, 15},
-    {2 * 256, 25},
-    {3 * 256, 40},
-    {4 * 256, 45},
-    {5 * 256, 55},
+    {0 * 256, 25},
+    {1 * 256, 25},
+    {2 * 256, 35},
+    {3 * 256, 45},
+    {4 * 256, 50},
+    {5 * 256, 60},
     {6 * 256, 70},
     {7 * 256, 90}};
 
 static uint16_t _calibration_sinter_thresh4[][2] = {
-    {0 * 256, 80},
-    {1 * 256, 90},
-    {2 * 256, 110},
+    {0 * 256, 90},
+    {1 * 256, 100},
+    {2 * 256, 120},
     {3 * 256, 130},
     {4 * 256, 150},
     {5 * 256, 170},
@@ -319,7 +319,7 @@ static uint32_t _calibration_iridix8_strength_dk_enh_control[] = {
 
 static uint32_t _calibration_ae_control[] = {
     15,  // AE convergance
-    210, // LDR AE target -> this should match the 18% grey of teh output gamma
+    225, // LDR AE target -> this should match the 18% grey of teh output gamma
     0,   // AE tail weight
     0,   // WDR mode only: Max percentage of clipped pixels for long exposure: WDR mode only: 256 = 100% clipped pixels
     0,   // WDR mode only: Time filter for exposure ratio
@@ -330,14 +330,14 @@ static uint32_t _calibration_ae_control[] = {
 };
 
 static uint16_t _calibration_ae_control_HDR_target[][2] = {
-    {0 * 256, 210}, // HDR AE target should not be higher than LDR target
-    {1 * 256, 210},
-    {2 * 256, 210},
-    {3 * 256, 210},
-    {4 * 256, 210},
-    {5 * 256, 210},
-    {6 * 256, 210},
-    {7 * 256, 210}
+    {0 * 256, 225}, // HDR AE target should not be higher than LDR target
+    {1 * 256, 225},
+    {2 * 256, 225},
+    {3 * 256, 225},
+    {4 * 256, 225},
+    {5 * 256, 225},
+    {6 * 256, 225},
+    {7 * 256, 225}
 };
 
 static uint8_t _calibration_pf_radial_lut[] = {0, 0, 0, 0, 100, 180, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
@@ -428,9 +428,9 @@ static uint16_t _calibration_sharpen_ds1[][2] = {
     {7 * 256, 25},
     {8 * 256, 10}};
 static uint16_t _calibration_temper_strength[][2] = {
-    {0 * 256, 80},
+    {0 * 256, 90},
     {1 * 256, 90},
-    {2 * 256, 100},
+    {2 * 256, 110},
     {3 * 256, 110},
     {4 * 256, 120},
     {5 * 256, 135},
