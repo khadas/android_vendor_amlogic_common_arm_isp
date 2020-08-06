@@ -108,32 +108,6 @@ static sensor_mode_t supported_modes[] = {
         .num = 1,
     },
     {
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 60 * 256,
-        .resolution.width = 2112,
-        .resolution.height = 1568,
-        .bits = 10,
-        .exposures = 1,
-        .lanes = 4,
-        .bps = 540,
-        .bayer = BAYER_BGGR,
-        .dol_type = DOL_NON,
-        .num = 2,
-    },
-    {
-        .wdr_mode = WDR_MODE_LINEAR,
-        .fps = 50 * 256,
-        .resolution.width = 2112,
-        .resolution.height = 1568,
-        .bits = 10,
-        .exposures = 1,
-        .lanes = 4,
-        .bps = 540,
-        .bayer = BAYER_BGGR,
-        .dol_type = DOL_NON,
-        .num = 2,
-    },
-    {
         .wdr_mode = WDR_MODE_FS_LIN,
         .fps = 30 * 256,
         .resolution.width = 4096,
@@ -145,6 +119,19 @@ static sensor_mode_t supported_modes[] = {
         .bayer = BAYER_BGGR,
         .dol_type = DOL_VC,
         .num = 3,
+    },
+    {
+        .wdr_mode = WDR_MODE_LINEAR,
+        .fps = 30 * 256,
+        .resolution.width = 1920,
+        .resolution.height = 1080,
+        .bits = 10,
+        .exposures = 1,
+        .lanes = 4,
+        .bps = 960,
+        .bayer = BAYER_BGGR,
+        .dol_type = DOL_NON,
+        .num = 4,
     },
 };
 
@@ -462,6 +449,16 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
         acamera_sbus_write_u8( p_sbus, 0x380f, 0x09 );
         p_ctx->s_fps = 25;
         p_ctx->vmax = 3841; // VTS *30/25 -8
+    } else if ( (param->modes_table[mode].exposures == 1) && (param->modes_table[mode].fps == 15 * 256) ) {
+        acamera_sbus_write_u8( p_sbus, 0x380e, 0x19 );
+        acamera_sbus_write_u8( p_sbus, 0x380f, 0x1c );
+        p_ctx->s_fps = 15;
+        p_ctx->vmax = 6420; // VTS *30/25 -8
+    } else if ( (param->modes_table[mode].exposures == 1) && (param->modes_table[mode].fps == 10 * 256) ) {
+        acamera_sbus_write_u8( p_sbus, 0x380e, 0x25 );
+        acamera_sbus_write_u8( p_sbus, 0x380f, 0xaa );
+        p_ctx->s_fps = 10;
+        p_ctx->vmax = 9634; // VTS *30/25 -8
     } else if ((param->modes_table[mode].exposures == 1) && (param->modes_table[mode].fps == 50 * 256)) {
         acamera_sbus_write_u8( p_sbus, 0x380e, 0x0f );
         acamera_sbus_write_u8( p_sbus, 0x380f, 0x09 );
@@ -617,6 +614,10 @@ void sensor_init_ov13858( void **ctx, sensor_control_t *ctrl, void *sbp )
 	if (ret < 0 )
 		pr_err("set mclk fail\n");
 	write1_reg(0xfe000428, 0x11400400);
+#elif PLATFORM_C305X
+	ret = gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
+	if (ret < 0 )
+		pr_info("set mclk fail\n");
 #endif
 	udelay(30);
 
@@ -699,6 +700,10 @@ int sensor_detect_ov13858( void* sbp)
         pr_err("set mclk fail\n");
 #elif PLATFORM_C308X
     write1_reg(0xfe000428, 0x11400400);
+#elif PLATFORM_C305X
+    ret = gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
+    if (ret < 0 )
+        pr_info("set mclk fail\n");
 #endif
 
 #if NEED_CONFIG_BSP
