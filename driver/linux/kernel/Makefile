@@ -27,6 +27,7 @@ clean:
 	$(call module_clean,subdev/sensor)
 	$(call module_clean,subdev/lens)
 	$(call module_clean,subdev/iq)
+	rm $(LOCAL_PATH)/*.ko
 
 v4l2:
 	$(call module_func,v4l2_dev)
@@ -52,3 +53,5 @@ lens_clean:
 iq_clean:
 	$(call module_clean,subdev/iq)
 
+install:
+	find $(LOCAL_PATH) -name "*.ko" | xargs -i cp {} $(LOCAL_PATH)
