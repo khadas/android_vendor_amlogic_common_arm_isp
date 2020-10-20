@@ -69,7 +69,7 @@
 #define SUPPORT_CHANNEL  3
 #define V4L2_BUFFER_SIZE 6
 
-#if PLATFORM_C308X
+#if PLATFORM_C308X || PLATFORM_C305X == 1
 #define AUTOWRITE_MODULE
 #endif
 struct autocapture_context {
@@ -444,7 +444,7 @@ uint32_t autocap_get_frame_addr(struct autocapture_context *p_ctx, struct frame_
 
 		p_ctx->autocap_frame[type].n_address = p_ctx->autocap_frame[type].s_address + real_pos * p_ctx->autocap_frame[type].imagebufferstride;
 	}
-	
+
 	t_frm.framesize = p_ctx->autocap_frame[type].imagebufferstride;
 	t_frm.phy_addr = p_ctx->autocap_frame[type].n_address;
 

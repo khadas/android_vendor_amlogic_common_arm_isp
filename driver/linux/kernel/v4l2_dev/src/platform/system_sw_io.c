@@ -20,6 +20,14 @@
 #include "acamera_logger.h"
 #include <linux/gfp.h>
 #include <linux/slab.h>
+#include <linux/io.h>
+#include <linux/module.h>
+#include <linux/mm.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
+#include <linux/dma-mapping.h>
+#include <linux/dma-contiguous.h>
 
 int32_t init_sw_io( void )
 {

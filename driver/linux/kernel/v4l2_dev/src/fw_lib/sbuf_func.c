@@ -443,7 +443,7 @@ static uint8_t sbuf_calibration_is_ready_to_update( struct sbuf_context *p_ctx )
     return rc;
 }
 
-static int sbuf_calibration_init( struct sbuf_context *p_ctx )
+static int sbuf_calibration_init( struct sbuf_context *p_ctx, uint8_t enable, uint32_t mode )
 {
     int rc = 0;
     uint32_t cnt = 0;
@@ -455,9 +455,11 @@ static int sbuf_calibration_init( struct sbuf_context *p_ctx )
 
     acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_WDR_MODE, NULL, 0, &wdr_mode, sizeof( wdr_mode ) );
 
-    if ( wdr_mode == p_ctx->sbuf_mgr.cur_wdr_mode ) {
-        LOG( LOG_INFO, "same wdr_mode, already inited, return." );
-        return 0;
+    if ( enable == 0 ) {
+        if ( wdr_mode == p_ctx->sbuf_mgr.cur_wdr_mode ) {
+            LOG( LOG_INFO, "same wdr_mode, already inited, return." );
+            return 0;
+        }
     }
 
     p_ctx->p_fsm->is_paused = 1;
@@ -498,7 +500,7 @@ static int sbuf_calibration_init( struct sbuf_context *p_ctx )
 }
 
 
-void sbuf_update_calibration_data( sbuf_fsm_ptr_t p_fsm )
+void sbuf_update_calibration_data( sbuf_fsm_ptr_t p_fsm, uint8_t enable, uint32_t mode )
 {
     uint32_t fw_id = p_fsm->cmn.ctx_id;
     struct sbuf_context *p_ctx = NULL;
@@ -509,7 +511,7 @@ void sbuf_update_calibration_data( sbuf_fsm_ptr_t p_fsm )
         return;
     }
 
-    sbuf_calibration_init( p_ctx );
+    sbuf_calibration_init( p_ctx, enable, mode );
 }
 
 
@@ -524,7 +526,7 @@ static int sbuf_ctx_init( struct sbuf_context *p_ctx )
         return rc;
     }
 
-    rc = sbuf_calibration_init( p_ctx );
+    rc = sbuf_calibration_init( p_ctx, 0, 0 );
     if ( rc ) {
         LOG( LOG_ERR, "init failed, error: calibration init failed, ret: %d.", rc );
     }
@@ -1043,7 +1045,7 @@ static void sbuf_mgr_apply_new_param( struct sbuf_context *p_ctx, struct sbuf_id
 
         acamera_fsm_mgr_set_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_AE_NEW_PARAM, p_sbuf_ae, sizeof( *p_sbuf_ae ) );
 
-        LOG( LOG_DEBUG, "ctx: %d, AE exposure: %d, exp_ratio: %u.", p_ctx->fw_id, (int)p_sbuf_ae->ae_exposure, (unsigned int)p_sbuf_ae->ae_exposure_ratio );
+        LOG( LOG_DEBUG, "ctx: %d, AE exposure: %d, exp_ratio: %u ae_hist_mean %d", p_ctx->fw_id, (int)p_sbuf_ae->ae_exposure, (unsigned int)p_sbuf_ae->ae_exposure_ratio,p_sbuf_ae->ae_hist_mean);
 
         /* set this sbuf back to sbuf_mgr */
         item.buf_idx = p_idx_set->ae_idx;
@@ -1730,6 +1732,7 @@ static int sbuf_fops_mmap( struct file *file, struct vm_area_struct *vma )
                  p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx].exposures );
         }
 
+        p_sbuf_mgr->sbuf_base->kf_info.sensor_info.cur_mode = param->mode;
         p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes_num = valid_modes_num;
     }
 

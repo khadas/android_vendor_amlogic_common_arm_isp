@@ -58,6 +58,8 @@ struct _noise_reduction_fsm_t {
     uint32_t temper_ev_previous_frame;
     uint32_t temper_diff_avg;
     uint32_t temper_diff_coeff;
+
+    noise_reduction_mode_t nr_mode;
 };
 
 struct cnr_ext_param_t {
@@ -81,6 +83,18 @@ struct cnr_ext_param_t {
     uint32_t uv_delta2_thd;
     uint32_t uv_delta2_off;
     uint32_t uv_delta2_slope;
+};
+
+struct dp_devthreshold_ext_param_t {
+    uint16_t gain;
+    uint16_t devthreshold;
+};
+
+struct fc_correct_ext_param_t {
+    uint16_t gain;
+    uint16_t fc_slope;
+    uint16_t alias_slope;
+    uint16_t alias_threshold;
 };
 
 void noise_reduction_fsm_clear( noise_reduction_fsm_ptr_t p_fsm );

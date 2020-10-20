@@ -142,6 +142,7 @@ static int AWB_set_mode( AWB_fsm_ptr_t p_fsm, uint32_t mode )
     case AWB_SHADE:
     case AWB_WARM_FLOURESCENT: {
         modulation_entry_t *_calibration_awb_scene_presets = _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_SCENE_PRESETS );
+
         uint32_t i = get_awb_idx( mode );
         p_fsm->awb_enabled = 0;
         p_fsm->mode = mode;
@@ -152,9 +153,9 @@ static int AWB_set_mode( AWB_fsm_ptr_t p_fsm, uint32_t mode )
         uint32_t cb = _calibration_awb_scene_presets[i].y;
         // Change 9 bit into 7 bit
         ACAMERA_FSM2CTX_PTR( p_fsm )
-            ->stab.global_awb_red_gain = cr;
+            ->stab.global_awb_red_gain = ((cr*100)/256)* _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[0]/100;
         ACAMERA_FSM2CTX_PTR( p_fsm )
-            ->stab.global_awb_blue_gain = cb;
+            ->stab.global_awb_blue_gain = ((cb*100)/256)* _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[3]/100;
         break;
     }
     default:
@@ -226,6 +227,34 @@ int AWB_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input
 #endif
 
         break;
+
+    case FSM_PARAM_GET_AWB_STATE: {
+        if ( !output || output_size != sizeof( awb_state_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        *(awb_state_t *)output = p_fsm->state;
+
+        break;
+    }
+
+    case FSM_PARAM_GET_AWB_HIST_INFO: {
+        if ( !output || output_size != sizeof( fsm_param_awb_hist_info_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        fsm_param_awb_hist_info_t *p_hist_info = (fsm_param_awb_hist_info_t *)output;
+
+        p_hist_info->fullhist_sum = p_fsm->sum;
+        p_hist_info->fullhist = (uint32_t *)p_fsm->stats_hw;
+        p_hist_info->fullhist_size = p_fsm->curr_AWB_ZONES;
+
+        break;
+    }
 
     default:
         rc = -1;

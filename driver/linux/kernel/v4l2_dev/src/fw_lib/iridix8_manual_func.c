@@ -81,13 +81,14 @@ static void iridix_ext_param_update(iridix_fsm_const_ptr_t p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to calculate iridix ext");
+        LOG(LOG_INFO, "Failed to calculate iridix ext");
         return;
     }
 
     acamera_isp_iridix_svariance_write(p_fsm->cmn.isp_base, p_result.svariance);
     acamera_isp_iridix_bright_pr_write(p_fsm->cmn.isp_base, p_result.bright_pr);
     acamera_isp_iridix_contrast_write(p_fsm->cmn.isp_base, p_result.contrast);
+    acamera_isp_iridix_white_level_write(p_fsm->cmn.isp_base, p_result.white_level);
 }
 
 static void iridix_mointor_frame_end( iridix_fsm_ptr_t p_fsm )

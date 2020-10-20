@@ -189,10 +189,10 @@ static uint8_t _calibration_shading_ls_d65_b[] = {128,100,86,80,77,75,73,71,71,7
 static uint16_t _calibration_awb_warming_ls_a[] = {260,256,268};
 
 // R G B
-static uint16_t _calibration_awb_warming_ls_d75[] = {260,256,268};
+static uint16_t _calibration_awb_warming_ls_d75[] = {266,256,260};
 
 // R G B
-static uint16_t _calibration_awb_warming_ls_d50[] = {260,256,260};
+static uint16_t _calibration_awb_warming_ls_d50[] = {266,256,256};
 
 // CALIBRATION_NOISE_PROFILE
 static uint8_t _calibration_noise_profile[] = {0,0,0,0,0,0,0,0,7,21,27,31,33,36,38,40,41,42,44,45,46,46,47,48,49,49,50,51,51,52,52,53,53,54,54,55,55,55,56,56,56,57,57,58,58,58,58,59,59,59,60,60,60,60,61,61,61,61,62,62,62,62,62,63,63,63,63,63,64,64,64,64,64,65,65,65,65,65,65,66,66,66,66,66,66,66,67,67,67,67,67,67,67,68,68,68,68,68,68,68,69,69,69,69,69,69,69,69,69,70,70,70,70,70,70,70,70,70,71,71,71,71,71,71,71,71,71,71};

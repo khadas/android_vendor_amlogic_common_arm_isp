@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/uaccess.h>
 #include "acamera.h"
 #include "revision.h"
 #include "acamera_command_api.h"
@@ -55,7 +56,7 @@
 #endif
 
 #include "acamera_logger.h"
-
+#include "fsm_intf.h"
 #define D1E6 1000000
 
 
@@ -249,32 +250,30 @@ uint8_t sensor_streaming( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
 
         if ( ( value == OFF ) && is_streaming ) {
             uint32_t streaming = 0;
-			instance->isp_seamless = 0;
+            instance->isp_seamless = 0;
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_STREAMING, &streaming, sizeof( streaming ) );
             isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
         } else if ( ( value == ON ) && !is_streaming ) {
             uint32_t streaming = 1;
 
-			if(instance->isp_seamless)
-			{				
-				if(acamera_isp_input_port_mode_status_read( 0 ) == ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
-				{
-					streaming = 2;
-				}
-			}
+            if (instance->isp_seamless) {
+                if (acamera_isp_input_port_mode_status_read( 0 ) == ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START) {
+                    streaming = 2;
+                }
+            }
 
-			acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_AUTOCAP_HW_RESET, NULL, 0 );
+            acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_AUTOCAP_HW_RESET, NULL, 0 );
 
-			acamera_reset_ping_pong_port();
-			acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+            acamera_reset_ping_pong_port();
+            acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
 
-			acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
-			acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
+            acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
+            acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
 
-			acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
-			acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 );
+            acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+            acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 );
 
-			isp_safe_start( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            isp_safe_start( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_STREAMING, &streaming, sizeof( streaming ) );
         } else {
             result = NOT_SUPPORTED;
@@ -318,14 +317,13 @@ uint8_t sensor_preset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dire
         if ( value < param->modes_num ) {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_PRESET_MODE, &value, sizeof( value ) );
 
-			if(instance->isp_seamless)
-            {
-            	if(acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
-                	isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
-			}
-			else
-				isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
-			
+            if (instance->isp_seamless) {
+                if (acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
+                    isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            }
+            else
+                isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
 
             result = SUCCESS;
@@ -633,9 +631,9 @@ uint8_t sensor_info_exposures( acamera_fsm_mgr_t *instance, uint32_t value, uint
 #ifdef SENSOR_IR_CUT
 uint8_t sensor_ir_cut_set( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
-	uint32_t ir_cut_state = *ret_value;
-	acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_SENSOR_IR_CUT, &ir_cut_state, sizeof( ir_cut_state ) );
-	return 0;
+    uint32_t ir_cut_state = *ret_value;
+    acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_SENSOR_IR_CUT, &ir_cut_state, sizeof( ir_cut_state ) );
+    return 0;
 }
 #endif
 
@@ -645,11 +643,13 @@ uint8_t sensor_mode_dynamic_switch( acamera_fsm_mgr_t *instance, uint32_t value,
     uint32_t result = SUCCESS;
     uint32_t wdr_mode = value;
     uint32_t preset_mode = 0;
+    uint32_t current_vmax_fps = 0;
     *ret_value = 0;
 
     const sensor_param_t *param = NULL;
     uint32_t cur_mode;
     acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+    acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_VMAX_FPS, NULL, 0, &current_vmax_fps, sizeof( uint32_t ) );
 
     cur_mode = param->mode;
 
@@ -681,6 +681,7 @@ uint8_t sensor_mode_dynamic_switch( acamera_fsm_mgr_t *instance, uint32_t value,
         if ( i != cur_mode )
         {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_MODE_SWITCH, &preset_mode, sizeof( preset_mode ) );
+            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_VMAX_FPS, &current_vmax_fps, sizeof( uint32_t ) );
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
             *ret_value = preset_mode;
         }
@@ -696,8 +697,9 @@ uint8_t sensor_mode_dynamic_switch( acamera_fsm_mgr_t *instance, uint32_t value,
 uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     uint32_t result = SUCCESS;
-    uint32_t fps = value * 256;
+    uint32_t fps = value;
     uint32_t preset_mode = 0;
+    uint32_t current_fps = 0;
     *ret_value = 0;
 
     const sensor_param_t *param = NULL;
@@ -707,7 +709,8 @@ uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, 
     cur_mode = param->mode;
 
     if ( direction == COMMAND_GET ) {
-        *ret_value = param->modes_table[cur_mode].wdr_mode;
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_VMAX_FPS, NULL, 0, &current_fps, sizeof( uint32_t ) );
+        *ret_value = current_fps;
         result = SUCCESS;
     }
     else {
@@ -717,8 +720,7 @@ uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, 
             if ((param->modes_table[cur_mode].resolution.width == param->modes_table[i].resolution.width) &&
                 (param->modes_table[cur_mode].resolution.height == param->modes_table[i].resolution.height) &&
                 (param->modes_table[cur_mode].exposures== param->modes_table[i].exposures) &&
-                (param->modes_table[cur_mode].wdr_mode == param->modes_table[i].wdr_mode) &&
-                (param->modes_table[i].fps == fps))
+                (param->modes_table[cur_mode].wdr_mode == param->modes_table[i].wdr_mode))
             {
                 preset_mode = i;
                 break;
@@ -732,14 +734,12 @@ uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, 
             return result;
         }
 
-        if ( i != cur_mode )
-        {
-            acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_MODE_SWITCH, &preset_mode, sizeof( preset_mode ) );
-            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
-            *ret_value = preset_mode;
-        }
+        if ( value <= 30 )
+            fps = (value * param->modes_table[i].fps / 30 ) / 256;
         else
-            result = IMPLEMENTED;
+            fps = (value * param->modes_table[i].fps / 60 ) / 256;
+
+        acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_VMAX_FPS, &fps, sizeof( uint32_t ) );
     }
 
     return result;
@@ -752,8 +752,8 @@ uint8_t sensor_hw_id( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direc
     uint32_t result = SUCCESS;
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
-	    acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_ID, NULL, 0, ret_value, sizeof( uint32_t ) );
-		LOG(LOG_INFO, "Sensor ID:%x", *ret_value);
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_ID, NULL, 0, ret_value, sizeof( uint32_t ) );
+        LOG(LOG_INFO, "Sensor ID:%x", *ret_value);
         result = SUCCESS;
         if ( *ret_value != 0xFFFF ) {
             result = SUCCESS;
@@ -766,6 +766,224 @@ uint8_t sensor_hw_id( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direc
     return result;
 }
 
+#endif
+
+#ifdef SENSOR_LINES_PER_SECOND
+uint8_t sensor_lines_per_second( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t lines_per_second;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_LINES_SECOND,
+                                     NULL, 0, &lines_per_second, sizeof( lines_per_second ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = lines_per_second;
+
+    return SUCCESS;
+}
+#endif
+
+#ifdef SENSOR_INTEGRATION_TIME_MIN
+uint8_t sensor_integration_time_min( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    fsm_param_sensor_info_t sensor_info;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_INFO,
+                                     NULL, 0, &sensor_info, sizeof( sensor_info ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = sensor_info.integration_time_min;
+
+    return SUCCESS;
+}
+#endif
+
+#ifdef SENSOR_INTEGRATION_TIME_LIMIT
+uint8_t sensor_integration_time_limit( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    fsm_param_sensor_info_t sensor_info;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_INFO,
+                                     NULL, 0, &sensor_info, sizeof( sensor_info ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = sensor_info.integration_time_limit;
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// sensor_info_physical_width description:
+//
+//     GET returns physical width of the sensor pixel array (mm x 10000)
+// ------------------------------------------------------------------------------ //
+#ifdef SENSOR_INFO_PHYSICAL_WIDTH
+uint8_t sensor_info_physical_width( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    image_resolution_t max_res;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_MAX_RESOLUTION,
+                                     NULL, 0, &max_res, sizeof( max_res ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = max_res.width;
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// sensor_info_physical_height description:
+//
+//     GET returns physical height of the sensor pixel array (mm x 10000)
+// ------------------------------------------------------------------------------ //
+#ifdef SENSOR_INFO_PHYSICAL_HEIGHT
+uint8_t sensor_info_physical_height( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    image_resolution_t max_res;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_MAX_RESOLUTION,
+                                     NULL, 0, &max_res, sizeof( max_res ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = max_res.height;
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+//        TLENS
+// ------------------------------------------------------------------------------ //
+
+
+// ------------------------------------------------------------------------------ //
+// lens_info_minfocus_distance description:
+//
+//     GET returns the lens minimum focus distance (diopters x 10000)
+// ------------------------------------------------------------------------------ //
+#ifdef LENS_INFO_MINFOCUS_DISTANCE
+uint8_t lens_info_minfocus_distance( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    lens_param_t lens_param;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_LENS_PARAM,
+                                     NULL, 0, &lens_param, sizeof( lens_param ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = lens_param.minfocus_distance;
+
+    return SUCCESS;
+}
+#endif
+
+
+// ------------------------------------------------------------------------------ //
+// lens_info_hyperfocal_distance description:
+//
+//     GET returns the lens hyperfocal focus distance (diopters x 10000)
+// ------------------------------------------------------------------------------ //
+#ifdef LENS_INFO_HYPERFOCAL_DISTANCE
+uint8_t lens_info_hyperfocal_distance( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    lens_param_t lens_param;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_LENS_PARAM,
+                                     NULL, 0, &lens_param, sizeof( lens_param ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = lens_param.hyperfocal_distance;
+
+    return SUCCESS;
+}
+#endif
+
+
+// ------------------------------------------------------------------------------ //
+// lens_info_focal_length description:
+//
+//     GET returns the focal length of the lens (mm x 10000)
+// ------------------------------------------------------------------------------ //
+#ifdef LENS_INFO_FOCAL_LENGTH
+uint8_t lens_info_focal_length( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    lens_param_t lens_param;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_LENS_PARAM,
+                                     NULL, 0, &lens_param, sizeof( lens_param ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = lens_param.focal_length;
+
+    return SUCCESS;
+}
+#endif
+
+
+// ------------------------------------------------------------------------------ //
+// lens_info_aperture description:
+//
+//     GET returns the lens aperture (f-number x 10000)
+// ------------------------------------------------------------------------------ //
+#ifdef LENS_INFO_APERTURE
+uint8_t lens_info_aperture( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    lens_param_t lens_param;
+    int err;
+
+    if ( direction != COMMAND_GET )
+        return NOT_SUPPORTED;
+
+    err = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_LENS_PARAM,
+                                     NULL, 0, &lens_param, sizeof( lens_param ) );
+    if ( err )
+        return FAIL;
+
+    *ret_value = lens_param.aperture;
+
+    return SUCCESS;
+}
 #endif
 
 #ifdef SYSTEM_FREEZE_FIRMWARE
@@ -956,13 +1174,13 @@ uint8_t system_manual_isp_digital_gain( acamera_fsm_mgr_t *instance, uint32_t va
 //
 //
 // ------------------------------------------------------------------------------ //
-
-#ifdef SYSTEM_ISO_GAIN
 typedef struct _iso_base_100_gains_t {
     uint32_t iso_base_100_again;
     uint32_t iso_base_100_dgain;
     uint32_t iso_base_100_isp_dgain;
 } iso_base_100_gains_t;
+
+#ifdef SYSTEM_ISO_GAIN
 uint8_t system_iso_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     *ret_value = 0;
@@ -1218,6 +1436,24 @@ uint8_t isp_modules_manual_sharpen( acamera_fsm_mgr_t *instance, uint32_t value,
 }
 #endif
 
+#ifdef ISP_MODULES_MANUAL_PF
+uint8_t isp_modules_manual_pf( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_manual_pf;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_manual_pf = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
 #ifdef SYSTEM_MANUAL_AWB
 uint8_t system_manual_awb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
@@ -1236,6 +1472,36 @@ uint8_t system_manual_awb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// system_manual_ccm description:
+//
+//     Control the manual_ccm parameter
+//
+//     Values:
+//      [0-1]
+//
+//     Key:
+//       0=disable
+//       1=enable
+//     Default Value: 0
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_MANUAL_CCM
+uint8_t system_manual_ccm( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_manual_ccm;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_manual_ccm = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
 #ifdef SYSTEM_ANTIFLICKER_ENABLE
 uint8_t system_antiflicker_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
@@ -1246,6 +1512,24 @@ uint8_t system_antiflicker_enable( acamera_fsm_mgr_t *instance, uint32_t value, 
         return SUCCESS;
     } else if ( direction == COMMAND_SET ) {
         param->global_antiflicker_enable = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
+#ifdef SYSTEM_DYNAMIC_GAMMA_ENABLE
+uint8_t system_dynamic_gamma_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_dynamic_gamma_enable;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_dynamic_gamma_enable = value;
         return SUCCESS;
     } else {
         return NOT_SUPPORTED;
@@ -1554,7 +1838,6 @@ uint8_t system_max_isp_digital_gain( acamera_fsm_mgr_t *instance, uint32_t value
 }
 #endif
 
-
 // ------------------------------------------------------------------------------ //
 // awb_red_gain description:
 //
@@ -1582,6 +1865,61 @@ uint8_t system_awb_red_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
     } else if ( direction == COMMAND_SET ) {
         ACAMERA_MGR2CTX_PTR( instance )
             ->stab.global_awb_red_gain = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_awb_green_even_gain description:
+//
+//     Control the awb_green_even_gain parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_AWB_GREEN_EVEN_GAIN
+uint8_t system_awb_green_even_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_awb_green_even_gain;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_awb_green_even_gain = value;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
+
+// ------------------------------------------------------------------------------ //
+// system_awb_green_odd_gain description:
+//
+//     Control the awb_green_odd_gain parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_AWB_GREEN_ODD_GAIN
+uint8_t system_awb_green_odd_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_awb_green_odd_gain;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_awb_green_odd_gain = value;
         return SUCCESS;
     } else {
         return NOT_SUPPORTED;
@@ -1622,6 +1960,232 @@ uint8_t system_awb_blue_gain( acamera_fsm_mgr_t *instance, uint32_t value, uint8
         return NOT_SUPPORTED;
     }
     return NOT_SUPPORTED;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_rr description:
+//
+//     Control the ccm_matrix_rr coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_RR
+uint8_t system_ccm_matrix_rr( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[0];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[0] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_rg description:
+//
+//     Control the ccm_matrix_rg coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_RG
+uint8_t system_ccm_matrix_rg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[1];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[1] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_rb description:
+//
+//     Control the ccm_matrix_rb coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_RB
+uint8_t system_ccm_matrix_rb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[2];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[2] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_gr description:
+//
+//     Control the ccm_matrix_gr coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_GR
+uint8_t system_ccm_matrix_gr( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[3];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[3] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_gg description:
+//
+//     Control the ccm_matrix_gg coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_GG
+uint8_t system_ccm_matrix_gg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[4];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[4] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_gb description:
+//
+//     Control the ccm_matrix_gb coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_GB
+uint8_t system_ccm_matrix_gb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[5];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[5] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_br description:
+//
+//     Control the ccm_matrix_br coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_BR
+uint8_t system_ccm_matrix_br( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[6];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[6] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_bg description:
+//
+//     Control the ccm_matrix_bg coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_BG
+uint8_t system_ccm_matrix_bg( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[7];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[7] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
+// system_ccm_matrix_bb description:
+//
+//     Control the ccm_matrix_bb coefficient parameter
+//
+//     Values:
+//      [0-65535]
+//
+// ------------------------------------------------------------------------------ //
+#ifdef SYSTEM_CCM_MATRIX_BB
+uint8_t system_ccm_matrix_bb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    if ( direction == COMMAND_GET ) {
+        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_ccm_matrix[8];
+    } else if ( direction == COMMAND_SET ) {
+        ACAMERA_MGR2CTX_PTR( instance )
+            ->stab.global_ccm_matrix[8] = value;
+    } else {
+        return NOT_SUPPORTED;
+    }
+
+    return SUCCESS;
 }
 #endif
 
@@ -2475,6 +3039,58 @@ uint8_t af_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction,
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// af_state description:
+//
+//     Gets the status of the AF algorithm.
+//
+//     Values:
+//      {AF_INACTIVE}
+//      {AF_SCAN}
+//      {AF_FOCUSED}
+//      {AF_UNFOCUSED}
+//
+//     Default Value: {AF_INACTIVE}
+// ------------------------------------------------------------------------------ //
+#ifdef AF_STATE_ID
+uint8_t af_state( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    af_state_t state;
+    int rc;
+
+    if ( direction == COMMAND_SET )
+        return NOT_SUPPORTED;
+
+    rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_AF_STATE,
+                                    NULL, 0, &state, sizeof( state ) );
+    if ( rc ) {
+        LOG( LOG_ERR, "unable to get AF_STATE param rc: %d", rc );
+        *ret_value = AF_INACTIVE;
+        return FAIL;
+    }
+
+    switch ( state ) {
+    case AF_STATE_INACTIVE:
+        *ret_value = AF_INACTIVE;
+        break;
+    case AF_STATE_SCAN:
+        *ret_value = AF_SCAN;
+        break;
+    case AF_STATE_FOCUSED:
+        *ret_value = AF_FOCUSED;
+        break;
+    case AF_STATE_UNFOCUSED:
+        *ret_value = AF_UNFOCUSED;
+        break;
+    default:
+        LOG( LOG_ERR, "unknown af_state: %d", state );
+        *ret_value = AF_INACTIVE;
+        return FAIL;
+    };
+
+    return SUCCESS;
+}
+#endif
 
 #ifdef AF_LENS_STATUS
 uint8_t af_lens_status( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
@@ -2760,6 +3376,53 @@ uint8_t ae_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction,
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// ae_state description:
+//
+//     Gets the state of the AE algorithm.
+//
+//     Values:
+//      {AE_INACTIVE}
+//      {AE_SEARCHING}
+//      {AE_CONVERGED}
+//
+//     Default Value: {AE_INACTIVE}
+// ------------------------------------------------------------------------------ //
+#ifdef AE_STATE_ID
+uint8_t ae_state( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    ae_state_t state;
+    int rc;
+
+    if ( direction == COMMAND_SET )
+        return NOT_SUPPORTED;
+
+    rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_AE_STATE,
+                                    NULL, 0, &state, sizeof( state ) );
+    if ( rc ) {
+        LOG( LOG_ERR, "unable to get AE_STATE param rc: %d", rc );
+        return FAIL;
+    }
+
+    switch ( state ) {
+    case AE_STATE_INACTIVE:
+        *ret_value = AE_INACTIVE;
+        break;
+    case AE_STATE_SEARCHING:
+        *ret_value = AE_SEARCHING;
+        break;
+    case AE_STATE_CONVERGED:
+        *ret_value = AE_CONVERGED;
+        break;
+    default:
+        LOG( LOG_ERR, "unknown ae_state: %d", state );
+        *ret_value = AE_INACTIVE;
+        return FAIL;
+    };
+
+    return SUCCESS;
+}
+#endif
 
 #ifdef AE_SPLIT_PRESET_ID
 uint8_t ae_split_preset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
@@ -2979,36 +3642,36 @@ uint8_t ae_roi( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, 
 
 uint8_t ae_zone_weight( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
-	int ret = -1;
+    int ret = -1;
 
-	if (direction == COMMAND_SET) {
-		ret = acamera_fsm_mgr_set_param(instance,
-					FSM_PARAM_SET_AE_ZONE_WEIGHT,
-					ret_value, sizeof(ret_value));
-		if (ret != 0)
-			return FAIL;
-		else
-			return SUCCESS;
-	} else {
-		return NOT_SUPPORTED;
-	}
+    if (direction == COMMAND_SET) {
+        ret = acamera_fsm_mgr_set_param(instance,
+                    FSM_PARAM_SET_AE_ZONE_WEIGHT,
+                    ret_value, sizeof(ret_value));
+        if (ret != 0)
+            return FAIL;
+        else
+            return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
 }
 
 uint8_t awb_zone_weight( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
-	int ret = -1;
+    int ret = -1;
 
-	if (direction == COMMAND_SET) {
-		ret = acamera_fsm_mgr_set_param(instance,
-					FSM_PARAM_SET_AWB_ZONE_WEIGHT,
-					ret_value, sizeof(ret_value));
-		if (ret != 0)
-			return FAIL;
-		else
-			return SUCCESS;
-	} else {
-		return NOT_SUPPORTED;
-	}
+    if (direction == COMMAND_SET) {
+        ret = acamera_fsm_mgr_set_param(instance,
+                    FSM_PARAM_SET_AWB_ZONE_WEIGHT,
+                    ret_value, sizeof(ret_value));
+        if (ret != 0)
+            return FAIL;
+        else
+            return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
 }
 
 // ------------------------------------------------------------------------------ //
@@ -3100,6 +3763,54 @@ uint8_t awb_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction
 #endif
 
 // ------------------------------------------------------------------------------ //
+// awb_state description:
+//
+//     Gets the state of the AWB algorithm.
+//
+//     Values:
+//      {AWB_INACTIVE}
+//      {AWB_SEARCHING}
+//      {AWB_CONVERGED}
+//
+//     Default Value: {AWB_INACTIVE}
+// ------------------------------------------------------------------------------ //
+#ifdef AWB_STATE_ID
+uint8_t awb_state( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    awb_state_t state;
+    int rc;
+
+    if ( direction == COMMAND_SET )
+        return NOT_SUPPORTED;
+
+    rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_AWB_STATE,
+                                    NULL, 0, &state, sizeof( state ) );
+    if ( rc ) {
+        LOG( LOG_ERR, "unable to get AWB_STATE param rc: %d", rc );
+        return FAIL;
+    }
+
+    switch ( state ) {
+    case AWB_STATE_INACTIVE:
+        *ret_value = AWB_INACTIVE;
+        break;
+    case AWB_STATE_SEARCHING:
+        *ret_value = AWB_SEARCHING;
+        break;
+    case AWB_STATE_CONVERGED:
+        *ret_value = AWB_CONVERGED;
+        break;
+    default:
+        LOG( LOG_ERR, "unknown awb_state: %d", state );
+        *ret_value = AWB_INACTIVE;
+        return FAIL;
+    };
+
+    return SUCCESS;
+}
+#endif
+
+// ------------------------------------------------------------------------------ //
 // awb_temperature description:
 //
 //     Returns the current color temperature being used by the AWB algorithm, in kelvin [K], divided by 100.
@@ -3135,6 +3846,71 @@ uint8_t awb_temperature( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t di
 }
 #endif
 
+// ------------------------------------------------------------------------------ //
+// noise_reduction_mode description:
+//
+//     Select a NOISE REDUCTION mode
+//
+//     Values:
+//      {NOISE_REDUCTION_OFF}
+//      {NOISE_REDUCTION_ON}
+//
+//     Default Value: {NOISE_REDUCTION_ON}
+// ------------------------------------------------------------------------------ //
+#ifdef NOISE_REDUCTION_MODE_ID
+uint8_t noise_reduction_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    int rc = NOT_IMPLEMENTED;
+
+#ifdef ISP_HAS_NOISE_REDUCTION_FSM
+
+    if ( direction == COMMAND_SET ) {
+
+        noise_reduction_mode_t nr_mode;
+
+        switch ( value ) {
+        case NOISE_REDUCTION_OFF:
+            nr_mode = NOISE_REDUCTION_MODE_OFF;
+            break;
+        case NOISE_REDUCTION_ON:
+            nr_mode = NOISE_REDUCTION_MODE_ON;
+            break;
+        default:
+            return NOT_SUPPORTED;
+        };
+
+        rc = acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_NOISE_REDUCTION_MODE,
+                                        &nr_mode, sizeof( nr_mode ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+
+    } else if ( direction == COMMAND_GET ) {
+        noise_reduction_mode_t nr_mode;
+
+        rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_NOISE_REDUCTION_MODE,
+                                        NULL, 0, &nr_mode, sizeof( nr_mode ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+
+        switch ( nr_mode ) {
+        case NOISE_REDUCTION_MODE_OFF:
+            *ret_value = NOISE_REDUCTION_OFF;
+            break;
+        case NOISE_REDUCTION_MODE_ON:
+            *ret_value = NOISE_REDUCTION_ON;
+            break;
+        default:
+            return NOT_SUPPORTED;
+        };
+
+    } else
+        return NOT_SUPPORTED;
+
+#endif /* ISP_HAS_NOISE_REDUCTION_FSM */
+
+    return rc;
+}
+#endif
 
 // ------------------------------------------------------------------------------ //
 // awb_light_source description:
@@ -3564,6 +4340,39 @@ uint8_t sharpening_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
     return NOT_SUPPORTED;
 }
 #endif
+
+// ------------------------------------------------------------------------------ //
+// shading_strength description:
+//
+//     Control the shading strength value
+//
+//     Values:
+//      [0-4096]
+//
+//     Default Value: 2048
+// ------------------------------------------------------------------------------ //
+#ifdef SHADING_STRENGTH_ID
+uint8_t shading_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    int rc;
+
+    if ( direction == COMMAND_SET ) {
+        rc = acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SHADING_STRENGTH,
+                                        &value, sizeof( value ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+    } else if ( direction == COMMAND_GET ) {
+        rc = acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SHADING_STRENGTH,
+                                        NULL, 0, ret_value, sizeof( uint32_t ) );
+        if ( rc )
+            return NOT_SUPPORTED;
+    } else
+        return NOT_SUPPORTED;
+
+    return SUCCESS;
+}
+#endif
+
 // ------------------------------------------------------------------------------ //
 // fr_output_mode description:
 //
@@ -4452,36 +5261,34 @@ uint8_t orientation_hflip( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
     case COMMAND_SET:
         switch ( value ) {
         case ENABLE:
-			if(instance->p_ctx->hflip == 0)
-            {
-            	instance->p_ctx->hflip = 1;
-            	acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 0 );          // enable mirror
-				uint8_t mirror = acamera_isp_top_rggb_start_post_mirror_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
-				if(mirror == BAYER_RGGB)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GRBG ); // color after mirror is: Gr-R-B-Gb
-				else if(mirror == BAYER_GRBG)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_RGGB );
-				else if(mirror == BAYER_GBRG)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_BGGR );
-				else if(mirror == BAYER_BGGR)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GBRG );
-			}
-			break;
+            if (instance->p_ctx->hflip == 0) {
+                instance->p_ctx->hflip = 1;
+                acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 0 );          // enable mirror
+                uint8_t mirror = acamera_isp_top_rggb_start_post_mirror_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+                if (mirror == BAYER_RGGB)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GRBG ); // color after mirror is: Gr-R-B-Gb
+                else if(mirror == BAYER_GRBG)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_RGGB );
+                else if(mirror == BAYER_GBRG)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_BGGR );
+                else if(mirror == BAYER_BGGR)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GBRG );
+            }
+            break;
         case DISABLE:
-			if(instance->p_ctx->hflip == 1)
-            {
-            	instance->p_ctx->hflip = 0;
-				acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1 );		   // bypass mirror
-				uint8_t mirror = acamera_isp_top_rggb_start_post_mirror_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
-				if(mirror == BAYER_RGGB)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GRBG ); // color after mirror is: Gr-R-B-Gb
-				else if(mirror == BAYER_GRBG)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_RGGB );
-				else if(mirror == BAYER_GBRG)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_BGGR );
-				else if(mirror == BAYER_BGGR)
-					acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GBRG );
-			}
+            if (instance->p_ctx->hflip == 1) {
+                instance->p_ctx->hflip = 0;
+                acamera_isp_top_bypass_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1 );           // bypass mirror
+                uint8_t mirror = acamera_isp_top_rggb_start_post_mirror_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+                if (mirror == BAYER_RGGB)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GRBG ); // color after mirror is: Gr-R-B-Gb
+                else if(mirror == BAYER_GRBG)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_RGGB );
+                else if(mirror == BAYER_GBRG)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_BGGR );
+                else if(mirror == BAYER_BGGR)
+                    acamera_isp_top_rggb_start_post_mirror_write( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, BAYER_GBRG );
+            }
             break;
         default:
             *ret_value = ERR_BAD_ARGUMENT;
@@ -4723,6 +5530,24 @@ uint8_t status_info_exposure_log2( acamera_fsm_mgr_t *instance, uint32_t value, 
 }
 #endif
 
+#ifdef STATUS_INFO_EXPOSURE_CORRECTION_LOG2_ID
+uint8_t status_info_exposure_correction_log2( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        status_info_param_t *p_status_info = (status_info_param_t *)_GET_UINT_PTR( ACAMERA_MGR2CTX_PTR( instance ), CALIBRATION_STATUS_INFO );
+        *ret_value = acamera_math_exp2( p_status_info->sys_info.exposure_log2, LOG2_GAIN_SHIFT, 6 );
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
 #ifdef STATUS_INFO_GAIN_ONES_ID
 uint8_t status_info_gain_ones( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
@@ -4760,6 +5585,520 @@ uint8_t status_info_gain_log2( acamera_fsm_mgr_t *instance, uint32_t value, uint
 }
 #endif
 
+#ifdef STATUS_INFO_TOTAL_GAIN_LOG2_ID
+uint8_t status_info_total_gain_log2( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        status_info_param_t *p_status_info = (status_info_param_t *)_GET_UINT_PTR( ACAMERA_MGR2CTX_PTR( instance ), CALIBRATION_STATUS_INFO );
+        *ret_value = p_status_info->sys_info.total_gain_log2 >> ( LOG2_GAIN_SHIFT - 8 );
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef AE_STATS_ID
+uint8_t status_ae_stats_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        fsm_param_ae_hist_info_t hist_info;
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_AE_HIST_INFO, NULL, 0, &hist_info, sizeof( hist_info ) );
+
+        *ret_value = hist_info.fullhist_sum;
+
+        memcpy(ret_value + 1, hist_info.fullhist, hist_info.fullhist_size * sizeof(uint32_t));
+
+        LOG(LOG_INFO, "hist_info.fullhist_size:%d, %d",hist_info.fullhist_size, hist_info.fullhist_sum);
+
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef SENSOR_VMAX_FPS
+uint8_t sensor_vmax_fps( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t result = SUCCESS;
+    uint32_t framerate = value;
+    *ret_value = 0;
+
+    if ( direction == COMMAND_GET ) {
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_VMAX_FPS, NULL, 0, ret_value, sizeof( uint32_t ) );
+    } else {
+        acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_VMAX_FPS, &framerate, sizeof( uint32_t ) );
+    }
+
+    return result;
+}
+#endif
+
+#ifdef AWB_STATS_ID
+uint8_t status_awb_stats_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        fsm_param_awb_hist_info_t hist_info;
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_AWB_HIST_INFO, NULL, 0, &hist_info, sizeof( hist_info ) );
+
+        *ret_value = hist_info.fullhist_size;
+        *(ret_value+1) = hist_info.fullhist_sum;
+
+        memcpy(ret_value + 2, hist_info.fullhist, hist_info.fullhist_size * sizeof(uint32_t) *2);
+
+        LOG(LOG_INFO, "hist_info.fullhist_size:%d, %d",hist_info.fullhist_size, hist_info.fullhist_sum);
+
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef STATUS_INFO_TOTAL_GAIN_DB_ID
+uint8_t status_info_total_gain_db( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        status_info_param_t *p_status_info = (status_info_param_t *)_GET_UINT_PTR( ACAMERA_MGR2CTX_PTR( instance ), CALIBRATION_STATUS_INFO );
+         //*ret_value = p_status_info->sys_info.total_gain_log2 >> ( LOG2_GAIN_SHIFT - 8 );
+        *ret_value = ((uint32_t)(p_status_info->sys_info.total_gain_log2*20)>> LOG2_GAIN_SHIFT )*3/10;
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef STATUS_INFO_CMOS_AGAIN_DB_ID
+uint8_t status_info_cmos_again_db( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        fsm_common_t *fsm_arr = instance->fsm_arr[FSM_ID_CMOS];
+        cmos_fsm_t * cmos_fsm = (cmos_fsm_t *)(fsm_arr->p_fsm);
+        *ret_value = ((uint32_t)(cmos_fsm->again_val_log2*20)>>LOG2_GAIN_SHIFT)*3/10;
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef STATUS_INFO_CMOS_DGAIN_DB_ID
+uint8_t status_info_cmos_dgain_db( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        fsm_common_t *fsm_arr = instance->fsm_arr[FSM_ID_CMOS];
+        cmos_fsm_t * cmos_fsm = (cmos_fsm_t *)(fsm_arr->p_fsm);
+        *ret_value = ((uint32_t)(cmos_fsm->dgain_val_log2*20)>> LOG2_GAIN_SHIFT)*3/10;
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef STATUS_INFO_ISP_DGAIN_DB_ID
+uint8_t status_info_isp_dgain_db( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        fsm_common_t *fsm_arr = instance->fsm_arr[FSM_ID_CMOS];
+        cmos_fsm_t * cmos_fsm = (cmos_fsm_t *)(fsm_arr->p_fsm);
+        *ret_value = ((uint32_t)(cmos_fsm->isp_dgain_log2*20)>>LOG2_GAIN_SHIFT)*3/10;
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef STATUS_INFO_ISO_ID
+uint8_t status_info_iso( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    uint32_t gain = 0;
+    switch ( direction ) {
+    case COMMAND_SET:
+        return NOT_PERMITTED;
+    case COMMAND_GET: {
+        status_info_param_t *p_status_info = (status_info_param_t *)_GET_UINT_PTR( ACAMERA_MGR2CTX_PTR( instance ), CALIBRATION_STATUS_INFO );
+        gain = acamera_math_exp2( p_status_info->sys_info.total_gain_log2, LOG2_GAIN_SHIFT, 10 );
+        *ret_value = (gain*100/128)>>3;
+        return SUCCESS;
+    }
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+
+#ifdef ISP_DPC_THRES_SLOPE
+uint8_t isp_modules_dpc_thres_slope( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint16_t dpc_threshod = 0;
+    uint16_t dpc_slope = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        dpc_threshod = ( value >> 16 ) & 0xFFF;
+        dpc_slope = value & 0xFFF;
+        acamera_isp_raw_frontend_dp_threshold_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, dpc_threshod);
+        acamera_isp_raw_frontend_dp_slope_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, dpc_slope);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        dpc_threshod = acamera_isp_raw_frontend_dp_threshold_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        dpc_slope = acamera_isp_raw_frontend_dp_slope_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        *ret_value = (dpc_threshod << 16) | dpc_slope;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_BLACK_LEVEL_R
+uint8_t isp_modules_black_level_r( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t blc = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        blc = value & 0x1FFFFF;
+        acamera_isp_sensor_offset_pre_shading_offset_00_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, blc << BLACK_LEVEL_SHIFT_WB);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        blc = acamera_isp_sensor_offset_pre_shading_offset_00_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        *ret_value = blc >> BLACK_LEVEL_SHIFT_WB;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_BLACK_LEVEL_GR
+uint8_t isp_modules_black_level_gr( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t blc = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        blc = value & 0x1FFFFF;
+        acamera_isp_sensor_offset_pre_shading_offset_01_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, blc << BLACK_LEVEL_SHIFT_WB);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        blc = acamera_isp_sensor_offset_pre_shading_offset_01_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        *ret_value = blc >> BLACK_LEVEL_SHIFT_WB;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_BLACK_LEVEL_GB
+uint8_t isp_modules_black_level_gb( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t blc = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        blc = value & 0x1FFFFF;
+        acamera_isp_sensor_offset_pre_shading_offset_10_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, blc << BLACK_LEVEL_SHIFT_WB);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        blc = acamera_isp_sensor_offset_pre_shading_offset_10_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        *ret_value = blc >> BLACK_LEVEL_SHIFT_WB;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_BLACK_LEVEL_B
+uint8_t isp_modules_black_level_b( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t blc = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        blc = value & 0x1FFFFF;
+        acamera_isp_sensor_offset_pre_shading_offset_11_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, blc << BLACK_LEVEL_SHIFT_WB);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        blc = acamera_isp_sensor_offset_pre_shading_offset_11_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        *ret_value = blc >> BLACK_LEVEL_SHIFT_WB;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_DEMOSAIC_SHARP
+uint8_t isp_modules_demosaic_sharp( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint8_t sharp_lu = 0;
+    uint8_t sharp_ldu = 0;
+    uint8_t sharp_ld = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        sharp_lu = (value & 0xFF0000) >> 16;
+        sharp_ldu = (value & 0xFF00) >> 8;
+        sharp_ld = (value & 0xFF);
+
+        acamera_isp_demosaic_rgb_sharp_alt_ld_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, sharp_lu);
+        acamera_isp_demosaic_rgb_sharp_alt_ldu_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, sharp_ldu);
+        acamera_isp_demosaic_rgb_sharp_alt_lu_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, sharp_ld);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        sharp_lu = acamera_isp_demosaic_rgb_sharp_alt_lu_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        sharp_ldu = acamera_isp_demosaic_rgb_sharp_alt_ldu_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+        sharp_ld = acamera_isp_demosaic_rgb_sharp_alt_ld_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+
+        *ret_value = (sharp_lu << 16) | (sharp_ldu << 8) | sharp_ld;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_CNR_STRENGTH
+uint8_t isp_modules_cnr_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint16_t uv_delta2_slope = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        uv_delta2_slope = value & 0xFFFF;
+
+        acamera_isp_cnr_uv_delta1_slope_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, uv_delta2_slope);
+        acamera_isp_cnr_uv_delta2_slope_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, uv_delta2_slope);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        uv_delta2_slope = acamera_isp_cnr_uv_delta2_slope_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+
+        *ret_value = uv_delta2_slope;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_MODULES_IRIDIX_ENABLE
+uint8_t isp_modules_iridix_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint8_t iridix_enable = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        iridix_enable = (value & 0xFF);
+
+        acamera_isp_iridix_enable_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, iridix_enable);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        iridix_enable = acamera_isp_iridix_enable_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+
+        *ret_value = iridix_enable;
+
+        return SUCCESS;
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_MODULES_IRIDIX_STRENGTH
+uint8_t isp_modules_iridix_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint16_t iridix_strength = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        iridix_strength = value & 0xFFFF;
+
+        acamera_isp_iridix_strength_inroi_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, iridix_strength);
+
+        return SUCCESS;
+    case COMMAND_GET:
+        iridix_strength = acamera_isp_iridix_strength_inroi_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+
+        *ret_value = iridix_strength;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_MODULES_FR_SHARPEN_STRENGTH
+uint8_t isp_modules_fr_sharpen_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint16_t fr_sharpen_strength = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        fr_sharpen_strength = value & 0x1FF;
+        if ( ACAMERA_MGR2CTX_PTR( instance )->stab.global_manual_sharpen == 1 ) {
+            acamera_isp_fr_sharpen_strength_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, fr_sharpen_strength);
+        }
+        return SUCCESS;
+    case COMMAND_GET:
+        fr_sharpen_strength = acamera_isp_fr_sharpen_strength_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+
+        *ret_value = fr_sharpen_strength;
+
+        return SUCCESS;
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef ISP_MODULES_DS1_SHARPEN_STRENGTH
+uint8_t isp_modules_ds1_sharpen_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint16_t ds1_sharpen_strength = 0;
+
+    switch ( direction ) {
+    case COMMAND_SET:
+        ds1_sharpen_strength = value & 0x1FF;
+        //if ( ACAMERA_FSM2CTX_PTR((sharpening_fsm_t *)(instance ->fsm_arr[FSM_ID_SHARPENING]->p_fsm))->stab.global_manual_sharpen == 1 ) {
+        if ( ACAMERA_MGR2CTX_PTR( instance )->stab.global_manual_sharpen == 1 ) {
+            acamera_isp_ds1_sharpen_strength_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, ds1_sharpen_strength);
+        }
+        return SUCCESS;
+    case COMMAND_GET:
+        ds1_sharpen_strength = acamera_isp_ds1_sharpen_strength_read(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base);
+
+        *ret_value = ds1_sharpen_strength;
+
+        return SUCCESS;
+
+    default:
+        return NOT_IMPLEMENTED;
+    }
+}
+#endif
+
+#ifdef DAYNIGHT_DETECT_ID
+uint8_t daynight_detect( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t ret = 0;
+    uint32_t d_size = 0;
+    uint32_t ctx_id = 0;
+    daynight_calibration_param_t *d_base;
+    daynight_calibration_param_t d_param;
+
+    d_base = (void *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DAYNIGHT_DETECT);
+    d_size = _GET_SIZE(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_DAYNIGHT_DETECT);
+
+    system_memcpy(&d_param, d_base, d_size);
+
+    if (direction == COMMAND_SET) {
+        switch (value) {
+            case 0:
+                d_param.light_control = 0;
+                break;
+            case 1:
+                d_param.light_control = 1;
+                break;
+            default:
+                d_param.light_control = 0;
+                break;
+        }
+        ctx_id = acamera_get_api_context();
+        acamera_api_calibration(ctx_id, DYNAMIC_CALIBRATIONS_ID,
+                            CALIBRATION_DAYNIGHT_DETECT,
+                            COMMAND_SET, &d_param, sizeof(d_param), &ret);
+        return SUCCESS;
+    } else if (direction == COMMAND_GET) {
+        fsm_param_ae_info_t ae_info;
+        acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_AE_INFO, NULL, 0, &ae_info, sizeof( ae_info ) );
+
+        switch (d_base->light_control) {
+            case 0:
+                *ret_value = 0;
+                break;
+            case 1:
+                *ret_value = 1;
+                 break;
+            default:
+                *ret_value = NOT_SUPPORTED;
+                 break;
+        }
+
+        if (ae_info.daynight)
+            *ret_value |= 0x10;
+
+        return SUCCESS;
+    }
+
+    return NOT_SUPPORTED;
+}
+#endif
 
 //---------------------------------------------------------------------------------------
 static uint8_t acamera_calibration_update( acamera_fsm_mgr_t *instance, uint32_t id, uint8_t direction, void *data, uint32_t data_size, uint32_t *ret_value )
@@ -4991,6 +6330,36 @@ uint8_t calibration_update( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t
 }
 #endif
 
+#ifdef CALIBRATION_CUSTOMER
+extern int32_t acamera_update_calibration_customer( acamera_context_ptr_t p_ctx, uint32_t mode );
+uint8_t calibration_customer( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    //set for each context
+    acamera_context_ptr_t p_ctx = (acamera_context_t *)acamera_get_api_ctx_ptr();
+    *ret_value = 0;
+    if ( direction == COMMAND_GET ) {
+        *ret_value = p_ctx->cali_mode;
+        return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+        if (p_ctx->cali_mode != value) {
+            p_ctx->cali_mode = value;
+            uint32_t result = acamera_update_calibration_customer( p_ctx, value );
+            if ( result != 0 ) {
+                *ret_value = FAIL;
+            }
+            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+
+#if FW_HAS_CONTROL_CHANNEL
+            ctrl_channel_handle_command( instance->ctx_id, TSYSTEM, CALIBRATION_UPDATE, UPDATE, direction );
+#endif
+        }
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
 
 //type: dma pipe fs or ds1; id:context but reserved for now; direction MASK reserved for now
 uint8_t acamera_api_dma_buffer( uint32_t ctx_id, uint8_t type, void *data, uint32_t data_size, uint32_t *ret_value, uint32_t index)

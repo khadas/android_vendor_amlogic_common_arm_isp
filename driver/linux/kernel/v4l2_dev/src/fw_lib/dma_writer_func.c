@@ -83,7 +83,7 @@ void acamera_frame_buffer_update( dma_writer_fsm_const_ptr_t p_fsm )
         LOG(LOG_ERR, "Failed to malloc mem");
         return;
     }
-		
+
     dma_writer_get_settings( p_fsm->handle, dma_fr, set_fr );
 
     set_fr->height = crop_info.height_fr;

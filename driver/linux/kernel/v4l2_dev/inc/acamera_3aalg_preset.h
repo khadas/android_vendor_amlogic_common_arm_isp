@@ -17,10 +17,10 @@
 
 #include "acamera_types.h"
 
-#define IOCTL_3AALG_AEPRE  			101 
-#define IOCTL_3AALG_AWBPRE  		102 	
-#define IOCTL_3AALG_GAMMAPRE  		103 
-#define IOCTL_3AALG_IRIDIXPRE 		104 
+#define IOCTL_3AALG_AEPRE           101
+#define IOCTL_3AALG_AWBPRE          102
+#define IOCTL_3AALG_GAMMAPRE        103
+#define IOCTL_3AALG_IRIDIXPRE       104
 
 //useful preset value for isp
 typedef struct _isp_ae_preset_t {

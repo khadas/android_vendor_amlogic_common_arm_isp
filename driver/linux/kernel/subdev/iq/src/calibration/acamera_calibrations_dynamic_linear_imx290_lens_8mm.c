@@ -482,7 +482,9 @@ static uint32_t _calibration_defog_control[] = {
     0, //reserved
 };
 
-// { GAIN_LOG2_ID*256, lum_thresh, sad_amp, uu_sh_slope, uu_sh_thresh, luma_thresh_low_d, luma_thresh_low_ud, luma_slope_low_d, luma_slope_low_ud, luma_thresh_high_d, luma_thresh_high_ud, luma_slope_high_d, luma_slope_high_ud }
+// { GAIN_LOG2_ID*256, lum_thresh, sad_amp, uu_sh_slope, uu_sh_thresh, luma_thresh_low_d,
+// luma_thresh_low_ud, luma_slope_low_d, luma_slope_low_ud, luma_thresh_high_d,
+// luma_thresh_high_ud, luma_slope_high_d, luma_slope_high_ud }
 static uint32_t _calibration_demosaic_rgb_extension_control[][13] = {
     {0 * 256, 150, 8, 178, 240, 8, 78, 16384, 16384, 4000, 4000, 16384, 16384},
     {1 * 256, 150, 8, 178, 240, 8, 78, 16384, 16384, 4000, 4000, 16384, 16384},
@@ -518,7 +520,9 @@ static uint32_t _calibration_ds_sharpen_extension_control[][6] = {
     {7 * 256, 10, 300, 1000, 1000, 1700},
 };
 
-// { GAIN_LOG2_ID*256, delta_factor, umean1_thd, umean1_off, umean1_slope, umean2_thd, umean2_off, umean2_slope, vmean1_thd, vmean1_off, vmean1_slope, vmean2_thd, vmean2_off, vmean2_slope, uv_delta1_thd, uv_delta1_off, uv_delta1_slope, uv_delta2_thd, uv_delta2_off, uv_delta2_slope }
+// { GAIN_LOG2_ID*256, delta_factor, umean1_thd, umean1_offset, umean1_slope, umean2_thd, umean2_offset, umean2_slope,
+// vmean1_thd, vmean1_offset, vmean1_slope, vmean2_thd, vmean2_offset, vmean2_slope, uv_delta1_thd, uv_delta1_offset,
+// uv_delta1_slope, uv_delta2_thd, uv_delta2_offset, uv_delta2_slope }
 static uint32_t _calibration_cnr_extension_control[][20] = {
     {0 * 256, 150, 0, 240, 59316, 0, 240, 59316, 0, 240, 59316, 0, 240, 59316, 0, 256, 1500, 0, 256, 1500},
     {1 * 256, 150, 0, 240, 59316, 0, 240, 59316, 0, 240, 59316, 0, 240, 59316, 0, 256, 2000, 0, 256, 2000},
@@ -530,16 +534,16 @@ static uint32_t _calibration_cnr_extension_control[][20] = {
     {7 * 256, 150, 0, 240, 59316, 0, 240, 59316, 0, 240, 59316, 0, 240, 59316, 0, 256, 6100, 0, 256, 6100},
 };
 
-// { GAIN_LOG2_ID*256, svariance, bright_pr, contrast }
-static uint32_t _calibration_iridix_extension_control[][4] = {
-    {0 * 256, 10, 220, 180},
-    {1 * 256, 10, 220, 180},
-    {2 * 256, 10, 220, 180},
-    {3 * 256, 10, 220, 180},
-    {4 * 256, 10, 220, 180},
-    {5 * 256, 10, 220, 180},
-    {6 * 256, 10, 220, 180},
-    {7 * 256, 10, 220, 180},
+// { GAIN_LOG2_ID*256, svariance, bright_pr, contrast, white_level }
+static uint32_t _calibration_iridix_extension_control[][5] = {
+    {0 * 256, 10, 220, 180, 809600},
+    {1 * 256, 10, 220, 180, 809600},
+    {2 * 256, 10, 220, 180, 809600},
+    {3 * 256, 10, 220, 180, 809600},
+    {4 * 256, 10, 220, 180, 809600},
+    {5 * 256, 10, 220, 180, 809600},
+    {6 * 256, 10, 220, 180, 809600},
+    {7 * 256, 10, 220, 180, 809600},
 };
 
 // { GAIN_LOG2_ID*256, black_level_in, black_level_out }
@@ -566,6 +570,41 @@ static uint32_t _calibration_square_be_extension_control[][3] = {
     {7 * 256, 2000, 61440},
 };
 
+// { GAIN_LOG2_ID*256, dpdev threshold }
+static uint16_t _calibration_dp_devthreshold[][2] = {
+    {0 * 256, 32768},
+    {1 * 256, 32768},
+    {2 * 256, 32768},
+    {3 * 256, 32768},
+    {4 * 256, 32768},
+    {5 * 256, 32768},
+    {6 * 256, 32768},
+    {7 * 256, 32768},
+};
+
+// { GAIN_LOG2_ID*256, hue strength,luma strength,sat strength,saturation strength,purple strength }
+static uint16_t _calibration_pf_correction[][6] = {
+    {0 * 256, 768, 1024, 200, 32, 4095},
+    {1 * 256, 768, 1024, 200, 32, 4095},
+    {2 * 256, 768, 1024, 200, 32, 4095},
+    {3 * 256, 768, 1024, 200, 32, 4095},
+    {4 * 256, 768, 1024, 200, 32, 4095},
+    {5 * 256, 768, 1024, 200, 32, 4095},
+    {6 * 256, 768, 1024, 200, 32, 4095},
+    {7 * 256, 768, 1024, 200, 32, 4095},
+};
+
+// { GAIN_LOG2_ID*256, fc slope, alias slop, alias thresh }
+static uint16_t _calibration_fc_correction[][4] = {
+    {0 * 256, 150, 85, 0},
+    {1 * 256, 150, 85, 0},
+    {2 * 256, 150, 85, 0},
+    {3 * 256, 150, 85, 0},
+    {4 * 256, 150, 85, 0},
+    {5 * 256, 150, 85, 0},
+    {6 * 256, 150, 85, 0},
+    {7 * 256, 150, 85, 0},
+};
 static LookupTable calibration_fs_mc_off = {.ptr = _calibration_fs_mc_off, .rows = 1, .cols = sizeof( _calibration_fs_mc_off ) / sizeof( _calibration_fs_mc_off[0] ), .width = sizeof( _calibration_fs_mc_off[0] )};
 static LookupTable calibration_exposure_ratio_adjustment = {.ptr = _calibration_exposure_ratio_adjustment, .rows = sizeof( _calibration_exposure_ratio_adjustment ) / sizeof( _calibration_exposure_ratio_adjustment[0] ), .cols = 2, .width = sizeof( _calibration_exposure_ratio_adjustment[0][0] )};
 static LookupTable AWB_colour_preference = {.ptr = _AWB_colour_preference, .rows = 1, .cols = sizeof( _AWB_colour_preference ) / sizeof( _AWB_colour_preference[0] ), .width = sizeof( _AWB_colour_preference[0] )};
@@ -635,9 +674,12 @@ static LookupTable calibration_demosaic_rgb_extension_control = {.ptr = _calibra
 static LookupTable calibration_fr_sharpen_extension_control = {.ptr = _calibration_fr_sharpen_extension_control, .rows = sizeof(_calibration_fr_sharpen_extension_control) / sizeof(_calibration_fr_sharpen_extension_control[0]), .cols = 6, .width = sizeof(_calibration_fr_sharpen_extension_control[0][0])};
 static LookupTable calibration_ds_sharpen_extension_control = {.ptr = _calibration_ds_sharpen_extension_control, .rows = sizeof(_calibration_ds_sharpen_extension_control) / sizeof(_calibration_ds_sharpen_extension_control[0]), .cols = 6, .width = sizeof(_calibration_ds_sharpen_extension_control[0][0])};
 static LookupTable calibration_cnr_extension_control = {.ptr = _calibration_cnr_extension_control, .rows = sizeof(_calibration_cnr_extension_control) / sizeof(_calibration_cnr_extension_control[0]), .cols = 20, .width = sizeof(_calibration_cnr_extension_control[0][0])};
-static LookupTable calibration_iridix_extension_control = {.ptr = _calibration_iridix_extension_control, .rows = sizeof(_calibration_iridix_extension_control) / sizeof(_calibration_iridix_extension_control[0]), .cols = 4, .width = sizeof(_calibration_iridix_extension_control[0][0])};
+static LookupTable calibration_iridix_extension_control = {.ptr = _calibration_iridix_extension_control, .rows = sizeof(_calibration_iridix_extension_control) / sizeof(_calibration_iridix_extension_control[0]), .cols = 5, .width = sizeof(_calibration_iridix_extension_control[0][0])};
 static LookupTable calibration_sqrt_extension_control = {.ptr = _calibration_sqrt_extension_control, .rows = sizeof(_calibration_sqrt_extension_control) / sizeof(_calibration_sqrt_extension_control[0]), .cols = 3, .width = sizeof(_calibration_sqrt_extension_control[0][0])};
 static LookupTable calibration_square_be_extension_control = {.ptr = _calibration_square_be_extension_control, .rows = sizeof(_calibration_square_be_extension_control) / sizeof(_calibration_square_be_extension_control[0]), .cols = 3, .width = sizeof(_calibration_square_be_extension_control[0][0])};
+static LookupTable calibration_dp_devthreshold = {.ptr = _calibration_dp_devthreshold, .rows = sizeof(_calibration_dp_devthreshold) / sizeof(_calibration_dp_devthreshold[0]), .cols = 2, .width = sizeof(_calibration_dp_devthreshold[0][0])};
+static LookupTable calibration_pf_correction = {.ptr = _calibration_pf_correction, .rows = sizeof(_calibration_pf_correction) / sizeof(_calibration_pf_correction[0]), .cols = 6, .width = sizeof(_calibration_pf_correction[0][0])};
+static LookupTable calibration_fc_correction = {.ptr = _calibration_fc_correction, .rows = sizeof(_calibration_fc_correction) / sizeof(_calibration_fc_correction[0]), .cols = 4, .width = sizeof(_calibration_fc_correction[0][0])};
 
 uint32_t get_calibrations_dynamic_linear_imx290_lens_8mm( ACameraCalibrations *c )
 {
@@ -715,6 +757,9 @@ uint32_t get_calibrations_dynamic_linear_imx290_lens_8mm( ACameraCalibrations *c
         c->calibrations[CALIBRATION_IRIDIX_EXT_CONTROL] = &calibration_iridix_extension_control;
         c->calibrations[CALIBRATION_SQRT_EXT_CONTROL] = &calibration_sqrt_extension_control;
         c->calibrations[CALIBRATION_SQUARE_BE_EXT_CONTROL] = &calibration_square_be_extension_control;
+        c->calibrations[CALIBRATION_DP_DEVTHRESHOLD] = &calibration_dp_devthreshold;
+        c->calibrations[CALIBRATION_PF_CORRECTION] = &calibration_pf_correction;
+        c->calibrations[CALIBRATION_FC_CORRECTION] = &calibration_fc_correction;
     } else {
         result = -1;
     }

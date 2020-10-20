@@ -42,7 +42,7 @@ csi1_host: 0xfe022400
 #define HI_CSI_PHY_CNTL3	0x58
 #endif
 
-#if PLATFORM_C308X
+#if PLATFORM_C308X || PLATFORM_C305X
 #define HI_CSI_PHY_CNTL0	(0x90 << 2)
 #define HI_CSI_PHY_CNTL1	(0x91 << 2)
 #define HI_CSI_PHY_CNTL2	(0x92 << 2)

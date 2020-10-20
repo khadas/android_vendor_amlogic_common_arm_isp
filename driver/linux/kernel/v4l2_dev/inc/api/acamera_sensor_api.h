@@ -49,6 +49,7 @@ typedef struct _sensor_mode_t {
     image_resolution_t resolution; // Resolution of the mode
     uint8_t exposures;             // How many exposures this mode supports
     uint8_t bits;                  // Bit depth of data from sensor
+    uint8_t cali_mode;             // Cusomer Cali Mode
 } sensor_mode_t;
 
 typedef struct _sensor_name_t {
@@ -272,6 +273,14 @@ typedef struct _sensor_control_t {
      *
      */
     int32_t ( *ir_cut_set )( void *ctx, int32_t ir_cut_state );
+
+     /**
+     *   vmax framerate
+     *
+     *   This function get/sets the sensor framerate by vmax.
+     *
+     */
+    uint32_t ( *vmax_fps )( void *ctx, uint32_t framerate );
 } sensor_control_t;
 
 

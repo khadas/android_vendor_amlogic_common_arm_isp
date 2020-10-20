@@ -66,4 +66,18 @@
 #define I2C_CLOCK_DIV 40
 #define I2C_CONTROL_MASK 0
 
+typedef struct _imx481_private_t {
+    uint8_t change_flg;
+    uint8_t again_change;
+    uint8_t dgain_change;
+	uint32_t int_max;
+    uint16_t int_time;
+    uint8_t hdr_flg;
+    uint16_t int_time_min;
+    uint16_t int_time_limit;
+    uint32_t t_height;
+    uint32_t t_height_old;
+    uint16_t again_old;
+} imx481_private_t;
+
 #endif

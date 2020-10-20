@@ -168,21 +168,20 @@ void isp_update_setting(void)
     }
 
     paddr = isp_paddr;
-    for(j = 0; j < FIRMWARE_CONTEXT_NUMBER; j++)
-    {
-		aframe = settings[j].temper_frames;
-	    fr_num = settings[j].temper_frames_number;
+    for (j = 0; j < FIRMWARE_CONTEXT_NUMBER; j++) {
+        aframe = settings[j].temper_frames;
+        fr_num = settings[j].temper_frames_number;
 
-	    for (i = 0; i < fr_num; i++) {
-	        aframe[i].address = paddr;
-	        aframe[i].size = temper_frame_size;
+        for (i = 0; i < fr_num; i++) {
+            aframe[i].address = paddr;
+            aframe[i].size = temper_frame_size;
 
-	        paddr = aframe[i].address + temper_frame_size;
+            paddr = aframe[i].address + temper_frame_size;
 
-	        aframe[i].line_offset = temper_line_offset;
-	    }
+            aframe[i].line_offset = temper_line_offset;
+        }
 
-	    settings[j].temper_frames_number = temper_frame_num;
+        settings[j].temper_frames_number = temper_frame_num;
     }
 }
 
@@ -192,7 +191,7 @@ int isp_fw_init( uint32_t hw_isp_addr )
     uint32_t i;
 
     isp_update_setting();
-	
+
     for ( i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++ ) {
         settings[i].hw_isp_addr = hw_isp_addr;
     }

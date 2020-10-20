@@ -38,6 +38,9 @@ static int cur_idx;
 static int info_idx;
 module_param(isp_seq_num, int, 0664);
 
+static char* sensor = NULL;
+module_param(sensor, charp, 0);
+
 #define ARGS_TO_PTR( arg ) ( (struct soc_sensor_ioctl_args *)arg )
 
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
@@ -55,6 +58,8 @@ struct SensorConversion {
 struct SensorConversion ConversionTable[] = {
     {SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DETECT_FUNCTIONS_OS08A10, "os08a10", 3840,2160, "8MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DETECT_FUNCTIONS_IMX290, "imx290", 1920,1080, "2MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX335, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX335, SENSOR_DETECT_FUNCTIONS_IMX335, "imx335", 2560,1440, "5MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX415, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX415, SENSOR_DETECT_FUNCTIONS_IMX415, "imx415", 3840,2160, "8MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX227, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX227, SENSOR_DETECT_FUNCTIONS_IMX227, "imx227", 2200,2720, "6MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX481, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX481, SENSOR_DETECT_FUNCTIONS_IMX481, "imx481", 2328,1748, "4MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DETECT_FUNCTIONS_IMX307, "imx307", 1920,1080, "2MP"},
@@ -62,6 +67,13 @@ struct SensorConversion ConversionTable[] = {
     {SENSOR_INIT_SUBDEV_FUNCTIONS_OV13858, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV13858, SENSOR_DETECT_FUNCTIONS_OV13858, "ov13858", 4096,3136, "13MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_SC2232H, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC2232H, SENSOR_DETECT_FUNCTIONS_SC2232H, "sc2232h", 1920,1080, "2MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_SC4238, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC4238, SENSOR_DETECT_FUNCTIONS_SC4238, "sc4238", 2688,1520, "4MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_SC2335, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC2335, SENSOR_DETECT_FUNCTIONS_SC2335, "sc2335", 1920,1080, "2MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX334, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX334, SENSOR_DETECT_FUNCTIONS_IMX334, "imx334", 3840,2160, "8MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_SC8238CS, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC8238CS, SENSOR_DETECT_FUNCTIONS_SC8238CS, "sc8238cs", 3840,2160, "8MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_OV2718, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV2718, SENSOR_DETECT_FUNCTIONS_OV2718, "ov2718", 1920,1080, "2MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_OS04A10, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS04A10, SENSOR_DETECT_FUNCTIONS_OS04A10, "os04a10", 2688,1520, "4MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_S5K3M5, SENSOR_DEINIT_SUBDEV_FUNCTIONS_S5K3M5, SENSOR_DETECT_FUNCTIONS_S5K3M5, "s5k3m5", 4208,3120, "13MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_VIRTCAM, SENSOR_DEINIT_SUBDEV_FUNCTIONS_VIRTCAM, SENSOR_DETECT_FUNCTIONS_VIRTCAM, "virtcam", 1920,1080, "2MP"}, // End
 };
 
 void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl, void* sbp ) =
@@ -306,7 +318,7 @@ static int camera_reset( struct v4l2_subdev *sd, u32 val )
 {
     int rc = 0;
 
-    if(val)
+    if (val)
         return rc;
 
     if ( val < FIRMWARE_CONTEXT_NUMBER && SOC_SENSOR_SENSOR_RESET_ARR[val] ) {
@@ -523,6 +535,19 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         ARGS_TO_PTR( arg )
             ->args.general.val_out = ctx->camera_control.get_id(ctx->camera_context);
     } break;
+    case SOC_SENSOR_VMAX_FPS_GET: {
+        if ( ctx->camera_control.vmax_fps )
+            ARGS_TO_PTR( arg )
+                ->args.general.val_out = ctx->camera_control.vmax_fps(ctx->camera_context, rc);
+        else
+            ARGS_TO_PTR( arg )
+                ->args.general.val_out = 0;
+    } break;
+    case SOC_SENSOR_VMAX_FPS_SET: {
+        uint32_t framerate = ARGS_TO_PTR( arg )->args.general.val_in;
+        if ( ctx->camera_control.vmax_fps )
+            ctx->camera_control.vmax_fps(ctx->camera_context, framerate);
+    } break;
     default:
         LOG( LOG_WARNING, "Unknown soc sensor ioctl cmd %d", cmd );
         rc = -1;
@@ -596,6 +621,8 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
     if (rtn != 0) {
         pr_err("%s: failed to get sensor name\n", __func__);
     }
+    if (sensor)
+        sensor_name = sensor;
 
     pr_err("config sensor %s driver.\n", sensor_name);
 

@@ -34,9 +34,9 @@ extern void * acamera_get_ctx_ptr( uint32_t ctx_id );
 uint8_t acamera_command( uint32_t ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value){
 acamera_fsm_mgr_t *instance = &((acamera_context_ptr_t)acamera_get_ctx_ptr(ctx_id))->fsm_mgr;
 uint8_t ret = NOT_EXISTS;
-switch (command_type){
+switch (command_type) {
 case  TGENERAL:
-	switch (command){
+	switch (command) {
 		case  CONTEXT_NUMBER:
 			ret = general_context_number(instance, value, direction, ret_value);
 			break;
@@ -46,14 +46,14 @@ case  TGENERAL:
 	}//switch (command)
 	break;
 case  TSELFTEST:
-	switch (command){
+	switch (command) {
 		case  FW_REVISION:
 			ret = selftest_fw_revision(instance, value, direction, ret_value);
 			break;
 	}//switch (command)
 	break;
 case  TSENSOR:
-	switch (command){
+	switch (command) {
 		case  SENSOR_STREAMING:
 			ret = sensor_streaming(instance, value, direction, ret_value);
 			break;
@@ -115,10 +115,44 @@ case  TSENSOR:
 		case  SENSOR_ANTIFLICKER_ID:
 			ret = sensor_antiflicker_switch(instance, value, direction, ret_value);
 			break;
+		case  SENSOR_LINES_PER_SECOND:
+			ret = sensor_lines_per_second(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_INTEGRATION_TIME_MIN:
+			ret = sensor_integration_time_min(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_INTEGRATION_TIME_LIMIT:
+			ret = sensor_integration_time_limit(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_INFO_PHYSICAL_WIDTH:
+			ret = sensor_info_physical_width(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_INFO_PHYSICAL_HEIGHT:
+			ret = sensor_info_physical_height(instance, value, direction, ret_value);
+			break;
+		case  SENSOR_VMAX_FPS:
+			ret = sensor_vmax_fps(instance, value, direction, ret_value);
+			break;
+	}//switch (command)
+	break;
+case  TLENS:
+	switch (command) {
+		case  LENS_INFO_MINFOCUS_DISTANCE:
+			ret = lens_info_minfocus_distance(instance, value, direction, ret_value);
+			break;
+		case  LENS_INFO_HYPERFOCAL_DISTANCE:
+			ret = lens_info_hyperfocal_distance(instance, value, direction, ret_value);
+			break;
+		case  LENS_INFO_FOCAL_LENGTH:
+			ret = lens_info_focal_length(instance, value, direction, ret_value);
+			break;
+		case  LENS_INFO_APERTURE:
+			ret = lens_info_aperture(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TSYSTEM:
-	switch (command){
+	switch (command) {
 		case  SYSTEM_LOGGER_LEVEL:
 			ret = system_logger_level(instance, value, direction, ret_value);
 			break;
@@ -163,6 +197,9 @@ case  TSYSTEM:
 			break;
 		case  SYSTEM_MANUAL_AWB:
 			ret = system_manual_awb(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_MANUAL_CCM:
+			ret = system_manual_ccm(instance, value, direction, ret_value);
 			break;
 		case  SYSTEM_MANUAL_SATURATION:
 			ret = system_manual_saturation(instance, value, direction, ret_value);
@@ -209,8 +246,41 @@ case  TSYSTEM:
 		case  SYSTEM_AWB_RED_GAIN:
 			ret = system_awb_red_gain(instance, value, direction, ret_value);
 			break;
+		case  SYSTEM_AWB_GREEN_EVEN_GAIN:
+			ret = system_awb_green_even_gain(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_AWB_GREEN_ODD_GAIN:
+			ret = system_awb_green_odd_gain(instance, value, direction, ret_value);
+			break;
 		case  SYSTEM_AWB_BLUE_GAIN:
 			ret = system_awb_blue_gain(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_RR:
+			ret = system_ccm_matrix_rr(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_RG:
+			ret = system_ccm_matrix_rg(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_RB:
+			ret = system_ccm_matrix_rb(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_GR:
+			ret = system_ccm_matrix_gr(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_GG:
+			ret = system_ccm_matrix_gg(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_GB:
+			ret = system_ccm_matrix_gb(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_BR:
+			ret = system_ccm_matrix_br(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_BG:
+			ret = system_ccm_matrix_bg(instance, value, direction, ret_value);
+			break;
+		case  SYSTEM_CCM_MATRIX_BB:
+			ret = system_ccm_matrix_bb(instance, value, direction, ret_value);
 			break;
 		case  SYSTEM_SATURATION_TARGET:
 			ret = system_saturation_target(instance, value, direction, ret_value);
@@ -221,13 +291,19 @@ case  TSYSTEM:
 		case  SYSTEM_ANTI_FLICKER_FREQUENCY:
 			ret = system_anti_flicker_frequency(instance, value, direction, ret_value);
 			break;
+		case  SYSTEM_DYNAMIC_GAMMA_ENABLE:
+			ret = system_dynamic_gamma_enable(instance, value, direction, ret_value);
+			break;
 		case  CALIBRATION_UPDATE:
 			ret = calibration_update(instance, value, direction, ret_value);
+			break;
+		case  CALIBRATION_CUSTOMER:
+			ret = calibration_customer(instance, value, direction, ret_value);
 			break;
 	}//switch (command)
 	break;
 case  TISP_MODULES:
-	switch (command){
+	switch (command) {
 		case  ISP_MODULES_MANUAL_IRIDIX:
 			ret = isp_modules_manual_iridix(instance, value, direction, ret_value);
 			break;
@@ -261,10 +337,47 @@ case  TISP_MODULES:
 		case  ISP_MODULES_MANUAL_SHARPEN:
 			ret = isp_modules_manual_sharpen(instance, value, direction, ret_value);
 			break;
+		case ISP_DPC_THRES_SLOPE:
+			ret = isp_modules_dpc_thres_slope(instance, value, direction, ret_value);
+			break;
+		case ISP_BLACK_LEVEL_R:
+			ret = isp_modules_black_level_r(instance, value, direction, ret_value);
+			break;
+		case ISP_BLACK_LEVEL_GR:
+			ret = isp_modules_black_level_gr(instance, value, direction, ret_value);
+			break;
+		case ISP_BLACK_LEVEL_GB:
+			ret = isp_modules_black_level_gb(instance, value, direction, ret_value);
+			break;
+		case ISP_BLACK_LEVEL_B:
+			ret = isp_modules_black_level_b(instance, value, direction, ret_value);
+			break;
+		case ISP_DEMOSAIC_SHARP:
+			ret = isp_modules_demosaic_sharp(instance, value, direction, ret_value);
+			break;
+		case ISP_CNR_STRENGTH:
+			ret = isp_modules_cnr_strength(instance, value, direction, ret_value);
+			break;
+		case ISP_MODULES_IRIDIX_ENABLE:
+			ret = isp_modules_iridix_enable(instance, value, direction, ret_value);
+			break;
+		case ISP_MODULES_IRIDIX_STRENGTH:
+			ret = isp_modules_iridix_strength(instance, value, direction, ret_value);
+			break;
+		case ISP_MODULES_FR_SHARPEN_STRENGTH:
+			ret = isp_modules_fr_sharpen_strength(instance, value, direction, ret_value);
+			break;
+		case ISP_MODULES_DS1_SHARPEN_STRENGTH:
+			ret = isp_modules_ds1_sharpen_strength(instance, value, direction, ret_value);
+			break;
+		case  ISP_MODULES_MANUAL_PF:
+			ret = isp_modules_manual_pf(instance, value, direction, ret_value);
+			break;
+
 	}//switch (command)
 	break;
 case  TSTATUS:
-	switch (command){
+	switch (command) {
 		case  STATUS_INFO_EXPOSURE_LOG2_ID:
 			ret = status_info_exposure_log2(instance, value, direction, ret_value);
 			break;
@@ -283,10 +396,37 @@ case  TSTATUS:
 		case  STATUS_INFO_AF_FOCUS_VALUE:
 			ret = status_info_af_focus_value(instance, value, direction, ret_value);
 			break;
+		case  STATUS_INFO_EXPOSURE_CORRECTION_LOG2_ID:
+			ret = status_info_exposure_correction_log2( instance, value, direction, ret_value );
+			break;
+		case  STATUS_INFO_TOTAL_GAIN_LOG2_ID:
+			ret = status_info_total_gain_log2(instance, value, direction, ret_value);
+			break;
+		case  AE_STATS_ID:
+			ret = status_ae_stats_info(instance, value, direction, ret_value);
+			break;
+		case  AWB_STATS_ID:
+			ret = status_awb_stats_info(instance, value, direction, ret_value);
+			break;
+		case  STATUS_INFO_TOTAL_GAIN_DB_ID:
+			ret = status_info_total_gain_db(instance, value, direction, ret_value);
+			break;
+		case  STATUS_INFO_CMOS_AGAIN_DB_ID:
+			ret = status_info_cmos_again_db(instance, value, direction, ret_value);
+			break;
+		case  STATUS_INFO_CMOS_DGAIN_DB_ID:
+			ret = status_info_cmos_dgain_db(instance, value, direction, ret_value);
+			break;
+		case  STATUS_INFO_ISP_DGAIN_DB_ID:
+			ret = status_info_isp_dgain_db(instance, value, direction, ret_value);
+			break;
+		case  STATUS_INFO_ISO_ID:
+			ret = status_info_iso(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TIMAGE:
-	switch (command){
+	switch (command) {
 		case  DMA_READER_OUTPUT_ID:
 			ret = dma_reader_output(instance, value, direction, ret_value);
 			break;
@@ -323,12 +463,15 @@ case  TIMAGE:
 	}//switch (command)
 	break;
 case  TALGORITHMS:
-	switch (command){
+	switch (command) {
 		case  AF_LENS_STATUS:
 			ret = af_lens_status(instance, value, direction, ret_value);
 			break;
 		case  AF_MODE_ID:
 			ret = af_mode(instance, value, direction, ret_value);
+			break;
+		case  AF_STATE_ID:
+			ret = af_state(instance, value, direction, ret_value);
 			break;
 		case  AF_RANGE_LOW_ID:
 			ret = af_range_low(instance, value, direction, ret_value);
@@ -344,6 +487,9 @@ case  TALGORITHMS:
 			break;
 		case  AE_MODE_ID:
 			ret = ae_mode(instance, value, direction, ret_value);
+			break;
+		case  AE_STATE_ID:
+			ret = ae_state(instance, value, direction, ret_value);
 			break;
 		case  AE_SPLIT_PRESET_ID:
 			ret = ae_split_preset(instance, value, direction, ret_value);
@@ -363,8 +509,14 @@ case  TALGORITHMS:
 		case  AWB_MODE_ID:
 			ret = awb_mode(instance, value, direction, ret_value);
 			break;
+		case  AWB_STATE_ID:
+			ret = awb_state(instance, value, direction, ret_value);
+			break;
 		case  AWB_TEMPERATURE_ID:
 			ret = awb_temperature(instance, value, direction, ret_value);
+			break;
+		case  NOISE_REDUCTION_MODE_ID:
+			ret = noise_reduction_mode(instance, value, direction, ret_value);
 			break;
 		case  ANTIFLICKER_MODE_ID:
 			ret = antiflicker_mode(instance, value, direction, ret_value);
@@ -387,10 +539,13 @@ case  TALGORITHMS:
 		case DEFOG_WHITE_PERCENTAGE:
 			ret = defog_alg_white_pctg(instance, value, direction, ret_value);
 			break;
+		case DAYNIGHT_DETECT_ID:
+			ret = daynight_detect(instance, value, direction, ret_value);
+			break;
 	}//switch (command)
 	break;
 case  TSCENE_MODES:
-	switch (command){
+	switch (command) {
 		case  COLOR_MODE_ID:
 			ret = color_mode(instance, value, direction, ret_value);
 			break;
@@ -405,6 +560,9 @@ case  TSCENE_MODES:
 			break;
 		case  SHARPENING_STRENGTH_ID:
 			ret = sharpening_strength(instance, value, direction, ret_value);
+			break;
+		case  SHADING_STRENGTH_ID:
+			ret = shading_strength(instance, value, direction, ret_value);
 			break;
 		case  HUE_THETA_ID:
 			ret = hue_theta(instance, value, direction, ret_value);
@@ -424,7 +582,7 @@ case  TSCENE_MODES:
 	}//switch (command)
 	break;
 case  TREGISTERS:
-	switch (command){
+	switch (command) {
 		case  REGISTERS_ADDRESS_ID:
 			ret = register_address(instance, value, direction, ret_value);
 			break;

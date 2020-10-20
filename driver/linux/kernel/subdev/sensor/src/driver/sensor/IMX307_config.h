@@ -17,9 +17,8 @@
 *
 */
 
-#ifndef __IMX290_CONFIG_H__
-#define __IMX290_CONFIG_H__
-
+#ifndef __IMX307_CONFIG_H__
+#define __IMX307_CONFIG_H__
 
 #define FULL_EXTRA_HEIGHT 0
 #define FULL_EXTRA_WIDTH 0
@@ -68,4 +67,15 @@
 #define SENSOR_TOTAL_WIDTH_PREVIEW 3264
 #define SPI_CLOCK_DIV 40
 #define SPI_CONTROL_MASK ( RX_NEG_MSK | ( CHAR_LEN_MSK & 24 ) | AUTO_SS_MSK | LSB_MSK )
+
+typedef struct _imx307_private_t {
+    uint32_t shs1;
+    uint32_t shs2;
+    uint32_t shs3;
+    uint32_t shs1_old;
+    uint32_t shs2_old;
+    uint32_t rhs1;
+    uint32_t rhs2;
+} imx307_private_t;
+
 #endif

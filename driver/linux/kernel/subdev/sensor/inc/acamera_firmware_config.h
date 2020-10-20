@@ -23,11 +23,25 @@
 #ifdef CONFIG_G12B
 #define PLATFORM_G12B     1
 #define PLATFORM_C308X    0
+#define PLATFORM_C305X    0
 #endif
 
 #ifdef CONFIG_C308X
 #define PLATFORM_G12B     0
 #define PLATFORM_C308X    1
+#define PLATFORM_C305X    0
+#endif
+
+#ifdef CONFIG_C305X
+#define PLATFORM_G12B     0
+#define PLATFORM_C308X    0
+#define PLATFORM_C305X    1
+#endif
+
+#ifdef CONFIG_SLT
+#define CONFIG_SLT_TEST 1
+#else
+#define CONFIG_SLT_TEST 0
 #endif
 
 #define FIRMWARE_CONTEXT_NUMBER 1

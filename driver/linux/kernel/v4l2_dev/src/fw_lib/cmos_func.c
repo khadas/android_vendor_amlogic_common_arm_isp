@@ -1204,6 +1204,7 @@ void cmos_calc_target_gain( cmos_fsm_ptr_t p_fsm )
 #else
         target_gain_log2 = p_fsm->exposure_log2 - acamera_log2_fixed_to_fixed( p_fsm->integration_time_short, 0, LOG2_GAIN_SHIFT );
 #endif
+        p_fsm->manual_gain = acamera_math_exp2( target_gain_log2, LOG2_GAIN_SHIFT, 8 );
     }
 
     if ( target_gain_log2 < 0 ) {

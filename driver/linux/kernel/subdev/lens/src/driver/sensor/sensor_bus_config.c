@@ -23,7 +23,7 @@
 #include "acamera_types.h"
 
 
-uint32_t bus_addr[] = { 
+uint32_t bus_addr[] = {
 0x0
 } ;
 static uint32_t sensor_counter = 0 ;
@@ -32,27 +32,27 @@ static uint32_t lens_counter = 0 ;
 
 int32_t get_next_sensor_bus_address(void) {
     int32_t result = 0 ;
-    if ( sensor_counter < FIRMWARE_CONTEXT_NUMBER ) { 
+    if ( sensor_counter < FIRMWARE_CONTEXT_NUMBER ) {
         result = bus_addr[ sensor_counter ] ;
         sensor_counter ++ ;
     } else {
         result = -1 ;
-        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ; 
+        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ;
     }
-    return result ; 
+    return result ;
 }
 
 
 int32_t get_next_lens_bus_address(void) {
     int32_t result = 0 ;
-    if ( lens_counter < FIRMWARE_CONTEXT_NUMBER ) { 
+    if ( lens_counter < FIRMWARE_CONTEXT_NUMBER ) {
         result = bus_addr[ lens_counter ] ;
         lens_counter ++ ;
     } else {
         result = -1 ;
-        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ; 
+        LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured.") ;
     }
-    return result ; 
+    return result ;
 }
 
 

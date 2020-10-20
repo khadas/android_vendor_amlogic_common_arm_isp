@@ -31,6 +31,8 @@ void noise_reduction_fsm_clear( noise_reduction_fsm_t *p_fsm )
     p_fsm->temper_diff_avg = 0;
     p_fsm->temper_diff_coeff = 10;
     p_fsm->snr_thresh_contrast = 0;
+
+    p_fsm->nr_mode = NOISE_REDUCTION_MODE_ON;
 }
 
 void noise_reduction_request_interrupt( noise_reduction_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -75,6 +77,17 @@ int noise_reduction_fsm_set_param( void *fsm, uint32_t param_id, void *input, ui
     noise_reduction_fsm_t *p_fsm = (noise_reduction_fsm_t *)fsm;
 
     switch ( param_id ) {
+    case FSM_PARAM_SET_NOISE_REDUCTION_MODE: {
+        if ( !input || input_size != sizeof( noise_reduction_mode_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        p_fsm->nr_mode = *(noise_reduction_mode_t *)input;
+
+        break;
+    }
     case FSM_PARAM_SET_SNR_MANUAL: {
         if ( !input || input_size != sizeof( uint32_t ) ) {
             LOG( LOG_ERR, "Inavlid param, param_id: %d.", param_id );
@@ -141,6 +154,18 @@ int noise_reduction_fsm_get_param( void *fsm, uint32_t param_id, void *input, ui
     noise_reduction_fsm_t *p_fsm = (noise_reduction_fsm_t *)fsm;
 
     switch ( param_id ) {
+    case FSM_PARAM_GET_NOISE_REDUCTION_MODE: {
+
+        if ( !output || output_size != sizeof( noise_reduction_mode_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        *(noise_reduction_mode_t *)output = p_fsm->nr_mode;
+
+        break;
+    }
     case FSM_PARAM_GET_SNR_MANUAL: {
         if ( !output || output_size != sizeof( uint32_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );

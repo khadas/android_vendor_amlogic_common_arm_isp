@@ -525,7 +525,7 @@ void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata
         //only 2 planes are possible
         frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
         frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-	    if(metadata)
+	    if (metadata)
             frame_mgr->frame_buffer.meta = *metadata;
         frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
         frame_mgr->frame_buffer.tframe = *tframe;
@@ -546,10 +546,10 @@ void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata
         LOG( LOG_DEBUG, "metadata: width: %u, height: %u, line_size: %u, frame_number: %u.",
              metadata->width, metadata->height, metadata->line_size, metadata->frame_number );
 
-	if( g_fftt ) {
-		do_gettimeofday(&normal_fftt);
-		g_fftt = 0;
-	}
+    if ( g_fftt ) {
+        do_gettimeofday(&normal_fftt);
+        g_fftt = 0;
+    }
 }
 
 // Callback from DS1 output pipe
@@ -605,7 +605,7 @@ void callback_ds1( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
         //only 2 planes are possible
         frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
         frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-	    if(metadata)
+        if (metadata)
             frame_mgr->frame_buffer.meta = *metadata;
         frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
         frame_mgr->frame_buffer.tframe = *tframe;
@@ -633,78 +633,77 @@ void callback_ds1( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
 void callback_ds2( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata )
 {
 #if ISP_HAS_DS2
-		isp_v4l2_stream_t *pstream = NULL;
-		struct isp_fw_frame_mgr *frame_mgr;
-		unsigned long flags;
-		int rc;
+    isp_v4l2_stream_t *pstream = NULL;
+    struct isp_fw_frame_mgr *frame_mgr;
+    unsigned long flags;
+    int rc;
 
-		if ( !metadata ) {
-			LOG( LOG_ERR, "callback_ds2: metadata is NULL" );
-			return;
-		}
+    if ( !metadata ) {
+        LOG( LOG_ERR, "callback_ds2: metadata is NULL" );
+        return;
+    }
 
-		/* find stream pointer */
-		rc = isp_v4l2_find_stream( &pstream, ctx_num, V4L2_STREAM_TYPE_DS2 );
-		if ( rc < 0 ) {
-			LOG( LOG_DEBUG, "can't find stream on ctx %d (errno = %d)", ctx_num, rc );
-			return;
-		}
+    /* find stream pointer */
+    rc = isp_v4l2_find_stream( &pstream, ctx_num, V4L2_STREAM_TYPE_DS2 );
+    if ( rc < 0 ) {
+        LOG( LOG_DEBUG, "can't find stream on ctx %d (errno = %d)", ctx_num, rc );
+        return;
+    }
 
-		/* check if stream is on */
-		if ( !pstream->stream_started ) {
-			LOG( LOG_DEBUG, "[Stream#%d] stream DS2 is not started yet on ctx %d", pstream->stream_id, ctx_num );
-			return;
-		}
+    /* check if stream is on */
+    if ( !pstream->stream_started ) {
+        LOG( LOG_DEBUG, "[Stream#%d] stream DS2 is not started yet on ctx %d", pstream->stream_id, ctx_num );
+        return;
+    }
 
 #if CHECK_METADATA_ID
-		/* filter redundant frame id */
-		if ( pstream->last_frame_id == metadata->frame_id ) {
-			LOG( LOG_ERR, "[Stream#%d] Redundant frame ID %d on ctx#%d", pstream->stream_id, metadata->frame_id, ctx_num );
-			//return;
-		}
-		pstream->last_frame_id = metadata->frame_id;
+    /* filter redundant frame id */
+    if ( pstream->last_frame_id == metadata->frame_id ) {
+        LOG( LOG_ERR, "[Stream#%d] Redundant frame ID %d on ctx#%d", pstream->stream_id, metadata->frame_id, ctx_num );
+        //return;
+    }
+    pstream->last_frame_id = metadata->frame_id;
 #endif
 
 #if 0
 #if V4L2_FRAME_ID_SYNC
-		if ( sync_frame( pstream->stream_type, ctx_num, metadata->frame_id, SYNC_FLAG_DS2 ) < 0 ) {
-			LOG(LOG_ERR, "callback_ds2 sync frame failed");
-			return;
-		}
+    if ( sync_frame( pstream->stream_type, ctx_num, metadata->frame_id, SYNC_FLAG_DS2 ) < 0 ) {
+        LOG(LOG_ERR, "callback_ds2 sync frame failed");
+        return;
+    }
 #endif
 #endif
-		frame_mgr = &pstream->frame_mgr;
-		int wake_up = 0;
+    frame_mgr = &pstream->frame_mgr;
+    int wake_up = 0;
 
-		spin_lock_irqsave( &frame_mgr->frame_slock, flags );
-		if ( ISP_FW_FRAME_BUF_INVALID == frame_mgr->frame_buffer.state ) {
-			/* save current frame  */
-			//only 2 planes are possible
-			frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
-			frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-		    if(metadata)
-			    frame_mgr->frame_buffer.meta = *metadata;
-			frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
-			frame_mgr->frame_buffer.tframe = *tframe;
+    spin_lock_irqsave( &frame_mgr->frame_slock, flags );
+    if ( ISP_FW_FRAME_BUF_INVALID == frame_mgr->frame_buffer.state ) {
+        /* save current frame  */
+        //only 2 planes are possible
+        frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
+        frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
+        if (metadata)
+            frame_mgr->frame_buffer.meta = *metadata;
+        frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
+        frame_mgr->frame_buffer.tframe = *tframe;
 
-			/* lock buffer from firmware */
-			tframe->primary.status = dma_buf_purge;
-			tframe->secondary.status = dma_buf_purge;
+        /* lock buffer from firmware */
+        tframe->primary.status = dma_buf_purge;
+        tframe->secondary.status = dma_buf_purge;
 
-			/* wake up thread */
-			wake_up = 1;
-		}
-		spin_unlock_irqrestore( &frame_mgr->frame_slock, flags );
+        /* wake up thread */
+        wake_up = 1;
+    }
+    spin_unlock_irqrestore( &frame_mgr->frame_slock, flags );
 
-		/* wake up the kernel thread to copy the frame data  */
-		if ( wake_up )
-			wake_up_interruptible( &frame_mgr->frame_wq );
+    /* wake up the kernel thread to copy the frame data  */
+    if ( wake_up )
+        wake_up_interruptible( &frame_mgr->frame_wq );
 
-		if ( metadata )
-			LOG( LOG_DEBUG, "metadata: width: %u, height: %u, line_size: %u, frame_number: %u.",
-				 metadata->width, metadata->height, metadata->line_size, metadata->frame_number );
+    if ( metadata )
+        LOG( LOG_DEBUG, "metadata: width: %u, height: %u, line_size: %u, frame_number: %u.",
+            metadata->width, metadata->height, metadata->line_size, metadata->frame_number );
 #endif
-
 }
 
 
@@ -1021,8 +1020,6 @@ static int isp_v4l2_stream_copy_thread( void *data )
         }
         spin_unlock( &pstream->slock );
 
-        cache_flush(tframe.primary.address, tframe.primary.size + tframe.secondary.size);
-
         vvb = &pbuf->vvb;
         vb = &vvb->vb2_buf;
 
@@ -1033,6 +1030,7 @@ static int isp_v4l2_stream_copy_thread( void *data )
         vb->timestamp = ktime_get_ns();
         pstream->fw_frame_seq_count++;
 
+        cache_flush(tframe.primary.address, tframe.primary.size + tframe.secondary.size);
         /* Fill buffer */
         LOG( LOG_DEBUG, "[Stream#%d] filled buffer %d with frame_buf_idx: %d.",
              pstream->stream_id, buf_index, idx_tmp );
@@ -1486,7 +1484,7 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     /* update format */
     rc = fw_intf_stream_set_output_format( pstream->ctx_id, pstream->stream_type, f->fmt.pix_mp.pixelformat );
     if ( rc < 0 ) {
-        LOG( LOG_CRIT, "set format failed ! (rc = %d)", rc ); 
+        LOG( LOG_CRIT, "set format failed ! (rc = %d)", rc );
         return rc;
     }
 

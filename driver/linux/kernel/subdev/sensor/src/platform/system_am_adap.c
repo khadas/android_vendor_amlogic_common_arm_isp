@@ -85,6 +85,7 @@ static int fte_state;
 static struct completion wakeupdump;
 static unsigned int data_process_para;
 static unsigned int frontend1_flag;
+static unsigned int virtcam_flag = 0;
 
 module_param(data_process_para, uint, 0664);
 MODULE_PARM_DESC(data_process_para, "\n control inject or dump data parameter from adapter\n");
@@ -473,8 +474,7 @@ restart:
 
 	dump_dol_frame = 0;
 
-	if(frame_count > 0)
-	{
+	if (frame_count > 0) {
 		frame_count --;
 		goto restart;
 	}
@@ -725,7 +725,7 @@ void am_adap_set_info(struct am_adap_info *info)
 	pr_info("inject_data_flag = %x, dump_data_flag = %x\n",
 		 inject_data_flag, dump_data_flag);
 
-	if ((inject_data_flag) || (dump_data_flag)) {
+	if ((inject_data_flag) || (dump_data_flag) || (virtcam_flag)) {
 		para.mode = DDR_MODE;
 	}
 	dump_width = para.img.width;
@@ -839,6 +839,10 @@ int am_adap_frontend_init(void)
 	adap_wr_reg_bits(CSI2_X_START_END_ISP , FRONTEND_IO, 0xffff, 16, 16);
 	adap_wr_reg_bits(CSI2_X_START_END_MEM, FRONTEND_IO, para.offset.offset_x, 0, 16);
 	adap_wr_reg_bits(CSI2_X_START_END_MEM, FRONTEND_IO, 0xffff, 16, 16);
+	adap_wr_reg_bits(CSI2_Y_START_END_ISP , FRONTEND_IO, para.offset.offset_y, 0, 16);
+	adap_wr_reg_bits(CSI2_Y_START_END_ISP , FRONTEND_IO, 0xffff, 16, 16);
+	adap_wr_reg_bits(CSI2_Y_START_END_MEM, FRONTEND_IO, para.offset.offset_y, 0, 16);
+	adap_wr_reg_bits(CSI2_Y_START_END_MEM, FRONTEND_IO, 0xffff, 16, 16);
 
 	if (frontend1_flag) {
 		mipi_adap_reg_wr(CSI2_X_START_END_MEM + FTE1_OFFSET, FRONTEND_IO, 0xffff0000);
@@ -872,7 +876,7 @@ int am_adap_frontend_init(void)
 			} else {
 				pr_err("raw format to be supported");
 			}
-#elif PLATFORM_C308X
+#elif PLATFORM_C308X || PLATFORM_C305X
 			if (para.fmt == AM_RAW10 ) {
 				mipi_adap_reg_wr(CSI2_VC_MODE2_MATCH_MASK_A_L, FRONTEND_IO, 0x6e6e6e6e);
 				mipi_adap_reg_wr(CSI2_VC_MODE2_MATCH_MASK_A_H, FRONTEND_IO, 0xffffff00);
@@ -934,7 +938,7 @@ int am_adap_frontend_init(void)
 				} else {
 					pr_err("raw format to be supported");
 				}
-#elif PLATFORM_C308X
+#elif PLATFORM_C308X || PLATFORM_C305X
 				if (para.fmt == AM_RAW10 ) {
 					mipi_adap_reg_wr(CSI2_VC_MODE2_MATCH_MASK_A_L + FTE1_OFFSET, FRONTEND_IO, 0x6e6e6e6e);
 					mipi_adap_reg_wr(CSI2_VC_MODE2_MATCH_MASK_A_H + FTE1_OFFSET, FRONTEND_IO, 0xffffff00);
@@ -1106,7 +1110,10 @@ void am_adap_alig_start(void)
 	int width, height, alig_width, alig_height, val;
 	width = para.img.width;
 	height = para.img.height;
-	alig_width = width + 40; //hblank > 32 cycles
+	if (virtcam_flag)
+		alig_width = width + 2000; //hblank > 3840
+	else
+		alig_width = width + 40; //hblank > 32 cycles
 	alig_height = height + 60; //vblank > 48 lines
 	val = width + 35; // width < val < alig_width
 	adap_wr_reg_bits(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, alig_width, 0, 13);
@@ -1146,7 +1153,7 @@ int am_adap_alig_init(void)
 		pr_err("Not supported mode.\n");
 	}
 
-	if(para.mode != DIR_MODE)
+	if (para.mode != DIR_MODE)
 		mipi_adap_reg_wr(MIPI_ADAPT_IRQ_MASK0, ALIGN_IO, 0x01082000);
 
 	return 0;
@@ -1233,6 +1240,8 @@ static irqreturn_t adpapter_isr(int irq, void *para)
 		} else {
 			mipi_adap_reg_wr(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, read_buf);
 		}
+		if (virtcam_flag)
+			adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
 		control_flag = 0;
 	}
 
@@ -1405,7 +1414,8 @@ int am_adap_init(void)
 				ddr_buf[i] = (ddr_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
 				temp_buf = ddr_buf[i];
 				buf = phys_to_virt(ddr_buf[i]);
-				memset(buf, 0x0, (stride * para.img.height));
+				if (virtcam_flag == 0)
+					memset(buf, 0x0, (stride * para.img.height));
 			}
 		} else if ((cma_pages) && (para.mode == DOL_MODE)) {
 			dol_buf[0] = buffer_start;
@@ -1420,8 +1430,8 @@ int am_adap_init(void)
 				dol_buf[i] = (dol_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
 				temp_buf = dol_buf[i];
 			}
-			if ( buf_cnt == 2 )
-				dol_buf[1] = dol_buf[0];
+            if ( buf_cnt == 2 )
+                dol_buf[1] = dol_buf[0];
 		}
 	}
 
@@ -1467,6 +1477,11 @@ int am_adap_start(int idx)
 	am_adap_reader_start();
 	am_adap_frontend_start();
 
+	if (virtcam_flag) {
+		read_buf = ddr_buf[0];
+		adap_wr_reg_bits(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+	}
+
 	return 0;
 }
 
@@ -1493,7 +1508,7 @@ int am_adap_deinit(void)
 
 	if (para.mode == DDR_MODE) {
 		am_adap_free_mem();
-		if(g_adap->f_fifo)
+		if (g_adap->f_fifo)
 		{
 			g_adap->f_fifo = 0;
 			kfifo_free(&adapt_fifo);
@@ -1502,7 +1517,7 @@ int am_adap_deinit(void)
 		am_adap_free_mem();
 	}
 
-    if(g_adap->f_end_irq)
+    if (g_adap->f_end_irq)
     {
         g_adap->f_end_irq = 0;
         free_irq( g_adap->rd_irq, (void *)g_adap );
@@ -1517,6 +1532,7 @@ int am_adap_deinit(void)
 	irq_count = 0;
 	cur_buf_index = 0;
 	current_flag = 0;
+	virtcam_flag = 0;
 
 	if (frontend1_flag) {
 		fte0_index = 0;
@@ -1527,3 +1543,7 @@ int am_adap_deinit(void)
 	return 0;
 }
 
+void adapt_set_virtcam(void)
+{
+	virtcam_flag = 1;
+}
