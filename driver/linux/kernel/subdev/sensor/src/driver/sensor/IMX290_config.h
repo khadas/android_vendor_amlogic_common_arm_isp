@@ -68,4 +68,15 @@
 #define SENSOR_TOTAL_WIDTH_PREVIEW 3264
 #define SPI_CLOCK_DIV 40
 #define SPI_CONTROL_MASK ( RX_NEG_MSK | ( CHAR_LEN_MSK & 24 ) | AUTO_SS_MSK | LSB_MSK )
+
+typedef struct _imx290_private_t {
+    uint32_t shs1;
+    uint32_t shs2;
+    uint32_t shs3;
+    uint32_t shs1_old;
+    uint32_t shs2_old;
+    uint32_t rhs1;
+    uint32_t rhs2;
+} imx290_private_t;
+
 #endif

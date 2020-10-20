@@ -305,6 +305,49 @@ static int32_t sensor_ir_cut_set( void *ctx, int32_t ir_cut_state )
     return 0;
 }
 
+static uint32_t sensor_vmax_fps( void *ctx, uint32_t framerate )
+{
+    sensor_context_t *p_ctx = ctx;
+    int rc = -1;
+    if ( p_ctx != NULL ) {
+        struct soc_sensor_ioctl_args settings;
+        struct v4l2_subdev *sd = p_ctx->soc_sensor;
+        uint32_t ctx_num = get_ctx_num( ctx );
+        if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
+            settings.ctx_num = ctx_num;
+            if ( framerate ) {
+                settings.args.general.val_in = framerate;
+                rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_VMAX_FPS_SET, &settings );
+
+                rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_MAX, &settings );
+                p_ctx->param.integration_time_max = settings.args.general.val_out;
+
+                rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_LONG_MAX, &settings );
+                p_ctx->param.integration_time_long_max = settings.args.general.val_out;
+
+                rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_LIMIT, &settings );
+                p_ctx->param.integration_time_limit = settings.args.general.val_out;
+
+                LOG(LOG_INFO, "integration_time_max:%d, %d, %d", p_ctx->param.integration_time_max, p_ctx->param.integration_time_long_max, p_ctx->param.integration_time_limit);
+                //rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_LINES_PER_SECOND, &settings );
+                //p_ctx->param.lines_per_second = settings.args.general.val_out;
+            } else {
+                rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_VMAX_FPS_GET, &settings );
+                if ( rc == 0 )
+                    rc  = settings.args.general.val_out;
+                else
+                    LOG( LOG_ERR, "Failed to get sensor fps. rc = %d", rc );
+            }
+        } else {
+            LOG( LOG_CRIT, "SOC sensor subdev pointer is NULL" );
+        }
+    } else {
+        LOG( LOG_CRIT, "Sensor context pointer is NULL" );
+    }
+
+    return rc;
+}
+
 static void sensor_update( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
@@ -553,6 +596,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl )
         ctrl->start_streaming = start_streaming;
         ctrl->stop_streaming = stop_streaming;
         ctrl->ir_cut_set = sensor_ir_cut_set;
+        ctrl->vmax_fps = sensor_vmax_fps;
 
         p_ctx->param.modes_table = supported_modes;
         p_ctx->param.modes_num = 0;

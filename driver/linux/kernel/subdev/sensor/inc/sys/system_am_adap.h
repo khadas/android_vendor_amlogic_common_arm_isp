@@ -33,7 +33,7 @@
 #define PIXEL_BASE                  0x00005000
 #define ALIGN_BASE                  0x00005000
 #define MISC_BASE                   0x00005000
-#elif PLATFORM_C308X
+#elif PLATFORM_C308X || PLATFORM_C305X
 #define FRONTEND_BASE               0x00002800
 #define FRONTEND1_BASE              0x00002C00
 #define RD_BASE                     0x00003000
@@ -59,7 +59,7 @@
 #define CSI2_VC_MODE2_MATCH_TO_VC_H	0x2C
 #define CSI2_VC_MODE2_MATCH_TO_IGNORE_L	0x30
 #define CSI2_VC_MODE2_MATCH_TO_IGNORE_H	0x34
-#elif PLATFORM_C308X
+#elif PLATFORM_C308X || PLATFORM_C305X
 #define CSI2_VC_MODE2_MATCH_MASK_A_L	0x20
 #define CSI2_VC_MODE2_MATCH_MASK_A_H	0x24
 #define CSI2_VC_MODE2_MATCH_A_L	0x28
@@ -188,6 +188,7 @@ typedef struct exp_offset {
 	int long_offset;
 	int short_offset;
 	int offset_x;
+	int offset_y;
 } exp_offset_t;
 
 struct am_adap {
@@ -221,6 +222,7 @@ void am_adap_set_info(struct am_adap_info *info);
 int get_fte1_flag(void);
 int am_adap_get_depth(void);
 void mipi_adap_reg_rd_ext(int addr, adap_io_type_t io_type, uint32_t *val);
+void adapt_set_virtcam(void);
 
 #endif
 

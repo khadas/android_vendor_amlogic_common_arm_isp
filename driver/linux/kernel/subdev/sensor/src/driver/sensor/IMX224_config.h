@@ -66,4 +66,12 @@
 #define I2C_CLOCK_DIV 40
 #define I2C_CONTROL_MASK 0
 
+typedef struct _imx224_private_t {
+    uint32_t shs1;
+    uint32_t shs2;
+    uint32_t shs3;
+    uint32_t rhs1;
+    uint32_t rhs2;
+} imx224_private_t;
+
 #endif

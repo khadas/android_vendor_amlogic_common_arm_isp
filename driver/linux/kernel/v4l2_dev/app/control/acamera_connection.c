@@ -212,8 +212,8 @@ void acamera_connection_destroy( void )
     con.param = NULL;
     con.data_read = NULL;
     con.data_write = NULL;
-	if(con.buffer)
-		vfree(con.buffer);
+    if (con.buffer)
+        vfree(con.buffer);
 #endif /* ISP_HAS_STREAM_CONNECTION */
 }
 

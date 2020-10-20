@@ -276,6 +276,14 @@ typedef struct _sensor_control_t {
     *
     */
     int32_t ( *ir_cut_set )( void *ctx, int32_t ir_cut_state );
+
+     /**
+     *   vmax framerate
+     *
+     *   This function get/sets the sensor framerate by vmax.
+     *
+     */
+    uint32_t ( *vmax_fps )( void *ctx, uint32_t framerate );
 } sensor_control_t;
 
 

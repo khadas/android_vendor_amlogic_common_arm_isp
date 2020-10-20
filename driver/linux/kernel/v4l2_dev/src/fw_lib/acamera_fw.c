@@ -238,6 +238,75 @@ int32_t acamera_extern_param_calculate(void *param)
     w_cnt = _GET_WIDTH(p_ctrl->ctx, p_ctrl->id);
     c_result = p_ctrl->result;
 
+    if (!c_param || (r_cnt == 0))
+        return -1;
+
+    if (l_gain <= c_param[0]) {
+        system_memcpy(c_result, c_param, c_cnt * w_cnt);
+        goto over_return;
+    }
+
+    if (l_gain >= c_param[(r_cnt - 1) * c_cnt]) {
+        system_memcpy(c_result, &c_param[(r_cnt - 1) * c_cnt], c_cnt * w_cnt);
+        goto over_return;
+    }
+
+    for (i = 1; i < r_cnt; i++) {
+        if (l_gain < c_param[i * c_cnt]) {
+            break;
+        }
+    }
+
+    for (j = 1; j < c_cnt; j++) {
+        x0 = c_param[(i - 1) * c_cnt];
+        x1 = c_param[i * c_cnt];
+        y0 = c_param[(i - 1) * c_cnt + j];
+        y1 = c_param[i * c_cnt + j];
+        if (x1 != x0) {
+            alpha = (l_gain - x0) * 256 / (x1 - x0);
+            c_result[j] = (y1 * alpha + y0 * (256 - alpha)) >> 8;
+        } else {
+            c_result[j] = y1;
+            LOG(LOG_CRIT, "AVOIDED DIVISION BY ZERO");
+        }
+    }
+
+    c_result[0] = l_gain;
+
+over_return:
+    return rtn;
+}
+
+int32_t acamera_extern_param_calculate_ushort(void *param)
+{
+    int32_t rtn = 0;
+    uint32_t alpha = 0;
+    uint32_t i, j;
+    uint32_t r_cnt = 0;
+    uint32_t c_cnt = 0;
+    uint32_t l_gain = 0;
+    uint32_t w_cnt = 0;
+    uint16_t *c_param = NULL;
+    uint16_t *c_result = NULL;
+    uint32_t x0, y0, x1, y1;
+    fsm_ext_param_ctrl_t *p_ctrl = param;
+
+    if (p_ctrl == NULL || p_ctrl->ctx == NULL || p_ctrl->result == NULL) {
+        LOG(LOG_CRIT, "Error input param");
+        rtn = -1;
+        goto over_return;
+    }
+
+    c_param = _GET_USHORT_PTR(p_ctrl->ctx, p_ctrl->id);
+    l_gain = (p_ctrl->total_gain) >> (LOG2_GAIN_SHIFT - 8);
+    r_cnt = _GET_ROWS(p_ctrl->ctx, p_ctrl->id);
+    c_cnt = _GET_COLS(p_ctrl->ctx, p_ctrl->id);
+    w_cnt = _GET_WIDTH(p_ctrl->ctx, p_ctrl->id);
+    c_result = p_ctrl->result;
+
+    if (!c_param || (r_cnt == 0))
+        return -1;
+
     if (l_gain <= c_param[0]) {
         system_memcpy(c_result, c_param, c_cnt * w_cnt);
         goto over_return;
@@ -407,6 +476,7 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx, char* s_nam
             uint32_t cur_mode = param->mode;
             if ( cur_mode < param->modes_num ) {
                 sensor_arg = &( param->modes_table[cur_mode] );
+                ((sensor_mode_t *)sensor_arg)->cali_mode = p_ctx->cali_mode;
             }
         }
         if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, s_name) != 0 ) {
@@ -434,6 +504,58 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx, char* s_nam
 
 #if defined( ISP_HAS_SBUF_FSM )
         acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_SBUF_CALIBRATION_UPDATE, NULL, 0 );
+#endif
+    } else {
+        LOG( LOG_CRIT, "Calibration callback is null. Failed to get calibrations" );
+        result = -1;
+    }
+
+    return result;
+}
+
+int32_t acamera_update_calibration_customer( acamera_context_ptr_t p_ctx, uint32_t mode)
+{
+    int32_t result = 0;
+    sensor_mode_t sensor_arg;
+    if ( p_ctx->settings.get_calibrations != NULL ) {
+        {
+            const sensor_param_t *param = NULL;
+            acamera_fsm_mgr_get_param( &p_ctx->fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+
+            uint32_t cur_mode = param->mode;
+            if ( cur_mode < param->modes_num ) {
+                sensor_arg.wdr_mode = param->modes_table[cur_mode].wdr_mode;
+                sensor_arg.fps = param->modes_table[cur_mode].fps;
+                sensor_arg.exposures = param->modes_table[cur_mode].exposures;
+                sensor_arg.resolution.width = param->modes_table[cur_mode].resolution.width;
+                sensor_arg.resolution.height = param->modes_table[cur_mode].resolution.height;
+                sensor_arg.cali_mode = mode;
+                p_ctx->cali_mode = mode;
+            }
+        }
+        if ( p_ctx->settings.get_calibrations( p_ctx->context_id, &sensor_arg, &p_ctx->acameraCalibrations, NULL) != 0 ) {
+            LOG( LOG_CRIT, "Failed to get calibration set for. Fatal error" );
+        }
+
+#if defined( ISP_HAS_GENERAL_FSM )
+        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_RELOAD_CALIBRATION, NULL, 0 );
+#endif
+
+// Update some FSMs variables which depends on calibration data.
+#if defined( ISP_HAS_AE_BALANCED_FSM ) || defined( ISP_HAS_AE_MANUAL_FSM )
+        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_AE_INIT, NULL, 0 );
+#endif
+
+#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX_HIST_FSM ) || defined( ISP_HAS_IRIDIX_MANUAL_FSM )
+        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_IRIDIX_INIT, NULL, 0 );
+#endif
+
+#if defined( ISP_HAS_COLOR_MATRIX_FSM )
+        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_CCM_CHANGE, NULL, 0 );
+#endif
+
+#if defined( ISP_HAS_SBUF_FSM )
+        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_SBUF_CALIBRATION_UPDATE, &mode, sizeof(uint32_t) );
 #endif
     } else {
         LOG( LOG_CRIT, "Calibration callback is null. Failed to get calibrations" );
@@ -652,6 +774,7 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_manual_sinter = 0;
     p_ctx->stab.global_manual_temper = 0;
     p_ctx->stab.global_manual_awb = 0;
+    p_ctx->stab.global_manual_ccm = 0;
     p_ctx->stab.global_manual_saturation = 0;
     p_ctx->stab.global_manual_auto_level = 0;
     p_ctx->stab.global_manual_frame_stitch = 0;
@@ -674,10 +797,22 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_sinter_threshold_target = 0;
     p_ctx->stab.global_temper_threshold_target = 0;
     p_ctx->stab.global_awb_red_gain = 256;
+    p_ctx->stab.global_awb_green_even_gain = 256;
+    p_ctx->stab.global_awb_green_odd_gain = 256;
     p_ctx->stab.global_awb_blue_gain = 256;
+    p_ctx->stab.global_ccm_matrix[0] = 0x0100;
+    p_ctx->stab.global_ccm_matrix[1] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[2] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[3] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[4] = 0x0100;
+    p_ctx->stab.global_ccm_matrix[5] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[6] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[7] = 0x0000;
+    p_ctx->stab.global_ccm_matrix[8] = 0x0100;
     p_ctx->stab.global_saturation_target = 0;
     p_ctx->stab.global_ae_compensation = SYSTEM_AE_COMPENSATION_DEFAULT;
     p_ctx->stab.global_calibrate_bad_pixels = 0;
+    p_ctx->stab.global_dynamic_gamma_enable = 1;
 }
 
 
@@ -740,95 +875,69 @@ void acamera_3aalg_preset(acamera_fsm_mgr_t *p_fsm_mgr)
 	isp_awb_preset_t awb_param;
 	isp_gamma_preset_t gamma_param;
 	isp_iridix_preset_t iridix_param;
-    fsm_param_sensor_info_t sensor_info;
 
-	acamera_fsm_mgr_get_param( p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
-	if(sensor_info.sensor_exp_number == 2)
-	{
-		ae_param.skip_cnt = 5;
-		ae_param.exposure_log2 = 1726569;
-		ae_param.integrator = 51797079;
-		ae_param.error_log2 = 0;
-		ae_param.exposure_ratio = 512;
+	if ( _GET_LEN(p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AE_CONTROL) &&
+		 _GET_LEN(p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL) &&
+		 _GET_LEN(p_fsm_mgr->p_ctx, CALIBRATION_3AALG_GAMMA_CONTROL) &&
+		 _GET_LEN(p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL) ) {
+		ae_param.skip_cnt = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AE_CONTROL )[0];
+		ae_param.exposure_log2 = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AE_CONTROL )[1];
+		ae_param.integrator = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AE_CONTROL )[2];
+		ae_param.error_log2 = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AE_CONTROL )[3];
+		ae_param.exposure_ratio = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AE_CONTROL )[4];
 
-		awb_param.skip_cnt = 15;
-		awb_param.wb_log2[0] = 252071;
-		awb_param.wb_log2[1] = 87;
-		awb_param.wb_log2[2] = 87;
-		awb_param.wb_log2[3] = 180394;
-		awb_param.wb[0] = 527;
-		awb_param.wb[1] = 271;
-		awb_param.wb[2] = 271;
-		awb_param.wb[3] = 436;
-		awb_param.global_awb_red_gain = 302;
-		awb_param.global_awb_blue_gain = 234;
-		awb_param.p_high = 78;
-		awb_param.temperature_detected = 6410;
-		awb_param.light_source_candidate = 3;
+		awb_param.skip_cnt = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[0];
+		awb_param.wb_log2[0] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[1];
+		awb_param.wb_log2[1] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[2];
+		awb_param.wb_log2[2] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[3];
+		awb_param.wb_log2[3] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[4];
+		awb_param.wb[0] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[5];
+		awb_param.wb[1] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[6];
+		awb_param.wb[2] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[7];
+		awb_param.wb[3] = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[8];
+		awb_param.global_awb_red_gain = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[9];
+		awb_param.global_awb_blue_gain = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[10];
+		awb_param.p_high = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[11];
+		awb_param.temperature_detected = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[12];
+		awb_param.light_source_candidate = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_AWB_CONTROL )[13];
 
-		gamma_param.skip_cnt = 30;
-		gamma_param.gamma_gain = 266;
-		gamma_param.gamma_offset = 39;
+		gamma_param.skip_cnt = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_GAMMA_CONTROL )[0];
+		gamma_param.gamma_gain = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_GAMMA_CONTROL )[1];
+		gamma_param.gamma_offset = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_GAMMA_CONTROL )[2];
 
-		iridix_param.skip_cnt = 90;
-		iridix_param.strength_target = 30681;
-		iridix_param.iridix_contrast = 3986;
-		iridix_param.dark_enh = 1000;
-		iridix_param.iridix_global_DG = 256;
-		iridix_param.diff = 256;
-		iridix_param.iridix_strength = 30681;
-		LOG(LOG_CRIT, "Enter FS_Lin_2Exp Preset");
+		iridix_param.skip_cnt = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[0];
+		iridix_param.strength_target = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[1];
+		iridix_param.iridix_contrast = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[2];
+		iridix_param.dark_enh = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[3];
+		iridix_param.iridix_global_DG = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[4];
+		iridix_param.diff = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[5];
+		iridix_param.iridix_strength = _GET_UINT_PTR( p_fsm_mgr->p_ctx, CALIBRATION_3AALG_IRIDIX_CONTROL )[6];
+
+		fsm_param_sensor_info_t sensor_info;
+		acamera_fsm_mgr_get_param( p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
+		if ( sensor_info.sensor_exp_number == WDR_MODE_FS_LIN )
+			LOG(LOG_CRIT, "Enter FS_Lin_2Exp Preset");
+		else
+			LOG(LOG_CRIT, "Enter Linear Binary Preset");
+	} else {
+		ae_param.skip_cnt = 0;
+		awb_param.skip_cnt = 0;
+		gamma_param.skip_cnt = 0;
+		iridix_param.skip_cnt = 0;
 	}
-	else
-	{
-		ae_param.skip_cnt = 5;
-		ae_param.exposure_log2 = 2011011;
-		ae_param.integrator = 33165172;
-		ae_param.error_log2 = 0;
-		ae_param.exposure_ratio = 64;
-		
-		awb_param.skip_cnt = 15;
-		awb_param.wb_log2[0] = 252071;
-		awb_param.wb_log2[1] = 87;
-		awb_param.wb_log2[2] = 87;
-		awb_param.wb_log2[3] = 180394;
-		awb_param.wb[0] = 527;
-		awb_param.wb[1] = 271;
-		awb_param.wb[2] = 271;
-		awb_param.wb[3] = 436;
-		awb_param.global_awb_red_gain = 270;
-		awb_param.global_awb_blue_gain = 236;
-		awb_param.p_high = 29;
-		awb_param.temperature_detected = 5400;
-		awb_param.light_source_candidate = 3;
-
-		gamma_param.skip_cnt = 30;
-		gamma_param.gamma_gain = 340;
-		gamma_param.gamma_offset = 15;
-
-		iridix_param.skip_cnt = 90;
-		iridix_param.strength_target = 13708;
-		iridix_param.iridix_contrast = 2464;
-		iridix_param.dark_enh = 400;
-		iridix_param.iridix_global_DG = 256;
-		iridix_param.diff = 256;
-		iridix_param.iridix_strength = 13708;
-		LOG(LOG_CRIT, "Enter Linear Binary Preset");
-	}
-
 #ifdef ACAMERA_PRESET_FREERTOS
-    acamera_alg_preset_t total_param;
+	acamera_alg_preset_t total_param;
 
-    if ( p_fsm_mgr->isp_seamless ) {
-        char *reserve_virt_addr = phys_to_virt(ACAMERA_ALG_PRE_BASE);
+	if ( p_fsm_mgr->isp_seamless ) {
+		char *reserve_virt_addr = phys_to_virt(ACAMERA_ALG_PRE_BASE);
 
-        if ( autowrite_fr_start_address_read() )
-            reserve_virt_addr = phys_to_virt(autowrite_fr_start_address_read() + autowrite_fr_writer_memsize_read());
-        else if ( autowrite_ds1_start_address_read() )
-            reserve_virt_addr = phys_to_virt(autowrite_ds1_start_address_read() + autowrite_ds1_writer_memsize_read());
+		if ( autowrite_fr_start_address_read() )
+			reserve_virt_addr = phys_to_virt(autowrite_fr_start_address_read() + autowrite_fr_writer_memsize_read());
+		else if ( autowrite_ds1_start_address_read() )
+			reserve_virt_addr = phys_to_virt(autowrite_ds1_start_address_read() + autowrite_ds1_writer_memsize_read());
 
-        system_memcpy((void *)&total_param, (void *)reserve_virt_addr, sizeof(total_param));
-    }
+		system_memcpy((void *)&total_param, (void *)reserve_virt_addr, sizeof(total_param));
+	}
 
 	if(total_param.ae_pre_info.skip_cnt == 0xFFFF && total_param.awb_pre_info.skip_cnt == 0xFFFF)
 	{
@@ -900,6 +1009,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         // reset frame counters
         p_ctx->isp_frame_counter_raw = 0;
         p_ctx->isp_frame_counter = 0;
+        p_ctx->cali_mode = 0;
 
         acamera_fw_init( p_ctx );
 

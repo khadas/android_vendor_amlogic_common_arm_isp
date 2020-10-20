@@ -166,6 +166,51 @@ int sensor_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         *(uint32_t *)output = p_fsm->ctrl.get_id( p_fsm->sensor_ctx );
         break;
 
+    case FSM_PARAM_GET_SENSOR_MAX_RESOLUTION: {
+        image_resolution_t *max_res = (image_resolution_t *)output;
+        image_resolution_t *cur_res;
+        const sensor_param_t *sensor_param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+        sensor_mode_t *modes_table = sensor_param->modes_table;
+        uint32_t max_size = 0, size_res;
+        int i;
+
+        if ( !max_res || output_size != sizeof( *max_res ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        if (!modes_table) {
+            rc = -1;
+            break;
+        }
+
+        for (i = 0; i < sensor_param->modes_num; i++) {
+            cur_res = &modes_table[i].resolution;
+            size_res = (uint32_t)cur_res->width * cur_res->height;
+            if (size_res > max_size) {
+                max_size = size_res;
+                max_res->width = cur_res->width;
+                max_res->height = cur_res->height;
+            }
+        }
+
+        break;
+
+        case FSM_PARAM_GET_SENSOR_VMAX_FPS: {
+            if ( !output || output_size != sizeof( uint32_t ) ) {
+                LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+                rc = -1;
+                break;
+            }
+
+            rc = 0;
+            *(uint32_t *)output = p_fsm->ctrl.vmax_fps(p_fsm->sensor_ctx, rc);
+        }
+
+        break;
+    }
+
     default:
         rc = -1;
         break;
@@ -210,6 +255,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         ctx_ptr = ACAMERA_FSM2CTX_PTR(p_fsm);
         ctx_ptr->irq_flag++;
         p_fsm->preset_mode = *(uint32_t *)input;
+        p_fsm->info_preset_num = p_fsm->preset_mode;
         sensor_hw_init( p_fsm );
         sensor_configure_buffers( p_fsm );
         sensor_sw_init( p_fsm );
@@ -318,12 +364,25 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         ctx_ptr = ACAMERA_FSM2CTX_PTR(p_fsm);
 
         p_fsm->preset_mode = *(uint32_t *)input;
+        p_fsm->info_preset_num = p_fsm->preset_mode;
         p_fsm->ctrl.stop_streaming( p_fsm->sensor_ctx );
         sensor_hw_init( p_fsm );
         sensor_configure_buffers( p_fsm );
         sensor_sw_init( p_fsm );
         p_fsm->ctrl.start_streaming( p_fsm->sensor_ctx );
         acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START );
+        break;
+    }
+    case FSM_PARAM_SET_SENSOR_VMAX_FPS: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        uint32_t framerate = *(uint32_t *)input;
+        p_fsm->ctrl.vmax_fps( p_fsm->sensor_ctx, framerate);
+
         break;
     }
     default:

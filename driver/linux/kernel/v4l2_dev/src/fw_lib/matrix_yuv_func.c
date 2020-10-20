@@ -108,7 +108,7 @@ static void matrix_yuv_fr_coefft_write_to_hardware( matrix_yuv_fsm_t *p_fsm )
 {
     // set U and V channel to 0 in black and white mode
     int i = 0;
-    if ( p_fsm->color_mode == BLACK_AND_WHITE ) {
+    if ( ( p_fsm->color_mode == BLACK_AND_WHITE ) && ( p_fsm->fr_pipe_output_format != PIPE_OUT_RGB ) ) {
        for ( i = 3; i < 9; i++ ) {
            p_fsm->fr_composite_yuv_matrix[i] = 0;
        }
@@ -177,13 +177,13 @@ static void matrix_yuv_ds_write_to_hardware( matrix_yuv_fsm_t *p_fsm )
 {
     // set U and V channel to 0 in black and white mode
     int i = 0;
-    if ( p_fsm->color_mode == BLACK_AND_WHITE ) {
+    if ( ( p_fsm->color_mode == BLACK_AND_WHITE ) && ( p_fsm->ds1_pipe_output_format != PIPE_OUT_RGB ) ) {
        for ( i = 3; i < 9; i++ ) {
-           p_fsm->fr_composite_yuv_matrix[i] = 0;
+           p_fsm->ds1_composite_yuv_matrix[i] = 0;
        }
-       p_fsm->fr_composite_yuv_matrix[9] = 0;
-       p_fsm->fr_composite_yuv_matrix[10] = 512;
-       p_fsm->fr_composite_yuv_matrix[11] = 512;
+       p_fsm->ds1_composite_yuv_matrix[9] = 0;
+       p_fsm->ds1_composite_yuv_matrix[10] = 512;
+       p_fsm->ds1_composite_yuv_matrix[11] = 512;
     }
 
 #if ISP_HAS_DS1

@@ -49,7 +49,7 @@ static void demosaic_rgb_ext_param_update(sharpening_fsm_t *p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to calculate demosaic rgb ext");
+        LOG(LOG_INFO, "Failed to calculate demosaic rgb ext");
         return;
     }
 
@@ -83,7 +83,7 @@ static void sharpen_ext_param_update(sharpening_fsm_t *p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to calculate fr ext sharpen");
+        LOG(LOG_INFO, "Failed to calculate fr ext sharpen");
         return;
     }
 
@@ -100,7 +100,7 @@ static void sharpen_ext_param_update(sharpening_fsm_t *p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to calculate ds ext sharpen");
+        LOG(LOG_INFO, "Failed to calculate ds ext sharpen");
         return;
     }
 

@@ -126,6 +126,20 @@ static uint32_t get_calibration_otp( void *iq_ctx, int32_t ctx_id, void *sensor_
 }
 #endif
 
+#if ACAMERA_CALIBRATION_LOAD_EXTERFILE
+static uint32_t get_calibration_external_tuning( void *iq_ctx, int32_t ctx_id, void *sensor_arg )
+{
+    struct soc_iq_ioctl_args args;
+
+    // request all calibrations size
+    args.ioctl.request_info.context = ctx_id;
+    args.ioctl.request_info.sensor_arg = sensor_arg;
+    uint32_t ret = __IOCTL_CALL( iq_ctx, V4L2_SOC_IQ_IOCTL_REQUEST_EXTERNAL_CALI, args );
+
+    return ret;
+}
+#endif
+
 uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalibrations *c, char* s_name)
 {
     uint32_t result = 0;
@@ -160,6 +174,9 @@ uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalib
     LOG( LOG_INFO, "ctx_id:%d sensor_arg:0x%x Total size for all Luts is %d bytes", ctx_id, sensor_arg, total_size );
 
     if ( total_size != 0 ) {
+#if ACAMERA_CALIBRATION_LOAD_EXTERFILE
+        get_calibration_external_tuning(iq_ctx, ctx_id, sensor_arg);
+#endif
 #if ACAMERA_CALIBRATION_OTP
         get_calibration_otp(iq_ctx, ctx_id, sensor_arg);
 #endif

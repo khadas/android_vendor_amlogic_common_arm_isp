@@ -111,8 +111,11 @@ int am_mipi_parse_dt(struct device_node *node)
 
 	rtn = of_property_read_u32(node, "aphy-ctrl3-cfg", &t_mipi->aphy_ctrl3_cfg);
 	if (rtn != 0)
+#if PLATFORM_C305X
+		t_mipi->aphy_ctrl3_cfg = 0x301;
+#else
 		t_mipi->aphy_ctrl3_cfg = 0x02; /*A: 0x02, B: 0xc002*/
-
+#endif
 	rtn = of_property_read_u32(node, "dphy0-ctrl0-cfg", &t_mipi->dphy0_ctrl0_cfg);
 	if (rtn != 0)
 		t_mipi->dphy0_ctrl0_cfg = 0x123; /*A: 0x123, B: 0x123ff*/
@@ -254,13 +257,31 @@ static int am_mipi_phy_init(void *info)
 	settle = settle/cycle_time;
 
 	//pr_err("%s:Settle:0x%08x\n", __func__, settle);
+#if PLATFORM_C305X
+#if 0
+	if (m_info->ui_val <= 1)
+		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x0f820705);
+	else
+#endif
+	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x0f820701);
 
+	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL1, 0x3f1221);
+#elif PLATFORM_C308X
+	if (m_info->ui_val <= 1)
+		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x2b410589);
+	else
+		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x2f410581);
+
+	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL1, 0x1f2122);
+#else
 	if (m_info->ui_val <= 1)
 		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x0b440585);
 	else
 		mipi_aphy_reg_wr(HI_CSI_PHY_CNTL0, 0x0b440581);
 
 	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL1, 0x803f0000);
+#endif
+
 	mipi_aphy_reg_wr(HI_CSI_PHY_CNTL3, g_mipi->aphy_ctrl3_cfg);
 
 	//mipi_phy_reg_wr(MIPI_PHY_CTRL, data32);   //soft reset bit
@@ -268,7 +289,7 @@ static int am_mipi_phy_init(void *info)
 	mipi_phy_reg_wr(MIPI_PHY_CLK_LANE_CTRL ,0x3d8); //3d8:continue mode
 	mipi_phy_reg_wr(MIPI_PHY_TCLK_MISS ,0x9);  // clck miss = 50 ns --(x< 60 ns)
 	mipi_phy_reg_wr(MIPI_PHY_TCLK_SETTLE ,0x1f);  // clck settle = 160 ns --(95ns< x < 300 ns)
-	mipi_phy_reg_wr(MIPI_PHY_THS_EXIT ,0x1f);   // hs exit = 160 ns --(x>100ns)
+	mipi_phy_reg_wr(MIPI_PHY_THS_EXIT ,0x04);   // hs exit = 160 ns --(x>100ns)
 	mipi_phy_reg_wr(MIPI_PHY_THS_SKIP ,0xa);   // hs skip = 55 ns --(40ns<x<55ns+4*UI)
 	mipi_phy_reg_wr(MIPI_PHY_THS_SETTLE , settle);//settle);   // hs settle = 160 ns --(85 ns + 6*UI<x<145 ns + 10*UI)
 	mipi_phy_reg_wr(MIPI_PHY_TINIT ,0x4e20);  // >100us

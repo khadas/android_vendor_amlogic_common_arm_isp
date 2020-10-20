@@ -62,12 +62,12 @@ int32_t system_memset( void *ptr, uint8_t value, uint32_t size );
  *   Allocates memory of size bytes
  *
  *   The function should return a pointer to a memory of SIZE bytes
- *   
+ *
  *
  *   @param   size - number of bytes to be allocated
  *
  *   @return  NULL - failed
- *            non zero - valid pointer to memory 
+ *            non zero - valid pointer to memory
  */
 void *system_malloc( uint32_t size );
 
@@ -76,12 +76,12 @@ void *system_malloc( uint32_t size );
  *   Free memory previously allocated by system_malloc
  *
  *   The function should free memory previously allocated by system_malloc function
- *   
+ *
  *
  *   @param   ptr - pointer to the memory
  *
- *   @return  
- *            
+ *   @return
+ *
  */
 void system_free( void *ptr );
 

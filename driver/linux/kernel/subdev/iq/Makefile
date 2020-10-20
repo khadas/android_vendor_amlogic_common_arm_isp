@@ -30,6 +30,7 @@ EXTRA_CFLAGS := -I$(M_PATH)/app -I$(M_PATH)/inc -I$(M_PATH)/app/control \
                 -I$(M_PATH)/inc/api -I$(M_PATH)/inc/isp -I$(M_PATH)/inc/sys \
                 -I$(M_PATH)/src/platform -I$(M_PATH)/src/fw \
                 -I$(M_PATH)/src/fw_lib -I$(M_PATH)/src/calibration -I$(M_PATH)/src/drv_otp \
+                -I$(M_PATH)/src/drv_tuning  \
                 -I$(M_PATH)/src/driver/sensor -I$(M_PATH)/src/driver/lens
 
 EXTRA_CFLAGS += -Wno-declaration-after-statement -Idrivers/staging/android/ \

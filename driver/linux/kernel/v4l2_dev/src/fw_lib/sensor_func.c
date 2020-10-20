@@ -103,7 +103,7 @@ uint32_t sensor_boot_init( sensor_fsm_ptr_t p_fsm )
 
 void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 {
-    struct timeval  txs,txe; 
+    struct timeval  txs,txe;
     do_gettimeofday(&txs);
     
 #if FW_DO_INITIALIZATION
@@ -141,7 +141,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 					LOG(LOG_CRIT, "preset not match user mode, execute switch and close seamless");
 					p_fsm->ctrl.set_mode( p_fsm->sensor_ctx, p_fsm->preset_mode );
 					p_fsm->p_fsm_mgr->isp_seamless = 0;
-			}		
+			}
 			if(param->modes_table[p_fsm->preset_mode].exposures != set_wdr_param.exp_number)
 			{
 				set_wdr_param.wdr_mode = param->modes_table[p_fsm->preset_mode].wdr_mode;
@@ -150,7 +150,6 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 		}
 	}
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_WDR_MODE, &set_wdr_param, sizeof( set_wdr_param ) );
-
     // 3): Init or update the calibration data.
     acamera_init_calibrations( ACAMERA_FSM2CTX_PTR( p_fsm ), ((sensor_param_t *)(p_fsm->sensor_ctx))->s_name.name );
 
@@ -321,7 +320,7 @@ static void sqrt_ext_param_update(sensor_fsm_ptr_t p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to calculate sqrt ext");
+        LOG(LOG_INFO, "Failed to calculate sqrt ext");
         return;
     }
 
@@ -345,7 +344,7 @@ static void square_be_ext_param_update(sensor_fsm_ptr_t p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to square be ext");
+        LOG(LOG_INFO, "Failed to square be ext");
         return;
     }
 

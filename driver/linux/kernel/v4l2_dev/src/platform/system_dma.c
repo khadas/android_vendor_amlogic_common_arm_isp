@@ -27,6 +27,7 @@
 #include <linux/time.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
+#include "system_am_dma.h"
 #include "system_dma.h"
 
 #define SYSTEM_DMA_TOGGLE_COUNT 2
@@ -67,12 +68,23 @@ typedef struct {
 
 #include <linux/interrupt.h>
 
+#if FW_USE_AML_DMA
+typedef struct {
+    unsigned long dev_addr;
+    unsigned long fw_addr;
+    size_t size;
+    void *sys_back_ptr;
+} mem_addr_pair_t;
+extern void cache_flush(uint32_t buf_start, uint32_t buf_size);
+extern void cache_flush_for_device(uint32_t buf_start, uint32_t buf_size);
+#else
 typedef struct {
     void __iomem *dev_addr;
     void *fw_addr;
     size_t size;
     void *sys_back_ptr;
 } mem_addr_pair_t;
+#endif
 
 typedef struct {
     struct tasklet_struct m_task;
@@ -159,6 +171,10 @@ int32_t system_dma_init( void **ctx )
         LOG( LOG_CRIT, "Input ctx pointer is NULL" );
     }
 
+#if FW_USE_AML_DMA
+    am_dma_init();
+#endif
+
     return result;
 }
 
@@ -170,6 +186,10 @@ int32_t system_dma_destroy( void *ctx )
 
     if ( ctx != 0 ) {
         system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
+
+#if FW_USE_AML_DMA
+        am_dma_deinit();
+#endif
 
 #if FW_USE_SYSTEM_DMA
         for ( i = 0; i < SYSTEM_DMA_MAX_CHANNEL; i++ ) {
@@ -186,6 +206,15 @@ int32_t system_dma_destroy( void *ctx )
 
                 if ( system_dma_device->fwmem_pair_flush[idx][i] )
                     kfree( system_dma_device->fwmem_pair_flush[idx][i] );
+            }
+        }
+
+#elif FW_USE_AML_DMA
+        for ( idx = 0; idx < FIRMWARE_CONTEXT_NUMBER; idx++ ) {
+            for ( i = 0; i < SYSTEM_DMA_TOGGLE_COUNT; i++ ) {
+                if ( system_dma_device->mem_addrs[idx][i] ) {
+                    kfree( system_dma_device->mem_addrs[idx][i] );
+                }
             }
         }
 
@@ -455,6 +484,172 @@ int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma
     return result;
 }
 
+#elif FW_USE_AML_DMA
+int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
+{
+    system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
+    int i;
+
+    if ( !system_dma_device || !device_addr_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT || addr_pairs > SYSTEM_DMA_MAX_CHANNEL || fw_ctx_id >= FIRMWARE_CONTEXT_NUMBER )
+        return -1;
+
+    system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] = addr_pairs;
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] )
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc] = kmalloc( sizeof( mem_addr_pair_t ) * SYSTEM_DMA_MAX_CHANNEL, GFP_KERNEL );
+
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] ) {
+        LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
+        return -1;
+    }
+    for ( i = 0; i < addr_pairs; i++ ) {
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].dev_addr = device_addr_pair[i].address & (~0x1f);
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].size = device_addr_pair[i].size + (device_addr_pair[i].address & 0x1f);
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].sys_back_ptr = ctx;
+    }
+
+    LOG( LOG_INFO, "dma device setup success %d", system_dma_device->sg_device_nents[buff_loc] );
+    return 0;
+}
+
+int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_t *fwmem_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
+{
+    int i;
+    system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
+
+    if ( !system_dma_device || !fwmem_pair || !addr_pairs || buff_loc >= SYSTEM_DMA_TOGGLE_COUNT ) {
+        LOG( LOG_CRIT, "null param problems" );
+        return -1;
+    }
+    system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc] = addr_pairs;
+
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] )
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc] = kmalloc( sizeof( mem_addr_pair_t ) * SYSTEM_DMA_MAX_CHANNEL, GFP_KERNEL );
+
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] ) {
+        LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
+        return -1;
+    }
+
+    if ( !system_dma_device->mem_addrs[fw_ctx_id][buff_loc] ) {
+        LOG( LOG_CRIT, "Failed to allocate virtual address pairs for flushing!!" );
+        return -1;
+    }
+    for ( i = 0; i < addr_pairs; i++ ) {
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].fw_addr = virt_to_phys(fwmem_pair[i].address) & (~0x1f);
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].size = fwmem_pair[i].size + (virt_to_phys(fwmem_pair[i].address) & 0x1f);
+        system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i].sys_back_ptr = ctx;
+    }
+
+    LOG( LOG_INFO, "fwmem setup success %d", system_dma_device->sg_device_nents[fw_ctx_id][buff_loc] );
+
+    return 0;
+}
+
+inline void system_memcpy_dma(unsigned long src_mem, unsigned long dst_mem,uint32_t direction, uint32_t reg_cnt)
+{
+    uint32_t dma_dir = 0;
+
+    if (direction == SYS_DMA_TO_DEVICE)
+        dma_dir = 1;
+    else
+        dma_dir = 0;
+
+    am_dma_cfg_src(0, src_mem);
+    am_dma_cfg_dst(0, dst_mem);
+    am_dma_cfg_dir_cnt(0, dma_dir, reg_cnt/4);
+    am_dma_start();
+    am_dma_done_check();
+}
+
+static void memcopy_func( unsigned long p_task )
+{
+    mem_tasklet_t *mem_task = (mem_tasklet_t *)p_task;
+    mem_addr_pair_t *mem_addr = (mem_addr_pair_t *)mem_task->mem_data;
+    system_dma_device_t *system_dma_device = (system_dma_device_t *)mem_addr->sys_back_ptr;
+    unsigned long src_mem = 0;
+    unsigned long dst_mem = 0;
+
+    int32_t buff_loc = system_dma_device->buff_loc;
+    uint32_t direction = system_dma_device->direction;
+
+    if ( direction == SYS_DMA_TO_DEVICE ) {
+        src_mem = mem_addr->fw_addr;
+        dst_mem = mem_addr->dev_addr;
+        cache_flush_for_device(src_mem, mem_addr->size);
+        system_memcpy_dma(src_mem, dst_mem, direction, mem_addr->size);
+    } else {
+        src_mem = mem_addr->dev_addr;
+        dst_mem = mem_addr->fw_addr;
+        system_memcpy_dma(src_mem, dst_mem, direction, mem_addr->size);
+        cache_flush(dst_mem, mem_addr->size);
+    }
+
+    LOG( LOG_DEBUG, "(%d:%d) d:%p s:%p l:%ld", buff_loc, direction, dst_mem, src_mem, mem_addr->size );
+
+    dma_complete_func( mem_addr->sys_back_ptr );
+
+    return;
+}
+
+void system_dma_unmap_sg( void *ctx )
+{
+    return;
+}
+
+int32_t system_dma_copy_sg( void *ctx, int32_t buff_loc, uint32_t direction, dma_completion_callback complete_func, uint32_t fw_ctx_id )
+{
+    int32_t i, result = 0;
+    if ( !ctx ) {
+        LOG( LOG_ERR, "Input ctx pointer is NULL" );
+        return -1;
+    }
+
+    int32_t async_dma = 0;
+
+    if ( complete_func != NULL ) {
+        async_dma = 1;
+    }
+
+    system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
+
+
+    unsigned int src_nents = system_dma_device->sg_device_nents[fw_ctx_id][buff_loc];
+    unsigned int dst_nents = system_dma_device->sg_fwmem_nents[fw_ctx_id][buff_loc];
+    if ( src_nents != dst_nents || !src_nents || !dst_nents ) {
+        LOG( LOG_CRIT, "Unbalance src_nents:%d dst_nents:%d", src_nents, dst_nents );
+        return -1;
+    }
+
+    system_dma_device->cur_fw_ctx_id = fw_ctx_id;
+
+    atomic_set( &system_dma_device->nents_done, 0 ); //set the number of nents done
+    if ( async_dma == 0 ) {
+        system_dma_device->complete_func = NULL; //async mode is not allowed to have callback
+        init_completion( &system_dma_device->comp );
+    } else {
+        system_dma_device->complete_func = complete_func; //call this function if all nents are done;
+    }
+    system_dma_device->direction = direction;
+    system_dma_device->buff_loc = buff_loc;
+
+
+    for ( i = 0; i < SYSTEM_DMA_MAX_CHANNEL; i++ ) {
+        system_dma_device->task_list[fw_ctx_id][buff_loc][i].mem_data = &( system_dma_device->mem_addrs[fw_ctx_id][buff_loc][i] );
+        system_dma_device->task_list[fw_ctx_id][buff_loc][i].m_task.data = (unsigned long)&system_dma_device->task_list[fw_ctx_id][buff_loc][i];
+        system_dma_device->task_list[fw_ctx_id][buff_loc][i].m_task.func = memcopy_func;
+        memcopy_func( (unsigned long)&system_dma_device->task_list[fw_ctx_id][buff_loc][i].m_task );
+    }
+
+    if ( async_dma == 0 ) {
+        LOG( LOG_DEBUG, "scatterlist DMA waiting completion\n" );
+        wait_for_completion( &system_dma_device->comp );
+    }
+
+    LOG( LOG_DEBUG, "scatterlist DMA success\n" );
+    return result;
+
+}
+
 #else
 
 int32_t system_dma_sg_device_setup( void *ctx, int32_t buff_loc, dma_addr_pair_t *device_addr_pair, int32_t addr_pairs, uint32_t fw_ctx_id )
@@ -519,6 +714,9 @@ int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_
 
 inline void system_memcpy_toio(volatile void __iomem *to, const void *from, size_t count)
 {
+#ifdef CONFIG_ARM64
+    memcpy_toio(to, from, count);
+#else
     const unsigned int *f = from;
     count /= 4;
     while (count) {
@@ -527,10 +725,14 @@ inline void system_memcpy_toio(volatile void __iomem *to, const void *from, size
         f++;
         to += 4;
     }
+#endif
 }
 
 inline void system_memcpy_fromio(void *to, const volatile void __iomem *from, size_t count)
 {
+#ifdef CONFIG_ARM64
+    memcpy_fromio(to, from ,count);
+#else
     unsigned int *t = to;
     count /= 4;
     while (count) {
@@ -539,6 +741,7 @@ inline void system_memcpy_fromio(void *to, const volatile void __iomem *from, si
         t++;
         from += 4;
     }
+#endif
 }
 
 static void memcopy_func( unsigned long p_task )

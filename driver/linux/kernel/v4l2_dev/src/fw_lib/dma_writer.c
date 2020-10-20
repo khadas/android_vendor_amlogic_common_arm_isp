@@ -205,6 +205,12 @@ dma_error dma_writer_set_pipe_fps(void *handle, dma_type type,
     dma_pipe *pipe = NULL;
     uint32_t inter_val = 0;
 
+    if (t_fps == 0 && c_fps != 0) {
+        p_dma = handle;
+        pipe = &p_dma->pipe[type];
+        pipe->settings.c_fps = c_fps;
+    }
+
     if (handle == NULL || c_fps == 0 || t_fps == 0 || (t_fps > c_fps)) {
         LOG(LOG_ERR, "Error input param\n");
         return edma_wrong_parameters;
@@ -285,7 +291,7 @@ uint16_t dma_writer_write_frame_queue( void *handle, dma_type type, tframe_t *fr
             pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
 
         pipe->api.p_acamera_isp_dma_writer_line_offset_write( pipe->settings.isp_base, pipe->settings.frame_buf_queue[set_i].primary.line_offset);
-		
+
         //check if format is for UV
         if ( pipe->api.p_acamera_isp_dma_writer_format_read_uv( pipe->settings.isp_base ) != DMA_FORMAT_DISABLE ) {
             pipe->settings.frame_buf_queue[set_i].secondary.status = dma_buf_busy;
@@ -515,7 +521,7 @@ dma_error dma_writer_pipe_set_fps(dma_pipe *pipe)
     uint32_t inter_val = 0;
     uint32_t c_fps = 0;
     uint32_t t_fps = 0;
-
+    uint32_t cur_tip = 0,pre_tip = 0;
     if (pipe == NULL || pipe->settings.p_ctx == NULL) {
         LOG(LOG_ERR, "Error input param:p_ctx %p\n", pipe->settings.p_ctx);
         return edma_invalid_pipe;
@@ -531,18 +537,23 @@ dma_error dma_writer_pipe_set_fps(dma_pipe *pipe)
         || (inter_val == 0) || (inter_val == 1))
         return edma_ok;
 
-    if (inter_val > 2) {
-        if (frm_count % inter_val != 0) {
-            pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
-            pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, 0 );
-            pipe->settings.back_tframe = pipe->settings.inqueue_tframe[1];
-            pipe->settings.inqueue_tframe[1] = NULL;
-        } else {
-            pipe->settings.back_tframe = NULL;
-        }
+    if (c_fps <= t_fps) {
+        pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
+        pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, 0 );
+        pipe->settings.back_tframe = pipe->settings.inqueue_tframe[1];
+        pipe->settings.inqueue_tframe[1] = NULL;
+        return edma_ok;
+    }
+
+    if (frm_count < 1 ) {
+        pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
+        pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, 0 );
+        pipe->settings.back_tframe = pipe->settings.inqueue_tframe[1];
+        pipe->settings.inqueue_tframe[1] = NULL;
     } else {
-        inter_val = c_fps  / (c_fps - t_fps);
-        if (frm_count % inter_val == 0) {
+        if (c_fps != 0) cur_tip = frm_count*(c_fps - t_fps)*1000L/c_fps/1000L;
+        if (c_fps != 0) pre_tip = (frm_count - 1)*(c_fps - t_fps)*1000L/c_fps/1000L;
+        if ((cur_tip - pre_tip) != 0 ) {
             pipe->api.p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, 0 );
             pipe->api.p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, 0 );
             pipe->settings.back_tframe = pipe->settings.inqueue_tframe[1];

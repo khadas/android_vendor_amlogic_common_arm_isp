@@ -627,10 +627,39 @@ void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm)
     }
 }
 
+static void pf_ext_param_update(general_fsm_ptr_t p_fsm)
+{
+    int32_t rtn = 0;
+    int32_t t_gain = 0;
+    struct pf_ext_param_t p_result;
+    fsm_ext_param_ctrl_t p_ctrl;
+
+    acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &t_gain, sizeof(t_gain));
+
+    p_ctrl.ctx = (void *)(ACAMERA_FSM2CTX_PTR(p_fsm));
+    p_ctrl.id = CALIBRATION_PF_CORRECTION;
+    p_ctrl.total_gain = t_gain;
+    p_ctrl.result = (void *)&p_result;
+
+    rtn = acamera_extern_param_calculate_ushort(&p_ctrl);
+    if (rtn != 0) {
+        LOG(LOG_INFO, "Failed to calculate dp dev threshold ext");
+        return;
+    }
+
+    acamera_isp_pf_correction_hue_strength_write(p_fsm->cmn.isp_base, p_result.hue_strength);
+    acamera_isp_pf_correction_luma_strength_write(p_fsm->cmn.isp_base, p_result.luma_strength);
+    acamera_isp_pf_correction_sat_strength_write(p_fsm->cmn.isp_base, p_result.sat_strength);
+    acamera_isp_pf_correction_saturation_strength_write(p_fsm->cmn.isp_base, p_result.saturation_strength);
+    acamera_isp_pf_correction_purple_strength_write(p_fsm->cmn.isp_base, p_result.purple_strength);
+}
+
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
-    if ( p_fsm->gamma2_enable )
+    if ( p_fsm->gamma2_enable && ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_dynamic_gamma_enable )
         general_dynamic_gamma_update(p_fsm);
+    if ( !ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_pf )
+        pf_ext_param_update(p_fsm);
 
 #if ISP_WDR_SWITCH
 

@@ -50,6 +50,29 @@ static void sinter_load_radial_lut( noise_reduction_fsm_t *p_fsm )
 
 #endif
 
+static void dp_devthreshold_param_update(noise_reduction_fsm_t *p_fsm)
+{
+    int32_t rtn = 0;
+    int32_t t_gain = 0;
+    struct dp_devthreshold_ext_param_t p_result;
+    fsm_ext_param_ctrl_t p_ctrl;
+
+    acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &t_gain, sizeof(t_gain));
+
+    p_ctrl.ctx = (void *)(ACAMERA_FSM2CTX_PTR(p_fsm));
+    p_ctrl.id = CALIBRATION_DP_DEVTHRESHOLD;
+    p_ctrl.total_gain = t_gain;
+    p_ctrl.result = (void *)&p_result;
+
+    rtn = acamera_extern_param_calculate_ushort(&p_ctrl);
+    if (rtn != 0) {
+        LOG(LOG_INFO, "Failed to calculate dp dev threshold ext");
+        return;
+    }
+
+    acamera_isp_raw_frontend_hpdev_threshold_write(p_fsm->cmn.isp_base, p_result.devthreshold);
+}
+
 void dynamic_dpc_strength_calculate( noise_reduction_fsm_t *p_fsm )
 {
     int32_t total_gain;
@@ -79,6 +102,8 @@ void dynamic_dpc_strength_calculate( noise_reduction_fsm_t *p_fsm )
     }
     acamera_isp_raw_frontend_dp_slope_write( p_fsm->cmn.isp_base, dp_slope );
     acamera_isp_raw_frontend_dp_threshold_write( p_fsm->cmn.isp_base, dp_threshold );
+
+    dp_devthreshold_param_update(p_fsm);
 }
 
 
@@ -494,7 +519,7 @@ static void cnr_ext_param_update(noise_reduction_fsm_t *p_fsm)
 
     rtn = acamera_extern_param_calculate(&p_ctrl);
     if (rtn != 0) {
-        LOG(LOG_CRIT, "Failed to cnr ext calculate");
+        LOG(LOG_INFO, "Failed to cnr ext calculate");
         return;
     }
 
@@ -525,8 +550,57 @@ static void cnr_ext_param_update(noise_reduction_fsm_t *p_fsm)
     acamera_isp_cnr_uv_delta2_slope_write(p_fsm->cmn.isp_base, p_result.uv_delta2_slope);
 }
 
+static void fc_ext_param_update(noise_reduction_fsm_t *p_fsm)
+{
+    int32_t rtn = 0;
+    int32_t t_gain = 0;
+    struct fc_correct_ext_param_t p_result;
+    fsm_ext_param_ctrl_t p_ctrl;
+
+    acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &t_gain, sizeof(t_gain));
+
+    p_ctrl.ctx = (void *)(ACAMERA_FSM2CTX_PTR(p_fsm));
+    p_ctrl.id = CALIBRATION_FC_CORRECTION;
+    p_ctrl.total_gain = t_gain;
+    p_ctrl.result = (void *)&p_result;
+
+    rtn = acamera_extern_param_calculate_ushort(&p_ctrl);
+    if (rtn != 0) {
+        LOG(LOG_INFO, "Failed to cnr ext calculate");
+        return;
+    }
+
+    acamera_isp_demosaic_rgb_fc_slope_write(p_fsm->cmn.isp_base, p_result.fc_slope);
+    acamera_isp_demosaic_rgb_fc_alias_slope_write(p_fsm->cmn.isp_base, p_result.alias_slope);
+    acamera_isp_demosaic_rgb_fc_alias_thresh_write(p_fsm->cmn.isp_base, p_result.alias_threshold);
+}
+
 void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
 {
+    if (p_fsm->nr_mode == NOISE_REDUCTION_MODE_OFF) {
+
+        /*
+         * Turn off Temper
+         */
+        acamera_isp_temper_noise_profile_global_offset_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_2_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_temper_noise_profile_noise_level_3_write( p_fsm->cmn.isp_base, 0 );
+
+        /*
+         * Turn off Sinter
+         */
+        acamera_isp_sinter_noise_profile_global_offset_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_2_write( p_fsm->cmn.isp_base, 0 );
+        acamera_isp_sinter_noise_profile_noise_level_3_write( p_fsm->cmn.isp_base, 0 );
+
+
+        return;
+    }
+
     int32_t total_gain = 0;
     uint32_t wdr_mode = 0;
 
@@ -537,6 +611,8 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_demosaic == 0 ) {
         int tbl_inx = CALIBRATION_DEMOSAIC_NP_OFFSET;
         acamera_isp_demosaic_rgb_np_offset_write( p_fsm->cmn.isp_base, acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ) ) );
+
+        fc_ext_param_update(p_fsm);
     }
 
     //  Do not update values if manual mode

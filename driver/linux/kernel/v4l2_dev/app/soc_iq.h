@@ -73,6 +73,8 @@ enum SocIQ_ioctl {
     V4L2_SOC_IQ_IOCTL_SET_SENSOR_NAME,
     // for otp
     V4L2_SOC_IQ_IOCTL_REQUEST_OTP,
+    // for load external cali file
+    V4L2_SOC_IQ_IOCTL_REQUEST_EXTERNAL_CALI,
 };
 
 

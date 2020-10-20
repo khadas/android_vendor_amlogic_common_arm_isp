@@ -441,7 +441,7 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     }
 
     if (pstream->stream_type != V4L2_STREAM_TYPE_META)
-    	atomic_add( 1, &dev->stream_on_cnt );
+        atomic_add( 1, &dev->stream_on_cnt );
 
     return rc;
 }
@@ -982,7 +982,7 @@ int isp_v4l2_find_stream( isp_v4l2_stream_t **ppstream,
 
     return 0;
 }
-						  
+
 isp_v4l2_dev_t *isp_v4l2_get_dev( uint32_t ctx_number )
 {
     return g_isp_v4l2_devs[ctx_number];

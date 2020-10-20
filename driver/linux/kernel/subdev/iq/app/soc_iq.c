@@ -31,9 +31,13 @@
 
 #include "runtime_initialization_settings.h"
 #include "acamera_get_calibration_otp.h"
+#include "acamera_calibrations.h"
 
 static int cali_name;
 int otp_enable = 0;
+
+static char* sensor = NULL;
+module_param(sensor, charp, 0);
 
 module_param(otp_enable, int, 0664);
 MODULE_PARM_DESC(otp_enable, "Use OTP memory for calibrations");
@@ -58,6 +62,8 @@ struct IqConversion {
 struct IqConversion IqConversionTable[] = {
     {CALIBRATION_SUBDEV_FUNCTIONS_OS08A10, CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_OTP, "os08a10"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, NULL, "imx290"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX335, NULL, "imx335"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX415, NULL, "imx415"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, CALIBRATION_SUBDEV_FUNCTIONS_IMX227_OTP, "imx227"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX481, NULL, "imx481"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, NULL, "imx307"},
@@ -65,6 +71,11 @@ struct IqConversion IqConversionTable[] = {
     {CALIBRATION_SUBDEV_FUNCTIONS_OV13858, NULL, "ov13858"},
     {CALIBRATION_SUBDEV_FUNCTIONS_SC2232H, NULL, "sc2232h"},
     {CALIBRATION_SUBDEV_FUNCTIONS_SC4238, NULL, "sc4238"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_SC2335, NULL, "sc2335"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX334, NULL, "imx334"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_SC8238CS, NULL, "sc8238cs"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_OV2718, NULL, "ov2718"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_OS04A10_TV, NULL,"os04a10"},
 };
 
 uint32_t ( *CALIBRATION_FUNC_ARR[] )( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c ) = {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, CALIBRATION_SUBDEV_FUNCTIONS_IMX290};
@@ -104,6 +115,13 @@ static int get_cali_name_id( int cali_name_id, int sensor_name_id )
         }
     }
 
+    if (strcmp(IqConversionTable[sensor_name_id].sensor_name, "os04a10") == 0) {
+
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS04A10_TV;
+            LOG( LOG_CRIT, "Loading Calibration for OS04A10_TV\n" );
+
+    }
+
     if (strcmp(IqConversionTable[sensor_name_id].sensor_name, "imx290") == 0) {
         switch ( cali_name_id ) {
         case 0:
@@ -111,10 +129,14 @@ static int get_cali_name_id( int cali_name_id, int sensor_name_id )
             LOG( LOG_CRIT, "get_calibrations_imx290\n" );
             break;
         case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_SLT;
+            LOG( LOG_CRIT, "get_calibrations_imx290 slt\n" );
+            break;
+        case 2:
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_8mm;
             LOG( LOG_CRIT, "get_calibrations_imx290_lens_8mm\n" );
             break;
-        case 2:
+        case 3:
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_4mm;
             LOG( LOG_CRIT, "get_calibrations_imx290_lens_4mm\n" );
             break;
@@ -229,6 +251,7 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
                     CALIBRATION_FUNC_ARR[context] = IqConversionTable[i].calibration_init;
                     CALIBRATION_OTP_FUNC_ARR[context] = IqConversionTable[i].calibration_otp;
                     get_cali_name_id( cali_name, i );
+                    sensor = (char *)IqConversionTable[i].sensor_name;
                     LOG(LOG_CRIT, "soc_iq get config %s according to sensor drv", sensor_arg);
                     rc = 0;
                     break;
@@ -244,6 +267,19 @@ static long iq_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         if ( context < FIRMWARE_CONTEXT_NUMBER ) {
             if (CALIBRATION_OTP_FUNC_ARR[context])
                 rc = CALIBRATION_OTP_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context] );
+        } else {
+            LOG( LOG_ERR, "Request OTP Fail.");
+            rc = -1;
+        }
+    } break;
+    case V4L2_SOC_IQ_IOCTL_REQUEST_EXTERNAL_CALI: {
+        int32_t context = ARGS_TO_PTR( arg )->ioctl.request_data.context;
+        void *sensor_arg = ARGS_TO_PTR( arg )->ioctl.request_data.sensor_arg;
+        if ( context < FIRMWARE_CONTEXT_NUMBER ) {
+            if (CALIBRATION_FUNC_ARR[context]) {
+                rc = CALIBRATION_FUNC_ARR[context]( context, sensor_arg, &g_luts_arr[context] );
+                get_calibratin_external_tuning(sensor, sensor_arg, &g_luts_arr[context]);
+            }
         } else {
             LOG( LOG_ERR, "Request OTP Fail.");
             rc = -1;
@@ -270,10 +306,6 @@ static const struct v4l2_subdev_ops iq_ops = {
     .core = &core_ops,
 };
 
-
-static char* sensor = NULL;
-module_param(sensor, charp, 0);
-
 static int32_t soc_iq_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
@@ -295,7 +327,7 @@ static int32_t soc_iq_probe( struct platform_device *pdev )
             return -1;
         }
     } else {
-      sensor_name = sensor;
+        sensor_name = sensor;
     }
 
     pr_err("probe iq_dev for sensor: %s\n", sensor_name);
@@ -304,13 +336,14 @@ static int32_t soc_iq_probe( struct platform_device *pdev )
         if (strcmp(IqConversionTable[i].sensor_name, sensor_name) == 0) {
                CALIBRATION_FUNC_ARR[0] = IqConversionTable[i].calibration_init;
                get_cali_name_id( cali_name, i );
+               sensor = (char *)IqConversionTable[i].sensor_name;
                break;
         }
     }
 
     if (i == NELEM(IqConversionTable)) {
-      pr_err("Fatal error:cant find %s iq with dts config!\n", sensor_name);
-      return -1;
+        CALIBRATION_FUNC_ARR[0] = IqConversionTable[0].calibration_init;
+        pr_err("Fatal error:cant find %s iq with dts config and use default!\n", sensor_name);
     }
 
     v4l2_subdev_init( &soc_iq, &iq_ops );

@@ -61,6 +61,14 @@ struct _general_fsm_t {
     uint32_t gamma2_enable;
 };
 
+struct pf_ext_param_t {
+    uint16_t gain;
+    uint16_t hue_strength;
+    uint16_t luma_strength;
+    uint16_t sat_strength;
+    uint16_t saturation_strength;
+    uint16_t purple_strength;
+};
 
 void general_fsm_clear( general_fsm_ptr_t p_fsm );
 void general_fsm_init( void *fsm, fsm_init_param_t *init_param );
