@@ -994,6 +994,7 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
 		if (start_delay_cnt == start_delay_th) {
 			isr_count = 0;
 			/* sc_wr_reg_bits(ISP_SCWR_MIF_CTRL2, 1, 14, 1); */
+			sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
 			sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 0, 1);
 			start_delay_cnt++;
 		} else {
@@ -1487,7 +1488,7 @@ int am_sc2_stop(void)
 	}
 
 	if (!stop_flag) {
-		//sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 1, 1);
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 1, 1);
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 0, 1);
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 3, 1);
 
