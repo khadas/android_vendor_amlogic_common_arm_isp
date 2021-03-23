@@ -705,7 +705,7 @@ static void enable_isp_scale_new (
                          (wr_en & 0x1) |
                          ((!dma_mode)<<1));
 
-	sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4001800);
+	sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4011000);
 
 	isp_mtx_setting(mtx_mode);
 
@@ -993,7 +993,6 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
 		if (start_delay_cnt == start_delay_th) {
 			isr_count = 0;
 			/* sc_wr_reg_bits(ISP_SCWR_MIF_CTRL2, 1, 14, 1); */
-			sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
 			sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 0, 1);
 			start_delay_cnt++;
 		} else {
@@ -1468,6 +1467,7 @@ int am_sc1_start(void)
 	}
 
 	/* switch int to sync reset for start and delay frame */
+	sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
 	sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 3, 1);
 	stop_flag = false;
 
