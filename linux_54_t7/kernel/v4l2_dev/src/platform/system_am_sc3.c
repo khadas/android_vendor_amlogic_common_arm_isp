@@ -700,12 +700,12 @@ static void enable_isp_scale_new (
 
 	sc_reg_rd(ISP_SCWR_TOP_CTRL, &reg_data);
 	sc_reg_wr(ISP_SCWR_TOP_CTRL,(reg_data & 0xff0bfffc) |
-                         ((mux_sel & 0x7)<<20) |
-                         (ir_source << 18) |
-                         (wr_en & 0x1) |
-                         ((!dma_mode)<<1));
+			((mux_sel & 0x7)<<20) |
+			(ir_source << 18) |
+			(wr_en & 0x1) |
+			((!dma_mode)<<1));
 
-	sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4001800);
+	sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4011000);
 
 	isp_mtx_setting(mtx_mode);
 
