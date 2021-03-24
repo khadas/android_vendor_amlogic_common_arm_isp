@@ -2761,7 +2761,7 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_WDR_MODE, &isp_v4l2_ctrl_sensor_wdr_mode, NULL );
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_EXPOSURE, &isp_v4l2_ctrl_sensor_exposure, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_FR_FPS, &isp_v4l2_ctrl_fr_fps, NULL);
-    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_SENSOR_TESTPATTERN, &isp_v4l2_ctrl_sensor_testpattern, NULL);
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_SET_SENSOR_TESTPATTERN, &isp_v4l2_ctrl_sensor_testpattern, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_IR_CUT, &isp_v4l2_ctrl_sensor_ir_cut, NULL);
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_AE_ZONE_WEIGHT, &isp_v4l2_ctrl_ae_zone_weight, NULL);
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_AWB_ZONE_WEIGHT, &isp_v4l2_ctrl_awb_zone_weight, NULL);
