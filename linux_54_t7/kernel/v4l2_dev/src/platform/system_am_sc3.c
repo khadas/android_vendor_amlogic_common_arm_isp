@@ -37,7 +37,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-
+#include <linux/delay.h>
 
 #define AM_SC_NAME "amlogic, isp-sc"
 static int buffer_id;
@@ -1520,7 +1520,7 @@ int am_sc3_stop(void)
 		g_sc->info.clip_sc_mode = 0;
 		stop_flag = true;
 	}
-
+	mdelay(100);
 	return 0;
 }
 

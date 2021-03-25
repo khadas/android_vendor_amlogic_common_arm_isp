@@ -1925,6 +1925,14 @@ int am_adap_init(int idx)
 	adap_wr_bit(MIPI_ADAPT_ALIG_CNTL13, MISC_IO, 0x2, 16, 3);
 	adap_wr_bit(MIPI_ADAPT_ALIG_CNTL14, MISC_IO, 0x2, 16, 3);
 
+	adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0x2, 2, 2);
+	adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL1, RD_IO, 0x2, 10, 2);
+	adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL1, RD_IO, 0x1, 29, 1);
+	adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 0x8, 16, 4);
+	adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL1, MISC_IO, 0x8, 20, 4);
+	adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL3, PIXEL_IO, 0x1, 2, 1);
+	adap_wr_bit(MIPI_ADAPT_ALIG_CNTL7, ALIGN_IO, 0x3, 13, 2);
+
 	return 0;
 }
 

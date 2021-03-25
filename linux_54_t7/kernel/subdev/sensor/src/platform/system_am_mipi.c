@@ -327,7 +327,7 @@ static int am_mipi_phy_init(void *info)
     mipi_phy_reg_wr(MIPI_PHY_CLK_LANE_CTRL ,0x3d8);//0x58
     mipi_phy_reg_wr(MIPI_PHY_TCLK_MISS ,0x9);
     mipi_phy_reg_wr(MIPI_PHY_TCLK_SETTLE, 0x1f);
-    mipi_phy_reg_wr(MIPI_PHY_THS_EXIT ,0x04);   // hs exit = 160 ns --(x>100ns)
+    mipi_phy_reg_wr(MIPI_PHY_THS_EXIT ,0x08);   // hs exit = 160 ns --(x>100ns)
     mipi_phy_reg_wr(MIPI_PHY_THS_SKIP ,0xa);   // hs skip = 55 ns --(40ns<x<55ns+4*UI)
     mipi_phy_reg_wr(MIPI_PHY_THS_SETTLE ,settle);   //85ns ~145ns.
     mipi_phy_reg_wr(MIPI_PHY_TINIT ,0x4e20);  // >100us
