@@ -37,7 +37,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-
+#include <linux/delay.h>
 
 #define AM_SC_NAME "amlogic, isp-sc"
 static int buffer_id;
@@ -584,9 +584,9 @@ static void isp_mif_setting(ISP_MIF_t *wr_mif)
 	u8 swap_uv = 0;
 	if (g_sc->info.in_fmt == RGB24) {
 		if (g_sc->info.out_fmt == NV12_YUV) {
-			swap_uv = 0;
-		} else if (g_sc->info.out_fmt == NV12_YVU) {
 			swap_uv = 1;
+		} else if (g_sc->info.out_fmt == NV12_YVU) {
+			swap_uv = 0;
 		}
 	} else if (g_sc->info.in_fmt == AYUV) {
 		if ((g_sc->info.out_fmt == NV12_YUV) ||
@@ -728,6 +728,7 @@ static void enable_isp_scale_new (
 		sc_reg_wr(ISP_SCWR_TOP_CTRL,   ((mux_sel & 0x7)<<20) |0x10000801 |((!dma_mode)<<1));
 		sc_reg_wr(ISP_SCWR_TOP_CTRL,  ((mux_sel & 0x7)<<20) | 0x0000801  |((!dma_mode)<<1));
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 19, 1);
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 5, 13, 3);
 	}
 	pr_info(" finished isp scale setting \n");
 
@@ -1521,7 +1522,7 @@ int am_sc2_stop(void)
 		g_sc->info.clip_sc_mode = 0;
 		stop_flag = true;
 	}
-
+	mdelay(100);
 	return 0;
 }
 
