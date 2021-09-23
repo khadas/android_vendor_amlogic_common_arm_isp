@@ -725,8 +725,6 @@ static void enable_isp_scale_new (
 		else
 			last_end_frame = 0;
 
-		sc_reg_wr(ISP_SCWR_TOP_CTRL,   ((mux_sel & 0x7)<<20) |0x10000801 |((!dma_mode)<<1));
-		sc_reg_wr(ISP_SCWR_TOP_CTRL,  ((mux_sel & 0x7)<<20) | 0x0000801  |((!dma_mode)<<1));
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 19, 1);
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 5, 13, 3);
 	}
@@ -1454,7 +1452,7 @@ int am_sc2_hw_init(void)
 			g_sc->info.src_w, g_sc->info.src_h, g_sc->info.out_w, g_sc->info.out_h, g_sc->info.c_width,
 			g_sc->info.c_height, g_sc->info.clip_sc_mode, g_sc->info.in_fmt, g_sc->info.out_fmt);
 
-	enable_isp_scale_new(1, 1, 0, 0, dbg_mode, g_sc->info.clip_sc_mode & CLIP_MODE, g_sc->info.startx,
+	enable_isp_scale_new(1, 0, 0, 0, dbg_mode, g_sc->info.clip_sc_mode & CLIP_MODE, g_sc->info.startx,
 		g_sc->info.startx + g_sc->info.c_width - 1, g_sc->info.starty,  g_sc->info.starty + g_sc->info.c_height - 1,
 		g_sc->info.src_w, g_sc->info.src_h, g_sc->info.out_w, g_sc->info.out_h, mux_sel, g_sc->info.clip_sc_mode & SC_MODE, mtx_mode,
 		&isp_frame);

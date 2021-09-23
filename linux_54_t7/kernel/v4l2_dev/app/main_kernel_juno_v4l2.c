@@ -44,6 +44,7 @@
 #include "system_am_flicker.h"
 #include "system_am_decmpr.h"
 #include "system_am_md.h"
+#include "isp_config_seq.h"
 
 #include <linux/amlogic/power_domain.h>
 
@@ -53,6 +54,11 @@
 #include <linux/delay.h>
 #include "v4l2_interface/isp-v4l2.h"
 #include <linux/pm_runtime.h>
+
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#include <linux/amlogic/pm.h>
+static struct early_suspend early_suspend;
+#endif
 
 static int ds_port;
 module_param(ds_port, int, 0664);
@@ -858,10 +864,23 @@ static uint32_t isp_module_check(struct platform_device *pdev)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
 static const struct v4l2_async_notifier_operations acamera_camera_async_ops = {
-	.bound = acamera_camera_async_bound,
-	.unbind = acamera_camera_async_unbind,
-	.complete = acamera_camera_async_complete,
+    .bound = acamera_camera_async_bound,
+    .unbind = acamera_camera_async_unbind,
+    .complete = acamera_camera_async_complete,
 };
+#endif
+
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+static void isp_early_suspend(struct early_suspend *h)
+{
+}
+
+static void isp_late_resume(struct early_suspend *h)
+{
+    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+
+    acamera_load_isp_sequence( 0, seq_table, 1 );
+}
 #endif
 
 static int32_t isp_platform_probe( struct platform_device *pdev )
@@ -1020,6 +1039,14 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
     system_isp_proc_create(&pdev->dev);
     LOG( LOG_ERR, "Init finished. async register notifier result %d. Waiting for subdevices", rc );
 
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+    early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+    early_suspend.suspend = isp_early_suspend;
+    early_suspend.resume = isp_late_resume;
+    early_suspend.param = pdev;
+    register_early_suspend(&early_suspend);
+#endif
+
 free_res:
 
     return rc;
@@ -1028,6 +1055,10 @@ free_res:
 
 static int isp_platform_remove(struct platform_device *pdev)
 {
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+    unregister_early_suspend(&early_suspend);
+#endif
+
     device_remove_file(&pdev->dev, &dev_attr_reg);
     device_remove_file(&pdev->dev, &dev_attr_dump_frame);
     device_remove_file(&pdev->dev, &dev_attr_isp_clk);
