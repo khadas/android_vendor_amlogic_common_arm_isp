@@ -871,15 +871,17 @@ static const struct v4l2_async_notifier_operations acamera_camera_async_ops = {
 #endif
 
 #ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+extern void interrupt_handler( void *data, uint32_t mask );
 static void isp_early_suspend(struct early_suspend *h)
 {
+    system_interrupts_deinit();
 }
 
 static void isp_late_resume(struct early_suspend *h)
 {
-    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
-
     acamera_load_isp_sequence( 0, seq_table, 1 );
+    system_interrupt_set_handler( interrupt_handler, NULL );
+    system_interrupts_init();
 }
 #endif
 

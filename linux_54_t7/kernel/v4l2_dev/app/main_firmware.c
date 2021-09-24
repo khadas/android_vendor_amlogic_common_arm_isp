@@ -113,7 +113,7 @@ static int isp_fw_process( void *data )
 // The other events are platform specific. The firmware can support several external irq events or
 // does not support any. It totally depends on the system configuration and firmware compile time settings.
 // Please see the ACamera Porting Guide for details.
-static void interrupt_handler( void *data, uint32_t mask )
+void interrupt_handler( void *data, uint32_t mask )
 {
     acamera_interrupt_handler();
 }
