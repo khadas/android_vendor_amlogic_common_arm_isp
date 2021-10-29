@@ -315,7 +315,7 @@
 //Bit 13: 0        reg_lYSizeIn              // unsigned ,    RW, default = 2160  vertical size
 #define ISP_MD2AXI_CTRL                            ((0x0005  << 2) + 0xfe3b2800)
 //Bit 31:24        reg_axi_bsize             // unsigned ,    RW, default = 4  each framesize buffer_size
-//Bit 23:22        reg_wr_burst_lens         // unsigned ,    RW, default = 2  busrt lens reg_wr_burst_lens   0: 1x128, 1: 2x128, 2â€¾3: 4x128
+//Bit 23:22        reg_wr_burst_lens         // unsigned ,    RW, default = 2  busrt lens reg_wr_burst_lens   0: 1x128, 1: 2x128, 2â€?: 4x128
 //Bit 21:18        reg_wr_req_th             // unsigned ,    RW, default = 4  fifo depth req_th * 8 *128 bits in fifo.
 //Bit 17:10        reg_wr_awid               // unsigned ,    RW, default = 0  wid
 //Bit  9: 7        reg_wr_awport             // unsigned ,    RW, default = 0  urgent control
@@ -418,7 +418,7 @@
 //Bit  8: 0        reg_md2_pstds_orow        // unsigned ,    RW, default = 128  post-shrink output image vertical size, maximum 256
 #define MD2_TH                                     ((0x001b  << 2) + 0xfe3b2800)
 //Bit 31:20        reserved
-//Bit 19:18        reg_md2_ratio_mod         // unsigned ,    RW, default = 0  ration mode selection. 0: R/(R+G+B+1), 1: R/G;  2ï¼š (R+G+B)/R; 3: G/R
+//Bit 19:18        reg_md2_ratio_mod         // unsigned ,    RW, default = 0  ration mode selection. 0: R/(R+G+B+1), 1: R/G;  2ï¼?(R+G+B)/R; 3: G/R
 //Bit 17:16        reg_md2_ratio_nrm         // unsigned ,    RW, default = 2  normalizatin of ratio for: mode=0, range=(1, 0]/(1<<x), dft=2;  mode>0, precision = u(2+x).(6-x), dft=1
 //Bit 15: 8        reg_md2_satur_thr         // unsigned ,    RW, default = 240  saturation threshold of u8
 //Bit  7: 0        reg_md2_under_thr         // unsigned ,    RW, default = 10  under threshold of u8
@@ -620,7 +620,7 @@ int param_md_set(T_MD_PRM *reg);
 void am_md_init(int ctx_id, int width, int height);
 void am_md_deinit(void);
 void am_md_destroy(void);
-void aml_md_get_data(char* dst);
+void aml_md_get_data(uint32_t* dst);
 
 
 #endif // __SYSTEM_UART_H__

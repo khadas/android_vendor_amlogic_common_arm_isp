@@ -23,7 +23,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		ERROR REASONS
+//        ERROR REASONS
 // ------------------------------------------------------------------------------ //
 #define ERR_UNKNOWN                                       0x00000000
 #define ERR_BAD_ARGUMENT                                  0x00000001
@@ -31,7 +31,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		WDR MODES
+//        WDR MODES
 // ------------------------------------------------------------------------------ //
 #define WDR_MODE_LINEAR                                   0x00000000
 #define WDR_MODE_NATIVE                                   0x00000001
@@ -40,7 +40,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		STATIC CALIBRATION VALUES
+//        STATIC CALIBRATION VALUES
 // ------------------------------------------------------------------------------ //
 #define CALIBRATION_LIGHT_SRC                             0x00000000
 #define CALIBRATION_RG_POS                                0x00000001
@@ -101,7 +101,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		DYNAMIC CALIBRATION VALUES
+//        DYNAMIC CALIBRATION VALUES
 // ------------------------------------------------------------------------------ //
 #define CALIBRATION_STITCHING_LM_MED_NOISE_INTENSITY      0x00000038
 #define AWB_COLOUR_PREFERENCE                             0x00000039
@@ -188,9 +188,11 @@
 #define CALIBRATION_DAYNIGHT_DETECT                       0x0000008A
 #define CALIBRATION_TEMPER_MD_STRENGTH                    0x0000008B
 #define CALIBRATION_TEMPER_MD_MODE                        0x0000008C
+#define CALIBRATION_TEMPER_NOISE_LEVEL                    0x0000008D
+#define CALIBRATION_TEMPER2_STRENGTH                      0x0000008E
 
 // ------------------------------------------------------------------------------ //
-//		DYNAMIC STATE VALUES
+//        DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
 #define CALIBRATION_TOTAL_SIZE 141
@@ -200,7 +202,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		COMMAND TYPE LIST
+//        COMMAND TYPE LIST
 // ------------------------------------------------------------------------------ //
 #define TGENERAL                                          0x00000000
 #define TSELFTEST                                         0x00000001
@@ -216,7 +218,7 @@
 #define TAML_SCALER                                       0x0000000B
 
 // ------------------------------------------------------------------------------ //
-//		BUFFER TYPES
+//        BUFFER TYPES
 // ------------------------------------------------------------------------------ //
 #define STATIC_CALIBRATIONS_ID                            0x00000000
 #define DYNAMIC_CALIBRATIONS_ID                           0x00000001
@@ -225,7 +227,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		COMMAND LIST
+//        COMMAND LIST
 // ------------------------------------------------------------------------------ //
 #define CONTEXT_NUMBER                                    0x00000000
 #define ACTIVE_CONTEXT                                    0x00000001
@@ -421,9 +423,19 @@
 #define SENSOR_POWER_ON                                   0x000000C0
 #define SENSOR_POWER_OFF                                  0x000000C1
 #define SCALER_CROP_ENABLE                                0x000000C2
+#define SENSOR_MD_EN                                      0x000000C3
+#define SENSOR_DECMPR_EN                                  0x000000C4
+#define SENSOR_DECMPR_LOSSLESS_EN                         0x000000C5
+#define SENSOR_FLICKER_EN                                 0x000000C6
+#define MD_STATS_ID                                       0x000000C7
+#define AE_SCENE_MODE_ID                                  0x000000C8
+#define SCALER_FPS                                        0x000000C9
+#define FLICKER_STATS_ID                                  0x000000CA
+#define ISP_IS_CAPTURING                                  0x000000CB
+
 
 // ------------------------------------------------------------------------------ //
-//		VALUE LIST
+//        VALUE LIST
 // ------------------------------------------------------------------------------ //
 #define OFF                                               0x00000000
 #define ON                                                0x00000001
@@ -511,7 +523,7 @@
 #define RAW_YUY2                                          0x00000056
 
 // ------------------------------------------------------------------------------ //
-//		RETURN VALUES
+//        RETURN VALUES
 // ------------------------------------------------------------------------------ //
 #define SUCCESS                                           0x00000000
 #define NOT_IMPLEMENTED                                   0x00000001
@@ -523,7 +535,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		DIRECTION VALUES
+//        DIRECTION VALUES
 // ------------------------------------------------------------------------------ //
 #define COMMAND_SET                                       0x00000000
 #define COMMAND_GET                                       0x00000001
@@ -531,7 +543,7 @@
 
 
 // ------------------------------------------------------------------------------ //
-//		SET/GET FUNCTION
+//        SET/GET FUNCTION
 // ------------------------------------------------------------------------------ //
 //set command: ret = acamera_command( ctx_id, TALGORITHMS, AF_MODE, AF_AUTO, COMMAND_SET, &RET_VALUE);
 //get command: ret = acamera_command( ctx_id, TALGORITHMS, AF_MODE, AF_AUTO, COMMAND_GET, &RET_VALUE);

@@ -1,3 +1,5 @@
+#ifndef __NR_FW_H__
+#define __NR_FW_H__
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
@@ -14,6 +16,7 @@
 #define CH_GB  3
 #define CH_IR  4
 
+#define ISP_HAS_FLICKER_INTERNAL 1
 #define FED_FLKR_STAT_MAX 1280
 
 #ifndef MAX
@@ -62,10 +65,14 @@ typedef struct {
 int param_flkr_ctrl_init(T_FLKR_CTRL_PRM *prm_flkr_ctrl);
 int param_flkr_det_init(T_FLKR_DET_PRM *prm_flkr_det);
 
-int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det);
+//int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det);
+int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det, int frame_id_current);
+
 
 int fw_flt1d(int *pDataOut, int *pDataIn, int *pFlt, int data_len, int flt_len, int flt_norm);
 
 int fw_get_peak_valey (int *pDataIn, int *peak_idx_val, int *valey_idx_val, int len, T_FLKR_DET_PRM *prm_flkr_det, int *flk_num);
 
 int fw_period_pattern_det (int *peak_idx_val, int *valey_idx_val, T_FLKR_DET_PRM *prm_flkr_det, int *flk_num, int len, int *flkr_vld_flag);
+#endif
+

@@ -32,7 +32,7 @@
 #include "acamera_decompander0_mem_config.h"
 #include "acamera_ihist_stats_mem_config.h"
 #include "system_am_md.h"
-
+#include "system_am_decmpr.h"
 
 #if FW_HAS_CONTROL_CHANNEL
 #include "acamera_ctrl_channel.h"
@@ -566,6 +566,13 @@ int32_t acamera_interrupt_handler()
             return -1; //skip other interrupts in case of error
         }
 #endif
+        if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
+            if ( p_ctx->isp_decmp_counter > (DECMPR_FRM_CNT - 1) ) {
+                mipi_tnr_de_bypass();
+                acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR);
+                LOG(LOG_CRIT, "Decmpr exception and force idle");
+            }
+        }
 
         while ( irq_mask > 0 && irq_bit >= 0 ) {
             int32_t irq_is_1 = ( irq_mask & ( 1 << irq_bit ) );

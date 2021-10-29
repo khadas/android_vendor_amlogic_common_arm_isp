@@ -136,7 +136,6 @@ static int isp_v4l2_fop_open( struct file *file )
 {
     int rc = 0;
     isp_v4l2_dev_t *dev = video_drvdata( file );
-    uint32_t ret_value = 0;
     struct isp_v4l2_fh *sp;
 
     atomic_add( 1, &dev->opened );
@@ -225,6 +224,7 @@ static int isp_v4l2_fop_open( struct file *file )
         LOG( LOG_CRIT, "mutex_lock_interruptible failed.\n" );
     dev->fh_ptr[sp->stream_id] = &( sp->fh );
     mutex_unlock( &dev->notify_lock );
+    #if 0
     if (atomic_read(&dev->opened) == 1) {
         /* sensor power enable*/
         rc = acamera_command(dev->ctx_id, TSENSOR, SENSOR_POWER_ON, 0, COMMAND_SET, &ret_value);
@@ -233,6 +233,7 @@ static int isp_v4l2_fop_open( struct file *file )
             rc = 0;
         }
     }
+    #endif
     return rc;
 
 vb2_q_fail:
@@ -252,8 +253,6 @@ static int isp_v4l2_fop_close( struct file *file )
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     isp_v4l2_stream_t *pstream = dev->pstreams[sp->stream_id];
     int open_counter;
-    int rc = 0;
-    uint32_t ret_value = 0;
 
     LOG( LOG_INFO, "isp_v4l2: %s: called for sid:%d.", __func__, sp->stream_id );
 
@@ -296,6 +295,7 @@ static int isp_v4l2_fop_close( struct file *file )
     dev->stream_mask &= ~( 1 << sp->stream_id );
     mutex_unlock( &dev->file_lock );
     open_counter = atomic_sub_return( 1, &dev->opened );
+    #if 0
     if (open_counter == 0) {//mclk off
         rc = acamera_command(dev->ctx_id, TSENSOR, SENSOR_POWER_OFF, 0, COMMAND_SET, &ret_value);
         if ( rc ) {
@@ -303,6 +303,7 @@ static int isp_v4l2_fop_close( struct file *file )
             rc = 0;
         }
     }
+    #endif
     /* release file handle */
     isp_v4l2_fh_release( file );
 
@@ -867,7 +868,6 @@ static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
     v4l2_std_id tvnorms_cap = 0;
     int rc = 0;
     int i;
-    uint32_t ret_value;
     if ( ctx_id >= FIRMWARE_CONTEXT_NUMBER ) {
         LOG( LOG_ERR, "Invalid ctx numbr: %d, max: %d.", ctx_id, FIRMWARE_CONTEXT_NUMBER - 1 );
         return -EINVAL;
@@ -935,12 +935,13 @@ static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
 
     /* store dev pointer to destroy later and find stream */
     g_isp_v4l2_devs[ctx_id] = dev;
+#if 0
     rc = acamera_command(ctx_id, TSENSOR, SENSOR_POWER_OFF, 0, COMMAND_SET, &ret_value);
     if ( rc ) {
         LOG( LOG_CRIT, "ctx_id: %d failed SENSOR_POWER_OFF.", ctx_id );
         rc = 0;
     }
-
+#endif
     return rc;
 
 unreg_dev:
@@ -1011,17 +1012,12 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
         temper_buf_size = DEFAULT_TEMPER_BUFFER_SIZE;
     }
 
-#if ISP_HAS_CMPR
-    if ( temper_frame_num == 1 )
-        temper_frame_num = 2;
-    else if ( temper_frame_num == 2 )
-        temper_frame_num = 4;
-    else
-        temper_frame_num = 2;
-#endif
-
     if ( temper_buf_size < (( temper_frame_num * temper_frame_size) / SIZE_1M) )
         temper_buf_size = (temper_frame_num * temper_frame_size) / SIZE_1M;
+
+#if ISP_HAS_CMPR
+    temper_buf_size = temper_buf_size * 2;
+#endif
 
 #if ( ISP_HAS_FLICKER || ISP_HAS_MD )
     rc = isp_cma_alloc(pdev, (temper_buf_size + 4) * SIZE_1M);

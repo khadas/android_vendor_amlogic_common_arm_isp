@@ -149,12 +149,12 @@ struct flicker_pram {
 };
 
 struct am_flicker {
-	struct device_node *of_node;
-	struct platform_device *p_dev;
-	struct resource reg;
-	void __iomem *base_addr;
-	int irq;
-	int ctx_id;
+    struct device_node *of_node;
+    struct platform_device *p_dev;
+    struct resource reg;
+    void __iomem *base_addr;
+    int irq;
+    int ctx_id;
 };
 
 int am_flicker_parse_dt(struct device_node *node);
@@ -162,4 +162,4 @@ int aml_flicker_init(void);
 int aml_flicker_deinit(void);
 int aml_flicker_start(int xsize, int ysize);
 int aml_flicker_stop(void);
-void aml_flicker_get_data(char* dst);
+void aml_flicker_get_data(uint32_t* dst);

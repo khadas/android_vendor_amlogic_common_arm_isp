@@ -431,6 +431,8 @@ int am_mipi_init(void *info)
 		return -1;
 	}
 
+	am_mipi_deinit();
+
 	rtn = am_mipi_phy_init(info);
 	if (rtn != 0) {
 		pr_err("%s:Error mipi phy init\n", __func__);

@@ -4,11 +4,18 @@
 #define ISP_TNR_MODE 0x1
 #define ISP_DMA_READ_START_SEL 0
 #define TNR_CMPR_LOSSLESS      0
-#define ISP_TNR_CMPR_EN            1 
-#define TNR_CMPR_LOSSLESS          0 
+#define ISP_TNR_CMPR_EN            1
+#define TNR_CMPR_LOSSLESS          0
 #define TNR_CMPR_WR_FRMRST_MODE    3
 #define TNR_CMPR_RD_FRMRST_MODE    2
 #define TNR_CMPR_REG_RDMA          1
+
+#define DECMPR_DEC_UNK0   (1 << 7)
+#define DECMPR_DEC_UNK1   (1 << 10)
+#define DECMPR_DEC_FRMEND (1 << 11)
+#define DECMPR_DEC_FRMRST (1 << 13)
+
+#define DECMPR_FRM_CNT    6
 
 #define ISP_BASE_ADDR       0x10000000
 #define ISP_BUF_STIRDE      0x1000000
@@ -723,6 +730,7 @@
 #define TRSUB1_ISP_LOSS_MIF_FRM_HOLD               ((0x00f8  << 2) + 0xfe3b5000)
 #define TRSUB1_ISP_LOSS_MIF_RO_STATS               ((0x00f9  << 2) + 0xfe3b5000)
 
+#define MIPI_TOP_CSI2_CTRL0                        ((0x00c0  << 2) + 0xfe3b3000)
 #define MIPI_TOP_ADAPT_DE_CTRL0                    ((0x00c1  << 2) + 0xfe3b3000)
 #define MIPI_TOP_ADAPT_DE_CTRL1                    ((0x00c2  << 2) + 0xfe3b3000)
 #define MIPI_TOP_ADAPT_DE_CTRL2                    ((0x00c3  << 2) + 0xfe3b3000)
@@ -868,7 +876,10 @@ void init_mipi_cmpr2mif (int cmpr2mif_path,  int addrbase,sCMPR2MIF_Param *prm);
 void init_mipi_mipi2cmpr(int mipi2cmpr_path, int addrbase,sMIPI2CMPR_Param *prm);
 void set_mipi_mipi2cmpr_sw_frmbgn(int addrbase);
 void set_mipi_cmpr_rdma_mode (int is_adpat,int enable);
-int aml_cmpr_init(int tnr_cmpr_en, int w, int h);
+int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossless_en, uint8_t bayer);
+inline void cmpr_wr(int addr, uint32_t val);
+inline void cmpr_rd(int addr, uint32_t *val);
+int aml_cmpr_deinit(void);
 
 #endif
 

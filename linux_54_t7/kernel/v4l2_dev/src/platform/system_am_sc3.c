@@ -56,7 +56,6 @@ static struct sc_tasklet_t sc_tasklet;
 
 static bool stop_flag = true;
 static tframe_t* temp_buf = NULL;
-static tframe_t* cur_frame;
 static tframe_t* pre_frame[3];
 static u32 frame_delay = 2;
 
@@ -232,11 +231,14 @@ static const u8 f2v_420_in_pos_luma[F2V_TYPE_MAX] = {0, 2, 0, 2, 0, 0, 0, 2, 0};
 static const u8 f2v_420_out_pos[F2V_TYPE_MAX] = {0, 2, 2, 0, 0, 2, 0, 0, 0};
 
 static int rgb2yuvpre[3] = {0, 0, 0};
-static int rgb2yuvpos[3] = {64, 512, 512};
+//static int rgb2yuvpos[3] = {64, 512, 512}; //BT601_fullrange
+static int rgb2yuvpos[3] = {0, 512, 512}; //BT601_limit
 static int rgb2yuvpos_invert[3] = {512,  512, 64};
 static int yuv2rgbpre[3] = {-64, -512, -512};
 static int yuv2rgbpos[3] = {0, 0, 0};
-static int rgb2ycbcr[15] = {230,594,52,-125,-323,448,448,-412,-36,0,0,0,0,0,0};
+//static int rgb2ycbcr[15] = {230,594,52,-125,-323,448,448,-412,-36,0,0,0,0,0,0};
+//static int rgb2ycbcr[15] = {263,516,100,-152,-298,450,450,-377,-73,0,0,0,0,0,0}; //BT601_fullrange
+static int rgb2ycbcr[15] = {306,601,117,-173,-339,512,512,-429,-83,0,0,0,0,0,0}; //BT601_limit
 static int rgb2ycbcr_invert[15] = {-125, -323, 448, 448,-412,-36, 230, 594, 52, 0,0,0,0,0,0};
 static int ycbcr2rgb[15] = {1197,0,1726,1197,-193,-669,1197,2202,0,0,0,0,0,0,0};
 static ISP_MIF_t isp_frame = {
@@ -361,6 +363,20 @@ static inline void sc_reg_rd(
 
 }
 
+static inline uint32_t sc_get_reg(int addr)
+{
+	void __iomem *base = g_sc->base_addr;
+	uint32_t val = 0;
+
+	if (base != NULL) {
+		base = base + addr;
+		val = readl(base);
+	} else
+		pr_err("isp-sc read register failed.\n");
+
+	return val;
+}
+
 static void isp_sc_setting(
 	u32 src_w, u32 src_h,
 	u32 dst_w, u32 dst_h)
@@ -407,19 +423,21 @@ static void isp_sc_setting(
 		vsc_double_line_mode = 1;
 	}
 
-	//write vert filter coefs
-	sc_reg_wr(ISP_SC_COEF_IDX, 0x0000);
-	for (i = 0; i < 33; i++) {
-		if (vert_bank_length == 2)
-			sc_reg_wr(ISP_SC_COEF, filt_coef2[i]); //bilinear
-		else
-			sc_reg_wr(ISP_SC_COEF, filt_coef0[i]); //bicubic
-	}
+	if (stop_flag) {
+		//write vert filter coefs
+		sc_reg_wr(ISP_SC_COEF_IDX, 0x0000);
+		for (i = 0; i < 33; i++) {
+			if (vert_bank_length == 2)
+				sc_reg_wr(ISP_SC_COEF, filt_coef2[i]); //bilinear
+			else
+				sc_reg_wr(ISP_SC_COEF, filt_coef0[i]); //bicubic
+		}
 
-	//write horz filter coefs
-	sc_reg_wr(ISP_SC_COEF_IDX, 0x0100);
-	for (i = 0; i < 33; i++) {
-		sc_reg_wr(ISP_SC_COEF, filt_coef0[i]); //bicubic
+		//write horz filter coefs
+		sc_reg_wr(ISP_SC_COEF_IDX, 0x0100);
+		for (i = 0; i < 33; i++) {
+			sc_reg_wr(ISP_SC_COEF, filt_coef0[i]); //bicubic
+		}
 	}
 
 	if (p_src_h > 2048)
@@ -475,10 +493,12 @@ static void isp_sc_setting(
 	sc_reg_wr(ISP_VSC_REGION4_ENDP, dst_h - 1);
 
 	sc_reg_wr(ISP_VSC_START_PHASE_STEP, vert_phase_step);
-	sc_reg_wr(ISP_VSC_REGION0_PHASE_SLOPE, 0);
-	sc_reg_wr(ISP_VSC_REGION1_PHASE_SLOPE, 0);
-	sc_reg_wr(ISP_VSC_REGION3_PHASE_SLOPE, 0);
-	sc_reg_wr(ISP_VSC_REGION4_PHASE_SLOPE, 0);
+	if (stop_flag) {
+		sc_reg_wr(ISP_VSC_REGION0_PHASE_SLOPE, 0);
+		sc_reg_wr(ISP_VSC_REGION1_PHASE_SLOPE, 0);
+		sc_reg_wr(ISP_VSC_REGION3_PHASE_SLOPE, 0);
+		sc_reg_wr(ISP_VSC_REGION4_PHASE_SLOPE, 0);
+	}
 
 	sc_reg_wr(ISP_VSC_PHASE_CTRL,
 		(vsc_double_line_mode << 17) |
@@ -497,13 +517,15 @@ static void isp_sc_setting(
 	sc_reg_wr(ISP_HSC_REGION4_ENDP, dst_w - 1);
 
 	sc_reg_wr(ISP_HSC_START_PHASE_STEP, horz_phase_step);
-	sc_reg_wr(ISP_HSC_REGION0_PHASE_SLOPE, 0);
-	sc_reg_wr(ISP_HSC_REGION1_PHASE_SLOPE, 0);
-	sc_reg_wr(ISP_HSC_REGION3_PHASE_SLOPE, 0);
-	sc_reg_wr(ISP_HSC_REGION4_PHASE_SLOPE, 0);
+	if (stop_flag) {
+		sc_reg_wr(ISP_HSC_REGION0_PHASE_SLOPE, 0);
+		sc_reg_wr(ISP_HSC_REGION1_PHASE_SLOPE, 0);
+		sc_reg_wr(ISP_HSC_REGION3_PHASE_SLOPE, 0);
+		sc_reg_wr(ISP_HSC_REGION4_PHASE_SLOPE, 0);
 
-	sc_reg_wr(ISP_HSC_PHASE_CTRL,
-		(1 << 21) | (4 << 16) | 0);
+		sc_reg_wr(ISP_HSC_PHASE_CTRL, (1 << 21) | (4 << 16) | 0);
+	}
+
 	sc_reg_wr(ISP_SC_MISC,
 		(prevsc_en << 21) |
 		(prehsc_en << 20) | // prehsc_en
@@ -650,10 +672,29 @@ static void isp_mif_setting(ISP_MIF_t *wr_mif)
 		wr_mif->reg_canvas_baddr_r);
 }
 
+static void isp_mif_addr(ISP_MIF_t *wr_mif)
+{
+	sc_reg_wr(ISP_SCWR_MIF_CTRL6,
+		(wr_mif->reg_canvas_strb_luma & 0xffff) |
+		(wr_mif->reg_canvas_strb_chroma << 16));
+	sc_reg_wr(ISP_SCWR_MIF_CTRL7,
+		wr_mif->reg_canvas_strb_r);
+	sc_reg_wr(ISP_SCWR_MIF_CTRL11,
+		wr_mif->reg_canvas_baddr_luma_other);
+	sc_reg_wr(ISP_SCWR_MIF_CTRL12,
+		wr_mif->reg_canvas_baddr_chroma_other);
+	sc_reg_wr(ISP_SCWR_MIF_CTRL13,
+		wr_mif->reg_canvas_baddr_r_other);
+	sc_reg_wr(ISP_SCWR_MIF_CTRL8,
+		wr_mif->reg_canvas_baddr_luma);
+	sc_reg_wr(ISP_SCWR_MIF_CTRL9,
+		wr_mif->reg_canvas_baddr_chroma);
+	sc_reg_wr(ISP_SCWR_MIF_CTRL10,
+		wr_mif->reg_canvas_baddr_r);
+}
+
 static void enable_isp_scale_new (
 	int    initial_en,
-	int    wr_en,
-	int    dma_mode,
 	int    ir_source,
 	int    dbg_mode,
 	int    clip_mode,
@@ -680,35 +721,6 @@ static void enable_isp_scale_new (
 	int  sco_w = sc_en ? wr_w : clip_w;
 	int  sco_h = sc_en ? wr_h : clip_h;
 
-	sc_reg_wr(ISP_SCWR_GCLK_CTRL, (src_w<<16));
-	if (clip_mode) {
-		sc_reg_wr(ISP_SCWR_CLIP_CTRL1,(1<<31) | (clip_x_ed<<16) | clip_x_st);
-		sc_reg_wr(ISP_SCWR_CLIP_CTRL2, (clip_y_ed<<16) | clip_y_st);
-	} else
-		sc_reg_wr(ISP_SCWR_CLIP_CTRL1, 0x7FFF0000);
-
-	if (dbg_mode) {
-		sc_reg_wr(ISP_SCWR_TOP_GEN, (1<<9) | dbg_mode);
-		sc_reg_wr(ISP_SCWR_MIF_CTRL14, 0x70010101);
-	} else
-		sc_reg_wr(ISP_SCWR_TOP_GEN, 0xD1);
-
-	if (sc_en)
-		isp_sc_setting(clip_w,clip_h,wr_w,wr_h);
-	else
-		sc_reg_wr(ISP_SC_MISC, 0);
-
-	sc_reg_rd(ISP_SCWR_TOP_CTRL, &reg_data);
-	sc_reg_wr(ISP_SCWR_TOP_CTRL,(reg_data & 0xff0bfffc) |
-			((mux_sel & 0x7)<<20) |
-			(ir_source << 18) |
-			(wr_en & 0x1) |
-			((!dma_mode)<<1));
-
-	sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4011000);
-
-	isp_mtx_setting(mtx_mode);
-
 	wr_mif->reg_hsizem1  = sco_w-1;
 	wr_mif->reg_vsizem1  = sco_h-1;
 	wr_mif->reg_start_x = 0;
@@ -716,6 +728,38 @@ static void enable_isp_scale_new (
 	wr_mif->reg_end_x  = sco_w-1;
 	wr_mif->reg_end_y  = sco_h-1;
 	if ( stop_flag ) isp_mif_setting(wr_mif);
+
+	sc_reg_wr(ISP_SCWR_GCLK_CTRL, (src_w<<16));
+	if (clip_mode) {
+		sc_reg_wr(ISP_SCWR_CLIP_CTRL1,(1<<31) | (clip_x_ed<<16) | clip_x_st);
+		sc_reg_wr(ISP_SCWR_CLIP_CTRL2, (clip_y_ed<<16) | clip_y_st);
+	} else
+		sc_reg_wr(ISP_SCWR_CLIP_CTRL1, 0x7FFF0000);
+
+	if ( stop_flag ) {
+		if (dbg_mode) {
+			sc_reg_wr(ISP_SCWR_TOP_GEN, (1<<9) | dbg_mode);
+			sc_reg_wr(ISP_SCWR_MIF_CTRL14, 0x70010101);
+		} else
+			sc_reg_wr(ISP_SCWR_TOP_GEN, 0xD1);
+	}
+
+	if (sc_en)
+		isp_sc_setting(clip_w,clip_h,wr_w,wr_h);
+	else
+		sc_reg_wr(ISP_SC_MISC, 0);
+
+	if ( stop_flag ) {
+		sc_reg_rd(ISP_SCWR_TOP_CTRL, &reg_data);
+		sc_reg_wr(ISP_SCWR_TOP_CTRL,(reg_data & 0xff0bfffc) |
+	                         ((mux_sel & 0x7)<<20) |
+	                         (ir_source << 18));
+
+		sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4000100);
+
+		isp_mtx_setting(mtx_mode);
+	}
+
 	sc_reg_wr(ISP_SCWR_SC_CTRL1, ((clip_w & 0xfff) << 16) | (clip_h & 0xfff));
 
 	if (initial_en && stop_flag) {
@@ -726,10 +770,11 @@ static void enable_isp_scale_new (
 			last_end_frame = 0;
 
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 19, 1);
-		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 5, 13, 3);
+	    if ( mux_sel != 4 ) sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 5, 13, 3);
 	}
-	pr_info(" finished isp scale setting \n");
 
+	if (!clip_mode)
+		pr_info(" finished isp scale setting \n");
 }
 
 static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
@@ -863,14 +908,14 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
 		mif_frame->reg_canvas_baddr_chroma =
 			buf->secondary.address;
 		mif_frame->reg_canvas_baddr_chroma_other =
-			mif_frame->reg_canvas_baddr_luma_other;
+			mif_frame->reg_canvas_baddr_chroma;
 	}
 
 	if (mif_frame->reg_canvas_strb_r) {
 		mif_frame->reg_canvas_baddr_r =
 			buf->secondary.address;
 		mif_frame->reg_canvas_baddr_r_other =
-			mif_frame->reg_canvas_baddr_chroma_other;
+			mif_frame->reg_canvas_baddr_r;
 	}
 
 	if (!mif_frame->reg_pingpong_en) {
@@ -981,7 +1026,25 @@ static void sc_config_next_buffer(tframe_t* f_buf, int ping)
 		isp_frame.reg_canvas_baddr_chroma_other = f_buf->secondary.address;
 		isp_frame.reg_canvas_baddr_r_other = f_buf->secondary.address;
 	}
-	isp_mif_setting(&isp_frame);
+	isp_mif_addr(&isp_frame);
+}
+
+static void am_sc_swap_buf(int check_last, u32 flag_ready)
+{
+	last_end_frame = flag_ready;
+
+	if (pre_frame[frame_delay - 1] && pre_frame[frame_delay - 2]) {
+		tframe_t* temp_frame = pre_frame[frame_delay - 1];
+		pre_frame[frame_delay - 1] = pre_frame[frame_delay - 2];
+		pre_frame[frame_delay - 2] = temp_frame;
+	}
+
+	if (check_last) {
+		if (pre_frame[frame_delay]) {
+			kfifo_in(&g_sc->sc_fifo_in, &pre_frame[frame_delay], sizeof(tframe_t*));
+			pre_frame[frame_delay] = NULL;
+		}
+	}
 }
 
 static irqreturn_t isp_sc_isr(int irq, void *data)
@@ -992,15 +1055,25 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
 		/* maybe need drop one more frame */
 		if (start_delay_cnt == start_delay_th) {
 			isr_count = 0;
-			/* sc_wr_reg_bits(ISP_SCWR_MIF_CTRL2, 1, 14, 1); */
+			pr_info("wrmif start: %x, %x, %x\n", sc_get_reg(ISP_SCWR_TOP_DBG1), sc_get_reg(ISP_SCWR_TOP_DBG2), sc_get_reg(ISP_SCWR_TOP_CTRL));
 			sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
 			sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 0, 1);
 			start_delay_cnt++;
 		} else {
 			u32 flag = 0;
+			u32 flag_ready = 0;
 			tframe_t *f_buf = NULL;
 			unsigned long flags;
 			int retval;
+
+			sc_reg_rd(ISP_SCWR_TOP_DBG0, &flag);
+
+			flag_ready = (flag & (1 << 6)) ? 1 : 0;
+			if (flag_ready == last_end_frame) {
+				pr_info("%d, sc last fifo no ready.\n", __LINE__);
+				am_sc_swap_buf(1, flag_ready);
+				return IRQ_HANDLED;
+			}
 
 			spin_lock_irqsave( &g_sc->sc_lock, flags );
 			if (kfifo_len(&g_sc->sc_fifo_in) > 0) {
@@ -1008,45 +1081,36 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
 				if (retval != sizeof(tframe_t*))
 					pr_info("%d, fifo out failed.\n", __LINE__);
 			} else {
-				//pr_info("%d, sc fifo is empty .\n", __LINE__);
-				f_buf = pre_frame[0];
-				pre_frame[0] = NULL;
+				//pr_info("%d, sc fifo is empty.\n", __LINE__);
+				am_sc_swap_buf(0, flag_ready);
+				spin_unlock_irqrestore( &g_sc->sc_lock, flags );
+				return IRQ_HANDLED;
 			}
 			spin_unlock_irqrestore( &g_sc->sc_lock, flags );
 
-			sc_reg_rd(ISP_SCWR_TOP_DBG0, &flag);
-			sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
-			flag = (flag & (1 << 6)) ? 1 : 0;
 			isr_count++;
-			cur_frame = f_buf;
+			sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
 
-			if (flag == last_end_frame) {
-				if (!pre_frame[0]) {
-					if (!kfifo_is_full(&g_sc->sc_fifo_in)) {
-						spin_lock_irqsave( &g_sc->sc_lock, flags );
-						kfifo_in(&g_sc->sc_fifo_in, &(f_buf), sizeof(tframe_t*));
-						spin_unlock_irqrestore(&g_sc->sc_lock, flags);
-					}
-				} else {
-					if (!kfifo_is_full(&g_sc->sc_fifo_in)) {
-						spin_lock_irqsave( &g_sc->sc_lock, flags );
-						kfifo_in(&g_sc->sc_fifo_in, &(pre_frame[0]), sizeof(tframe_t*));
-						spin_unlock_irqrestore(&g_sc->sc_lock, flags);
-					}
+			if (g_sc->crop_refresh_flag) {
+				am_sc3_hw_init(0, g_sc->crop_refresh_flag);
+				g_sc->crop_refresh_flag = 0;
+			}
+
+			if (pre_frame[frame_delay]) {
+#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
+				if (!kfifo_is_full(&sc_tasklet.sc_fifo_out)) {
+					kfifo_in(&sc_tasklet.sc_fifo_out, &(pre_frame[frame_delay]), sizeof(tframe_t*));
 				}
+				tasklet_schedule(&sc_tasklet.tasklet_obj);
+#endif
 			} else {
-				if (pre_frame[frame_delay]) {
-					if (!kfifo_is_full(&sc_tasklet.sc_fifo_out)) {
-						kfifo_in(&sc_tasklet.sc_fifo_out, &(pre_frame[frame_delay]), sizeof(tframe_t*));
-					}
-					tasklet_schedule(&sc_tasklet.tasklet_obj);
-				}
+				pr_info("%d, sc fifo is empty.\n", __LINE__);
 			}
 
 			pre_frame[2] = pre_frame[1];
 			pre_frame[1] = pre_frame[0];
-			pre_frame[0] = cur_frame;
-			last_end_frame = flag;
+			pre_frame[0] = f_buf;
+			last_end_frame = flag_ready;
 			buffer_id ^= 1;
 		}
 	}
@@ -1107,6 +1171,28 @@ int am_sc3_parse_dt(struct device_node *node, int port)
 	t_sc->port = port;
 	g_sc = t_sc;
 
+	g_sc->crop_refresh_flag = 0;
+
+	spin_lock_init(&g_sc->sc_lock);
+
+	if (!kfifo_initialized(&g_sc->sc_fifo_in)) {
+		rtn = kfifo_alloc(&g_sc->sc_fifo_in, PAGE_SIZE, GFP_KERNEL);
+		if (rtn) {
+			pr_info("alloc sc fifo failed.\n");
+			return rtn;
+		}
+	}
+
+#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
+	if (!kfifo_initialized(&sc_tasklet.sc_fifo_out)) {
+		rtn = kfifo_alloc(&sc_tasklet.sc_fifo_out, PAGE_SIZE, GFP_KERNEL);
+		if (rtn) {
+			pr_info("alloc sc_tasklet fifo failed.\n");
+			return rtn;
+		}
+	}
+#endif
+
 	return 0;
 irq_error:
 	iounmap(t_sc->base_addr);
@@ -1125,6 +1211,12 @@ void am_sc3_deinit_parse_dt(void)
 		return;
 	}
 
+	kfifo_free(&g_sc->sc_fifo_in);
+#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
+	// kill tasklet
+	kfifo_free(&sc_tasklet.sc_fifo_out);
+#endif
+
 	if (g_sc->p_dev != NULL)
 		device_remove_file(&(g_sc->p_dev->dev), &dev_attr_sc3_frame);
 
@@ -1141,6 +1233,7 @@ void am_sc3_api_dma_buffer(tframe_t * data, unsigned int index)
 {
 	unsigned long flags;
 
+	if (temp_buf == NULL) return;
 	spin_lock_irqsave(&g_sc->sc_lock, flags);
 	tframe_t *buf = temp_buf + index;
 	memcpy(buf, data, sizeof(tframe_t));
@@ -1189,6 +1282,23 @@ uint32_t am_sc3_get_starty(void)
 		return 0;
 	}
 	return g_sc->info.starty;
+}
+
+void am_sc3_set_fps(uint32_t c_fps, uint32_t t_fps)
+{
+	if (!g_sc) {
+		pr_info("%d, g_sc is NULL.\n", __LINE__);
+		return;
+	}
+}
+
+uint32_t am_sc3_get_fps(void)
+{
+	if (!g_sc) {
+		pr_info("%d, g_sc is NULL.\n", __LINE__);
+		return 0;
+	}
+	return g_sc->info.t_fps;
 }
 
 void am_sc3_set_startx(uint32_t startx)
@@ -1245,6 +1355,15 @@ void am_sc3_set_crop_height(uint32_t c_height)
 	g_sc->info.c_height = c_height;
 }
 
+void am_sc3_set_crop_enable()
+{
+	if (!g_sc) {
+		pr_info("%d, g_sc is NULL.\n", __LINE__);
+		return;
+	}
+	g_sc->crop_refresh_flag = 1;
+
+}
 void am_sc3_set_src_width(uint32_t src_w)
 {
 	if (!g_sc) {
@@ -1343,17 +1462,9 @@ int am_sc3_system_init(void)
 	if(g_sc->req_buf_num == 0)
 		return 0;
 
-	ret = kfifo_alloc(&g_sc->sc_fifo_in, PAGE_SIZE, GFP_KERNEL);
-	if (ret) {
-		pr_info("alloc sc fifo failed.\n");
-		return ret;
-	}
-
-	spin_lock_init(&g_sc->sc_lock);
 	start_delay_cnt = 0;
 	buffer_id = 0;
 
-	cur_frame = NULL;
 	pre_frame[0] = NULL;
 	pre_frame[1] = NULL;
 	pre_frame[2] = NULL;
@@ -1362,31 +1473,45 @@ int am_sc3_system_init(void)
 		temp_buf = (tframe_t*)kmalloc( sizeof(tframe_t) * (g_sc->req_buf_num), GFP_KERNEL | __GFP_NOFAIL);
 	}
 
-#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-	ret = kfifo_alloc(&sc_tasklet.sc_fifo_out, PAGE_SIZE, GFP_KERNEL);
-	if (ret) {
-		pr_info("alloc sc_tasklet fifo failed.\n");
-		return ret;
-	}
-	tasklet_init( &sc_tasklet.tasklet_obj, sc_do_tasklet, (unsigned long)&sc_tasklet );
-	frame_id = 0;
-#endif
-
-	ret = request_irq(g_sc->irq, isp_sc_isr, IRQF_SHARED | IRQF_TRIGGER_RISING,
-		"isp-sc-irq", (void *)g_sc);
-	pr_info("am_sc3_system_init : irq = %d, ret = %d\n", g_sc->irq, ret);
 	return ret;
 }
 
-int am_sc3_hw_init(void)
+int am_sc3_hw_init(int is_print, int clip_mode)
 {
+	uint32_t flag = 0;
 	if (!g_sc) {
 		pr_info("%d, g_sc is NULL.\n", __LINE__);
 		return -1;
 	}
-
 	if (g_sc->req_buf_num == 0)
 		return 0;
+
+	if ((stop_flag == false) && !clip_mode) {
+		pr_info("wrmif no stop\n");
+		return 0;
+	}
+
+	sc_reg_rd(ISP_SCWR_TOP_CTRL, &flag);
+	if ((flag & 0x01) && !clip_mode) {
+		pr_info("wrmif Bit0 no stop\n");
+		return 0;
+	}
+
+	if (sc_get_reg(ISP_SCWR_TOP_DBG1) != sc_get_reg(ISP_SCWR_TOP_DBG2)) {
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 25, 1);
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 25, 1);
+		pr_info("wrmif DBG force stop: %x - %x\n", sc_get_reg(ISP_SCWR_TOP_DBG1), sc_get_reg(ISP_SCWR_TOP_DBG2));
+	}
+
+	if (!clip_mode)
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 25, 1);
+
+	if (sc_get_reg(ISP_SCWR_TOP_DBG1) != sc_get_reg(ISP_SCWR_TOP_DBG2)) {
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 25, 1);
+		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 25, 1);
+		pr_info("wrmif DBG force skip: %x - %x\n", sc_get_reg(ISP_SCWR_TOP_DBG1), sc_get_reg(ISP_SCWR_TOP_DBG2));
+		return 0;
+	}
 
 	int mtx_mode = 0;
 	int dbg_mode = 0;
@@ -1443,33 +1568,48 @@ int am_sc3_hw_init(void)
 	else
 		g_sc->info.clip_sc_mode &= ~CLIP_MODE;
 
+	if ( !clip_mode )
+		g_sc->info.clip_sc_mode &= ~CLIP_MODE;
+
 	if ( g_sc->port < 3 ) {
 		if ( ( g_sc->info.c_width != g_sc->info.out_w ) || ( g_sc->info.c_height != g_sc->info.out_h ) )
 			g_sc->info.clip_sc_mode |= SC_MODE;
 	}
 
-	pr_info("src_w = %d, src_h = %d, out_w = %d, out_h = %d, crop_w = %d, crop_h = %d, clip = %d, in_fmt:%d, out_fmt:%d\n",
+	if ( is_print ) pr_info("src_w = %d, src_h = %d, out_w = %d, out_h = %d, crop_w = %d, crop_h = %d, clip = %d, in_fmt:%d, out_fmt:%d\n",
 			g_sc->info.src_w, g_sc->info.src_h, g_sc->info.out_w, g_sc->info.out_h, g_sc->info.c_width,
 			g_sc->info.c_height, g_sc->info.clip_sc_mode, g_sc->info.in_fmt, g_sc->info.out_fmt);
 
-	enable_isp_scale_new(1, 0, 0, 0, dbg_mode, g_sc->info.clip_sc_mode & CLIP_MODE, g_sc->info.startx,
+	enable_isp_scale_new(1, 0, dbg_mode, g_sc->info.clip_sc_mode & CLIP_MODE, g_sc->info.startx,
 		g_sc->info.startx + g_sc->info.c_width - 1, g_sc->info.starty,  g_sc->info.starty + g_sc->info.c_height - 1,
 		g_sc->info.src_w, g_sc->info.src_h, g_sc->info.out_w, g_sc->info.out_h, mux_sel, g_sc->info.clip_sc_mode & SC_MODE, mtx_mode,
 		&isp_frame);
+
+	sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 25, 1);
 
 	return 0;
 }
 
 int am_sc3_start(void)
 {
+	int ret = 0;
 	if (!g_sc) {
 		pr_info("%d, g_sc is NULL.\n", __LINE__);
 		return -1;
 	}
 
+	if (stop_flag == false) return 0;
+#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
+	tasklet_init( &sc_tasklet.tasklet_obj, sc_do_tasklet, (unsigned long)&sc_tasklet );
+#endif
+	ret = request_irq(g_sc->irq, isp_sc_isr, IRQF_SHARED | IRQF_TRIGGER_RISING,
+		"isp-sc3-irq", (void *)g_sc);
+	pr_info("%s irq = %d, ret = %d\n", __func__,g_sc->irq, ret);
+
 	/* switch int to sync reset for start and delay frame */
 	sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 3, 1);
 	stop_flag = false;
+	frame_id = 0;
 
 	return 0;
 }
@@ -1487,20 +1627,13 @@ int am_sc3_stop(void)
 	}
 
 	if (!stop_flag) {
-		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 1, 1);
+		stop_flag = true;
+		start_delay_cnt = 0;
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 0, 1);
 		sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 3, 1);
+		mdelay(66);
+		pr_info("wrmif stop: %x, %x\n", sc_get_reg(ISP_SCWR_TOP_DBG1), sc_get_reg(ISP_SCWR_TOP_DBG2));
 
-		kfifo_free(&g_sc->sc_fifo_in);
-#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-		// kill tasklet
-		kfifo_free(&sc_tasklet.sc_fifo_out);
-		tasklet_kill( &sc_tasklet.tasklet_obj );
-		frame_id = 0;
-#endif
-
-		start_delay_cnt = 0;
-		cur_frame = NULL;
 		pre_frame[0] = NULL;
 		pre_frame[1] = NULL;
 		pre_frame[2] = NULL;
@@ -1510,6 +1643,12 @@ int am_sc3_stop(void)
 			temp_buf = NULL;
 		}
 		free_irq(g_sc->irq, (void *)g_sc);
+#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
+		tasklet_kill( &sc_tasklet.tasklet_obj );
+		kfifo_reset(&sc_tasklet.sc_fifo_out);
+#endif
+		kfifo_reset(&g_sc->sc_fifo_in);
+		frame_id = 0;
 
 		g_sc->info.startx = 0;
 		g_sc->info.starty = 0;
@@ -1518,9 +1657,8 @@ int am_sc3_stop(void)
 		g_sc->info.src_w = 0;
 		g_sc->info.src_h = 0;
 		g_sc->info.clip_sc_mode = 0;
-		stop_flag = true;
+
 	}
-	mdelay(100);
 	return 0;
 }
 

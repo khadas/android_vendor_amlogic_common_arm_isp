@@ -36,3 +36,8 @@ extern int32_t acamera_calibration_imx227_otp( ACameraCalibrations *c );
 extern uint32_t get_calibratin_imx227_otp( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
 #define CALIBRATION_SUBDEV_FUNCTIONS_IMX227_OTP get_calibratin_imx227_otp
 
+extern int32_t acamera_calibration_ov5675_otp( ACameraCalibrations *c );
+extern uint32_t get_calibratin_ov5675_otp( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *) ;
+#define CALIBRATION_SUBDEV_FUNCTIONS_OV5675_OTP get_calibratin_ov5675_otp
+
+

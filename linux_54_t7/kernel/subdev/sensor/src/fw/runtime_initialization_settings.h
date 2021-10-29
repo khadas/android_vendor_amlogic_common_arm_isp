@@ -98,6 +98,9 @@ extern void sensor_init_s5k3m5( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_s5k3m5( void *ctx );
 extern int sensor_detect_s5k3m5( void* sbp);
 
+extern void sensor_init_lt6911( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_lt6911( void *ctx );
+extern int sensor_detect_lt6911( void* sbp);
 
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10 sensor_init_ov08a10
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10 sensor_deinit_ov08a10
@@ -158,6 +161,10 @@ extern int sensor_detect_s5k3m5( void* sbp);
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_OV5675 sensor_init_ov5675
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5675 sensor_deinit_ov5675
 #define SENSOR_DETECT_FUNCTIONS_OV5675 sensor_detect_ov5675
+
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_LT6911 sensor_init_lt6911
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_LT6911 sensor_deinit_lt6911
+#define SENSOR_DETECT_FUNCTIONS_LT6911 sensor_detect_lt6911
 
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_VIRTCAM sensor_init_virtcam
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_VIRTCAM sensor_deinit_virtcam

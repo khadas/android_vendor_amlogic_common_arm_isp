@@ -483,6 +483,8 @@ static uint16_t _calibration_gamma_ev2[] =
 
 static uint32_t _calibration_custom_settings_context[][4] = {
     //stop sequence - address is 0x0000
+    { 0x1ab78, 0x00f, 0xfff, 4 }, // set temper bits as 16
+    { 0x1ab7c, 0x14, 0xff, 4 }, // set temper bits as 16
     {0x0000, 0x0000, 0x0000, 0x0000}};
 
 static uint32_t _calibration_defog_control[] = {

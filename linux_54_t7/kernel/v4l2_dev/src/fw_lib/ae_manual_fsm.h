@@ -65,8 +65,12 @@ struct _AE_fsm_t {
     uint8_t save_hist_api;
     uint32_t frame_id_tracking;
     uint32_t daynight;
+    uint32_t vmax_fps;
+    uint8_t scene_mode;
+    uint32_t fps_range[2];//fps_range[0]:min fps_range[1]:max
 
     ae_state_t state;
+    struct CropTypeTo3A aeNnRoiTo3a;
 };
 
 

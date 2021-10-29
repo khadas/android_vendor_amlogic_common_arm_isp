@@ -520,6 +520,9 @@ int32_t acamera_update_calibration_customer( acamera_context_ptr_t p_ctx, uint32
 {
     int32_t result = 0;
     sensor_mode_t sensor_arg;
+
+    p_ctx->system_state = FW_PAUSE;
+
     if ( p_ctx->settings.get_calibrations != NULL ) {
         {
             const sensor_param_t *param = NULL;
@@ -564,6 +567,8 @@ int32_t acamera_update_calibration_customer( acamera_context_ptr_t p_ctx, uint32
         LOG( LOG_CRIT, "Calibration callback is null. Failed to get calibrations" );
         result = -1;
     }
+
+    p_ctx->system_state = FW_RUN;
 
     return result;
 }
@@ -1055,6 +1060,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         p_ctx->isp_frame_counter_raw = 0;
         p_ctx->isp_frame_counter = 0;
         p_ctx->cali_mode = 0;
+        p_ctx->isp_decmp_counter = 0;
 
         acamera_fw_init( p_ctx );
 

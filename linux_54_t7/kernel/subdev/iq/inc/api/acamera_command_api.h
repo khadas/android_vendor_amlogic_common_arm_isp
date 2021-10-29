@@ -188,6 +188,8 @@
 #define CALIBRATION_DAYNIGHT_DETECT                       0x0000008A
 #define CALIBRATION_TEMPER_MD_STRENGTH                    0x0000008B
 #define CALIBRATION_TEMPER_MD_MODE                        0x0000008C
+#define CALIBRATION_TEMPER_NOISE_LEVEL                    0x0000008D
+#define CALIBRATION_TEMPER2_STRENGTH                      0x0000008E
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES

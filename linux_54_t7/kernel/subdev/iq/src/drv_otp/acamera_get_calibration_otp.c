@@ -129,3 +129,50 @@ uint32_t get_calibratin_imx227_otp( uint32_t ctx_id, void *sensor_arg, ACameraCa
 }
 
 
+uint32_t get_calibratin_ov5675_otp( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c )
+{
+
+    uint8_t ret = 0;
+	LOG( LOG_CRIT, "ov5675 otp calibration \n" );
+
+    if ( !sensor_arg ) {
+        LOG( LOG_CRIT, "calibration sensor_arg is NULL" );
+        return ret;
+    }
+
+    int32_t preset = ( (sensor_mode_t *)sensor_arg )->wdr_mode;
+
+    //logic which calibration to apply
+    switch ( preset ) {
+        case WDR_MODE_LINEAR:
+            first_call |= GOT_LINEAR_IQT;
+            LOG( LOG_DEBUG, "calibration switching to WDR_MODE_LINEAR %d ", (int)preset );
+            ret += ( get_calibrations_dynamic_linear_ov5675( c ) + get_calibrations_static_linear_ov5675( c ) );
+            break;
+        case WDR_MODE_NATIVE:
+            LOG( LOG_DEBUG, "calibration switching to WDR_MODE_NATIVE %d ", (int)preset );
+            //ret += (get_calibrations_dynamic_wdr_dummy(c)+get_calibrations_static_wdr_dummy(c));
+            break;
+        default:
+            first_call |= GOT_LINEAR_IQT;
+            LOG( LOG_DEBUG, "calibration defaults to WDR_MODE_LINEAR %d ", (int)preset );
+            ret += ( get_calibrations_dynamic_linear_ov5675( c ) + get_calibrations_static_linear_ov5675( c ) );
+            break;
+    }
+
+    if ( otp_enable == 1 ) {
+        if ( (first_call & GOT_LINEAR_OTP) == GOT_LINEAR_OTP ) {
+            // read calibrations from the sensor otp memory and updated
+            // the current IQ set with these values
+            ret = acamera_calibration_ov5675_otp( c );
+            if (ret != 0)
+                first_call = OPT_UNFINISH;
+            else
+                first_call &= ~GOT_LINEAR_OTP;
+        }
+    }
+
+    return ret;
+}
+
+

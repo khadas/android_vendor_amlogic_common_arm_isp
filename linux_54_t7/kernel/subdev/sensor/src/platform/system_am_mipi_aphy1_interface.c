@@ -128,7 +128,7 @@ static int am_mipi_aphy1_init(void *info)
     mipi_phy2_reg_wr(MIPI_PHY_CLK_LANE_CTRL ,0x3d8);//0x58
     mipi_phy2_reg_wr(MIPI_PHY_TCLK_MISS ,0x9);
     mipi_phy2_reg_wr(MIPI_PHY_TCLK_SETTLE, 0x1f);
-    mipi_phy2_reg_wr(MIPI_PHY_THS_EXIT ,0x04);   // hs exit = 160 ns --(x>100ns)
+    mipi_phy2_reg_wr(MIPI_PHY_THS_EXIT ,0x08);   // hs exit = 160 ns --(x>100ns)
     mipi_phy2_reg_wr(MIPI_PHY_THS_SKIP ,0xa);   // hs skip = 55 ns --(40ns<x<55ns+4*UI)
     mipi_phy2_reg_wr(MIPI_PHY_THS_SETTLE ,12);   //85ns ~145ns. 8
     mipi_phy2_reg_wr(MIPI_PHY_TINIT ,0x4e20);  // >100us
@@ -200,6 +200,8 @@ int am_mipi2_init(void *info)
 		pr_err("%s:Error input param\n", __func__);
 		return -1;
 	}
+
+	am_mipi2_deinit();
 
 	rtn = am_mipi_aphy1_init(info);
 	if (rtn != 0) {

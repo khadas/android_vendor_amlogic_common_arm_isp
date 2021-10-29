@@ -59,6 +59,12 @@ typedef struct _sensor_context_t {
     exp_offset_t win_offset;
     void *sbp;
     void *sdrv;
+    atomic_t is_sensor_power_on;
+    atomic_t sensor_user_counter;
+
+    uint8_t vmax_cnt;        // used to control vmax_adjust in the update() function
+    uint8_t vmax_increases;  // used to control vmax_adjust in the update() function
+    uint8_t usm_state;       // used to control vmax_adjust in the update() function
 } sensor_context_t;
 
 int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev);

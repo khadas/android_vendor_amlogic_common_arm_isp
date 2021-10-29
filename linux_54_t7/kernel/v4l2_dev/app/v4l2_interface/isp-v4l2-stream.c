@@ -92,48 +92,48 @@ static isp_v4l2_fmt_t isp_v4l2_supported_formats[] =
             .is_yuv = false,
             .planes = 1,
         },
-		{
-			.name = "NV12",
-			.fourcc = V4L2_PIX_FMT_NV12,
-			.depth = 8,
-			.is_yuv = true,
-			.planes = 2,
-		},
-		{
-			.name = "NV21",
-			.fourcc = V4L2_PIX_FMT_NV21,
-			.depth = 8,
-			.is_yuv = true,
-			.planes = 2,
-		},
-		{
-			.name = "AYUV",
-			.fourcc = V4L2_PIX_FMT_YUV444,
-			.depth = 32,
-			.is_yuv = true,
-			.planes = 1,
-		},
-		{
-			.name = "YUY2",
-			.fourcc = V4L2_PIX_FMT_YUYV,
-			.depth = 16,
-			.is_yuv = true,
-			.planes = 1,
-		},
-		{
-			.name = "UYVY",
-			.fourcc = V4L2_PIX_FMT_UYVY,
-			.depth = 16,
-			.is_yuv = true,
-			.planes = 1,
-		},
-		{
-			.name = "GREY",
-			.fourcc = V4L2_PIX_FMT_GREY,
-			.depth = 8,
-			.is_yuv = true,
-			.planes = 1,
-		},
+        {
+            .name = "NV12",
+            .fourcc = V4L2_PIX_FMT_NV12,
+            .depth = 8,
+            .is_yuv = true,
+            .planes = 2,
+        },
+        {
+            .name = "NV21",
+            .fourcc = V4L2_PIX_FMT_NV21,
+            .depth = 8,
+            .is_yuv = true,
+            .planes = 2,
+        },
+        {
+            .name = "AYUV",
+            .fourcc = V4L2_PIX_FMT_YUV444,
+            .depth = 32,
+            .is_yuv = true,
+            .planes = 1,
+        },
+        {
+            .name = "YUY2",
+            .fourcc = V4L2_PIX_FMT_YUYV,
+            .depth = 16,
+            .is_yuv = true,
+            .planes = 1,
+        },
+        {
+            .name = "UYVY",
+            .fourcc = V4L2_PIX_FMT_UYVY,
+            .depth = 16,
+            .is_yuv = true,
+            .planes = 1,
+        },
+        {
+            .name = "GREY",
+            .fourcc = V4L2_PIX_FMT_GREY,
+            .depth = 8,
+            .is_yuv = true,
+            .planes = 1,
+        },
         {
             .name = "RAW 16",
             .fourcc = V4L2_PIX_FMT_SBGGR16,
@@ -479,6 +479,69 @@ void callback_raw( uint32_t ctx_num, aframe_t *aframe, const metadata_t *metadat
              metadata->width, metadata->height, metadata->line_size, metadata->frame_number );
 }
 #endif
+#ifdef ENABLE_DI_YUV_DNR
+static int stream_empty_input_buffer(void *stream, void *frame)
+{
+    int rtn = 0,i = 0;;
+    struct di_buffer *d_buff = NULL;
+    struct vframe_s *v_frame = NULL;
+    isp_v4l2_stream_t *pstream = stream;
+    tframe_t *tframe = frame;
+    for (i = 0;i < DI_BUFFER_SIZE;i++) {
+        if (di_buffer_array[i].buf_flag != 1) {
+            d_buff = &di_buffer_array[i].di_buf;
+            v_frame = &di_buffer_array[i].v_frame;
+            di_buffer_array[i].buf_flag = 1;
+            break;
+        }
+    }
+    memset(d_buff, 0, sizeof(struct di_buffer));
+    memset(v_frame, 0, sizeof(struct vframe_s));
+
+    pstream->t_frame = frame;
+
+    d_buff->phy_addr = tframe->primary.address;
+    d_buff->size = tframe->primary.size + tframe->secondary.size;//tframe->primary.size;
+    d_buff->vf = v_frame;
+    LOG(LOG_CRIT, "DIDNR size: primary %d, secondary 0x%x",
+        tframe->primary.size,
+        tframe->secondary.size);
+
+    v_frame->flag |= VFRAME_FLAG_VIDEO_LINEAR;
+    v_frame->type = VIDTYPE_VIU_NV21;
+    v_frame->plane_num = 2;
+    v_frame->width = pstream->cur_v4l2_fmt.fmt.pix_mp.width;//tframe->primary.width;
+    v_frame->height = pstream->cur_v4l2_fmt.fmt.pix_mp.height;//tframe->primary.height;
+    v_frame->bitdepth = 8;
+    v_frame->canvas0_config[0].phy_addr = tframe->primary.address;
+    v_frame->canvas0_config[0].width = pstream->cur_v4l2_fmt.fmt.pix_mp.width;//tframe->primary.width;
+    v_frame->canvas0_config[0].height = pstream->cur_v4l2_fmt.fmt.pix_mp.height;//tframe->primary.height;
+
+    v_frame->canvas0_config[1].phy_addr = tframe->secondary.address;
+    v_frame->canvas0_config[1].width = pstream->cur_v4l2_fmt.fmt.pix_mp.width;//tframe->secondary.width;
+    v_frame->canvas0_config[1].height = pstream->cur_v4l2_fmt.fmt.pix_mp.height;//tframe->secondary.height / 2;
+/*
+    LOG(LOG_CRIT, "DIDNR: is_first %u, p1 0x%x-%u-%u, p2 0x%x-%u-%u",
+        pstream->is_first,
+        v_frame->canvas0_config[0].phy_addr,
+        v_frame->canvas0_config[0].width,
+        v_frame->canvas0_config[0].height,
+        v_frame->canvas0_config[1].phy_addr,
+        v_frame->canvas0_config[1].width,
+        v_frame->canvas0_config[1].height);
+*/
+    rtn = di_empty_input_buffer(pstream->di_idx, d_buff);
+    if (rtn != DI_ERR_NONE) {
+        LOG(LOG_CRIT, "DIDNR: Failed to di input rtn %d", rtn);
+    } else {
+        //LOG(LOG_DEBUG, "DIDNR: Success di input type:%d width:%d height:%d",d_buff>vf->type,d_buff->vf->width,d_buff->vf->height);
+    }
+
+    return rtn;
+}
+#endif
+extern int  write_to_file (char *fname, char *buf, int size);
+#include <linux/highmem.h>
 
 void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata )
 {
@@ -531,7 +594,7 @@ void callback_fr( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadata
         //only 2 planes are possible
         frame_mgr->frame_buffer.addr[0] = tframe->primary.address;
         frame_mgr->frame_buffer.addr[1] = tframe->secondary.address;
-	    if (metadata)
+        if (metadata)
             frame_mgr->frame_buffer.meta = *metadata;
         frame_mgr->frame_buffer.state = ISP_FW_FRAME_BUF_VALID;
         frame_mgr->frame_buffer.tframe = *tframe;
@@ -643,7 +706,6 @@ void callback_sc0( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
     struct isp_fw_frame_mgr *frame_mgr;
     unsigned long flags;
     int rc;
-
     if ( !metadata ) {
         LOG( LOG_ERR, "callback_sc0: metadata is NULL" );
         return;
@@ -661,7 +723,28 @@ void callback_sc0( uint32_t ctx_num, tframe_t *tframe, const metadata_t *metadat
         LOG( LOG_DEBUG, "[Stream#%d] stream SC0 is not started yet on ctx %d", pstream->stream_id, ctx_num );
         return;
     }
+/*system_am_sc.c also need #define ENABLE_DI_YUV_DNR*/
+#ifdef ENABLE_DI_YUV_DNR
+/*
+    pstream->num++;
+    if ((pstream->num % 100) == 0) {
+        sprintf(f_name, "/data/di_in_0x%x_%d.yuv", pstream->d0_phy,pstream->num);
+        write_to_file(f_name, phys_to_virt(tframe->primary.address), tframe->primary.size + tframe->secondary.size);
+    }
+*/
+    pstream->d1_frame = tframe;
+    stream_empty_input_buffer(pstream, tframe);
 
+    if (pstream->is_first == 1) {
+        pstream->is_first = 0;
+        LOG(LOG_INFO, "DIDNR  first");
+    } else {
+        //wait_for_completion(&pstream->d_comp);
+        //LOG(LOG_CRIT, "DIDNR  0x%x",tframe);
+        rc = wait_for_completion_timeout(&pstream->d_comp,msecs_to_jiffies(50));
+        //if ( rc == 0 ) LOG( LOG_CRIT, "DIDNR wait timeout rc:%d", rc );
+    }
+#endif
 #if CHECK_METADATA_ID
     /* filter redundant frame id */
     if ( pstream->last_frame_id == metadata->frame_id ) {
@@ -1320,8 +1403,108 @@ static int isp_v4l2_stream_copy_thread( void *data )
     return 0;
 }
 
+#ifdef ENABLE_DI_YUV_DNR
+
+enum DI_ERRORTYPE stream_empty_input_done(struct di_buffer *buf)
+{
+    struct vframe_s *vframe;
+
+    vframe = buf->vf;
+/*
+    LOG(LOG_CRIT, "DIDNR:p_addr 0x%x, s_addr 0x%x",
+        vframe->canvas0_config[0].phy_addr,
+        vframe->canvas0_config[1].phy_addr);
+*/
+    struct di_buffer_t *current_di_buffer = container_of(buf,struct di_buffer_t,di_buf);
+    current_di_buffer->buf_flag = 0;
+
+    return 0;
+}
+
+enum DI_ERRORTYPE stream_fill_output_done(struct di_buffer *buf)
+{
+    int rtn = 0,i = 0;
+    void *src;
+    void *dst;
+    void *second_src;
+    void *second_dst;
+    unsigned int size;
+    struct vframe_s *vframe;
+    //struct di_buffer_t *current_di_buffer = NULL;
+    isp_v4l2_stream_t *pstream = buf->caller_data;
+    tframe_t *tframe = NULL;
+
+    tframe = pstream->d1_frame;
+    if ( !buf->vf ) {
+        LOG(LOG_CRIT, "DIDNR-- DI not process");
+        return 0;
+    } else {
+        LOG(LOG_DEBUG, "DIDNR-- DI processed");
+    }
+    //LOG(LOG_CRIT, "DIDNR  0x%x %d-",tframe,tframe->secondary.width,tframe->secondary.height);
+
+    vframe = buf->vf;
+/*
+    LOG(LOG_CRIT, "DIDNR--1:src: p_addr 0x%x, s_addr 0x%x",
+        vframe->canvas0_config[0].phy_addr,
+        vframe->canvas0_config[1].phy_addr);
+    LOG(LOG_CRIT, "DIDNR--2:dst: p_addr 0x%x, s_addr 0x%x",
+        tframe->primary.address,
+        tframe->secondary.address);
+
+*/
+/*
+    LOG(LOG_CRIT, "DIDNR--0 image: width %d, height %d",
+        vframe->width,
+        vframe->height);
+
+    LOG(LOG_CRIT, "DIDNR:  p1 0x%x-%u-%u, p2 0x%x-%u-%u",
+
+        vframe->canvas0_config[0].phy_addr,
+        vframe->canvas0_config[0].width,
+        vframe->canvas0_config[0].height,
+        vframe->canvas0_config[1].phy_addr,
+        vframe->canvas0_config[1].width,
+        vframe->canvas0_config[1].height);
+
+    LOG(LOG_CRIT, "DIDNR--2:dst: width %d, height %d",
+        pstream->cur_v4l2_fmt.fmt.pix_mp.width,
+        pstream->cur_v4l2_fmt.fmt.pix_mp.height);
+
+*/
+    src = phys_to_virt(vframe->canvas0_config[0].phy_addr);
+    dst = phys_to_virt(tframe->primary.address);
+    size = pstream->cur_v4l2_fmt.fmt.pix_mp.width * pstream->cur_v4l2_fmt.fmt.pix_mp.height;
+
+    for (i = 0; i < vframe->height; i++) {
+        memcpy(dst + vframe->width * i, src + vframe->canvas0_config[0].width * i, vframe->width);
+    }
+
+    //memset(tframe->primary.address, 255, size);
+    //memset(dst, 255, size);
+
+    second_src = phys_to_virt(vframe->canvas0_config[1].phy_addr);
+    second_dst = phys_to_virt(tframe->secondary.address);
+
+    for (i = 0; i < vframe->height/2; i++) {
+        memcpy(second_dst + vframe->width * i, second_src + vframe->canvas0_config[1].width * i, vframe->width);
+    }
+
+    //memset(dst, 0, size);
+    complete(&pstream->d_comp);
+
+    rtn = di_fill_output_buffer(pstream->di_idx, buf);
+    if (rtn) {
+        LOG(LOG_CRIT, "DIDNR: faled to fill output buffer");
+    }
+    return 0;
+}
+#endif
 int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
 {
+#ifdef ENABLE_DI_YUV_DNR
+    struct di_init_parm d_parm;
+#endif
     if ( !pstream ) {
         LOG( LOG_ERR, "Null stream passed" );
         return -EINVAL;
@@ -1385,7 +1568,32 @@ int isp_v4l2_stream_on( isp_v4l2_stream_t *pstream )
         spin_unlock_irqrestore( &sync_slock, sflags );
     }
 #endif
+#ifdef ENABLE_DI_YUV_DNR
+    if (pstream->stream_type == V4L2_STREAM_TYPE_SC0) {
+        memset(di_buffer_array, 0, sizeof(di_buffer_array));
+        pstream->d_kmem = vmalloc(pstream->cur_v4l2_fmt.fmt.pix_mp.width * pstream->cur_v4l2_fmt.fmt.pix_mp.height);
+        if (pstream->d_kmem == NULL) {
+            LOG(LOG_CRIT, "DIDNR: Failed to alloc");
+            return 0;
+        }
+        pstream->is_first = 1;
+        pstream->num = 0;
+        d_parm.work_mode = WORK_MODE_PRE_POST;
+        d_parm.buffer_mode = BUFFER_MODE_ALLOC_BUF;
+        d_parm.ops.empty_input_done = stream_empty_input_done;
+        d_parm.ops.fill_output_done = stream_fill_output_done;
+        d_parm.caller_data = pstream;
+        d_parm.output_format = DI_OUTPUT_NV21 | DI_OUTPUT_LINEAR;//DI_OUTPUT_422;
 
+        init_completion(&pstream->d_comp);
+        pstream->di_idx = di_create_instance(d_parm);
+        if (pstream->di_idx < 0) {
+            LOG(LOG_CRIT, "DIDNR: Failed to create di instance");
+        }
+
+        LOG(LOG_CRIT, "DIDNR: di_idx %d", pstream->di_idx);
+    }
+#endif
 /* for now, we need memcpy */
 #if ISP_HAS_META_CB
     if ( pstream->stream_type != V4L2_STREAM_TYPE_META )
@@ -1467,7 +1675,17 @@ void isp_v4l2_stream_off( isp_v4l2_stream_t *pstream, int stream_on_count )
         vb2_buffer_done( vb, VB2_BUF_STATE_ERROR );
     }
     spin_unlock( &pstream->slock );
-
+#ifdef ENABLE_DI_YUV_DNR
+    if (pstream->stream_type == V4L2_STREAM_TYPE_SC0) {
+        int rtn = di_destroy_instance(pstream->di_idx);
+        pstream->is_first = 0;
+        if (rtn < 0) {
+            LOG(LOG_CRIT, "DIDNR: failed to destroy di");
+        } else if (rtn == 0) {
+            LOG(LOG_CRIT, "DIDNR: success to destroy di");
+        }
+    }
+#endif
     // control fields update
 
     pstream->stream_started = 0;
@@ -1858,6 +2076,8 @@ int isp_v4l2_set_section(isp_v4l2_stream_t *pstream,
                      width | (dma_type << 16), COMMAND_SET, &ret_val );
     acamera_command( pstream->ctx_id, TAML_SCALER, SCALER_CROP_HEIGHT,
                      height | (dma_type << 16), COMMAND_SET, &ret_val );
+    acamera_command( pstream->ctx_id, TAML_SCALER, SCALER_CROP_ENABLE,
+                     1 | (dma_type << 16), COMMAND_SET, &ret_val );
 
     if (dma_type == dma_sc3) {
         acamera_command( pstream->ctx_id, TAML_SCALER, SCALER_WIDTH,

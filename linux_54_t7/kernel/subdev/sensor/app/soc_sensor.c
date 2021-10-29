@@ -71,6 +71,7 @@ struct SensorConversion ConversionTable[] = {
     {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX334, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX334, SENSOR_DETECT_FUNCTIONS_IMX334, "imx334", 3840,2160, "8MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5675, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5675, SENSOR_DETECT_FUNCTIONS_OV5675, "ov5675", 2592,1944, "5MP"},
     {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640, SENSOR_DETECT_FUNCTIONS_OV5640, "ov5640", 2560,1944, "5MP"},
+    {SENSOR_INIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DEINIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DETECT_FUNCTIONS_LT6911, "lt6911", 1920,1080, "2MP"},
 };
 
 void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl, void* sbp ) =
@@ -652,7 +653,7 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
     }
     if (sensor)
         sensor_name = sensor;
-    //sensor_name = "imx290";
+    //sensor_name = "lt6911";
 
     pr_err("config sensor %s driver.\n", sensor_name);
 

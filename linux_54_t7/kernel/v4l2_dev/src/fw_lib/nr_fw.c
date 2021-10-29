@@ -3,7 +3,6 @@
 
 int param_flkr_ctrl_init(T_FLKR_CTRL_PRM *prm_flkr_ctrl)
 {
-    int k;
     prm_flkr_ctrl->flkr_det_en = 1;
     prm_flkr_ctrl->flkr_ctrl_raw_mode     = 1;   // 0: mono, 1:G R  ,2 :   I R     ,3:  G R   ,4:  G R G B, 5~7: other cases
                                               //               B G         B G          B I        I G I G
@@ -19,26 +18,23 @@ int param_flkr_ctrl_init(T_FLKR_CTRL_PRM *prm_flkr_ctrl)
     prm_flkr_ctrl->flkr_ctrl_binning_rs        = 0;      //row average binning step= 2^x. 0: RO for each row avg; 1: each RO for two rows; 2: each RO for 4rows; 3: each RO for 8rows;
 
     prm_flkr_ctrl->flkr_ctrl_ro_mode           = 1;      // mode of RO-RAM, 0: avg(cur-p1); 1: avg(cur), default = 0.
-    char tmp[FED_FLKR_STAT_MAX * 2];
-    aml_flicker_get_data(tmp);
-    for (k = 0; k < FED_FLKR_STAT_MAX; k++)
-        prm_flkr_ctrl->ro_flkr_stat_avg_dif[k] = (int)tmp[2*k] + (int)tmp[2*k+1]*256;     // row average for row statistic; mode=0, avg(cur-pre)= s12; mode=1, avg(cur)= u12; save to ram, FED_ROW_STAT_MAX x s12 default
+
     return 0;
 }
 
 int param_flkr_det_init(T_FLKR_DET_PRM *prm_flkr_det)
 {
 
-    prm_flkr_det->flkr_det_valid_sel         = 1;  // whether delete invalid flicker
+    prm_flkr_det->flkr_det_valid_sel         = 0;  // whether delete invalid flicker
     prm_flkr_det->flkr_det_avg_chnen_mode    = 0;  // 0: half (reg_flkr_stat_yed-reg_flkr_stat_yst) statistic, 1: the whole (reg_flkr_stat_yed-reg_flkr_stat_yst) statistic.
     prm_flkr_det->flkr_det_t100          = 338;// line numbers (period) for 100hz, based on exposure updated by software t100 = 1/(29.6*10e(-6))/100
     prm_flkr_det->flkr_det_t120          = 282;// line numbers (period) for 120hz, based on exposure updated by software t120 = 1/(29.6*10e(-6))/120
     prm_flkr_det->flkr_det_lpf           =   1;// 0:no lpf,1: [1 2 1]/4, 2: [1 2 2 2 1]/8, 3: [1 1 1 2 1 1 1]/8, 4 or else: [1 2 2 2 2 2 2 2 1]/16, lpf of row avg for flicker detection
     prm_flkr_det->flkr_det_50hz          =   1;// 1: 50hz, 0: 60hz, result of flicker detection
 
-    prm_flkr_det->flkr_det_stat_pk_dis_rang  = 220; // peaks/valleys interval thrd for peaks/valleys finding
-    prm_flkr_det->flkr_det_stat_pk_dis_thr   = 1600;// peaks/valleys interval thrd for valid wave
-    prm_flkr_det->flkr_det_stat_pk_val_thr   = 1;   // peaks/valleys value for valid wave
+    prm_flkr_det->flkr_det_stat_pk_dis_rang  = 440; // peaks/valleys interval thrd for peaks/valleys finding
+    prm_flkr_det->flkr_det_stat_pk_dis_thr   = 3200;// peaks/valleys interval thrd for valid wave
+    prm_flkr_det->flkr_det_stat_pk_val_thr   = 5;   // peaks/valleys value for valid wave
 
 
     return 0;
@@ -108,19 +104,19 @@ int fw_period_pattern_det (int *peak_idx_val, int *valey_idx_val, T_FLKR_DET_PRM
     int norm;
 
     var = 0;
-    num = MIN(5,num);
 
-    if (num == 0 ) {
+    if (num == 0 || num>5) {
         *flkr_vld_flag = 0;
-        //pr_err("No flicker!\n");
+        pr_err("%s-%d No flicker! num:%d \n",__FUNCTION__,__LINE__,num);
         return 1;
     } else if(num == 1) {
         *flkr_vld_flag = 0;
-        //pr_err("Invalid flicker!\n"); // peak_valey_val < thrd
+        pr_err("%s-%d Invalid flicker!\n",__FUNCTION__,__LINE__); // peak_valey_val < thrd
         return 1;
     } else{
         norm = (num == 2) ? 1 : ((num==3) ? 2 : 3);
     }
+    num = MIN(5,num);
 
     // wave peak/valey
     for (j = 0; j < (num-1); j++) {
@@ -143,13 +139,13 @@ int fw_period_pattern_det (int *peak_idx_val, int *valey_idx_val, T_FLKR_DET_PRM
     if (var > var_thr) {
 
             *flkr_vld_flag = 0;
-            //pr_err("No flicker!\n");
+            pr_err("%s-%d No flicker! var:%d \n",__FUNCTION__,__LINE__,var);
             return 1;
     }
     if (peak_valey_flag == 0) {
 
         *flkr_vld_flag = 0;
-        //pr_err("Invalid flicker!\n"); // peak_valey_val < thrd
+        pr_err("%s-%d Invalid flicker!\n",__FUNCTION__,__LINE__);
         return 1;
     }
     return 0;
@@ -178,8 +174,10 @@ static int peak_idx_val[FED_FLKR_STAT_MAX*2];  //= (int*)kzalloc( FED_FLKR_STAT_
 static int valey_idx_val[FED_FLKR_STAT_MAX*2];  //= (int*)kzalloc( FED_FLKR_STAT_MAX*2, GFP_KERNEL );
 static int pDif[FED_FLKR_STAT_MAX];           //= (int*)kzalloc( FED_FLKR_STAT_MAX, GFP_KERNEL );
 static int pDifLpf[FED_FLKR_STAT_MAX];        //= (int*)kzalloc( FED_FLKR_STAT_MAX, GFP_KERNEL );
+static char dump_name[100];
+static loff_t pos;
 
-int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det)
+int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det, int frame_id_current)
 {
     int j, jm1, jp1, k;
     int rtn = 0;
@@ -223,10 +221,10 @@ int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det)
         if (prm_flkr_det->flkr_det_valid_sel == 1) {
             fw_get_peak_valey(pDif, peak_idx_val, valey_idx_val, len, prm_flkr_det, &flk_num);
             rtn = fw_period_pattern_det(peak_idx_val, valey_idx_val, prm_flkr_det, &flk_num, len, &flkr_vld_flag);
+            if (rtn == 1) return 0;
         }
     }
-    if (rtn == 1)
-        return 0;
+
     if (prm_flkr_ctrl->flkr_det_en == 1 && flkr_vld_flag == 1) {
         //lpf
         if (prm_flkr_det->flkr_det_lpf == 0) {
@@ -281,7 +279,7 @@ int fw_flicker_det(T_FLKR_CTRL_PRM *prm_flkr_ctrl, T_FLKR_DET_PRM *prm_flkr_det)
             prm_flkr_det->flkr_det_50hz = 0;
         }
 
-       pr_err("Flicker Detection: reg_flkr_det_50hz = %d, r100: %d, r120;%d\n", prm_flkr_det->flkr_det_50hz, ABS(r100), ABS(r120));
+       //pr_err("Flicker Detection: reg_flkr_det_50hz = %d, r100: %d, r120:%d frame_id_current:%d\n", prm_flkr_det->flkr_det_50hz, ABS(r100), ABS(r120),frame_id_current);
        return 1;
     }
 

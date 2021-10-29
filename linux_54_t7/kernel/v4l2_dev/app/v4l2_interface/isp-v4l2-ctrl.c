@@ -103,6 +103,9 @@ static int isp_v4l2_ctrl_s_ctrl_standard( struct v4l2_ctrl *ctrl )
     case V4L2_CID_FOCUS_ABSOLUTE:
         ret = fw_intf_set_focus( ctx_id, ctrl->val );
         break;
+    case V4L2_CID_SCENE_MODE:
+        ret = fw_intf_set_ae_scene( ctx_id, ctrl->val );
+        break;
     }
 
     return ret;
@@ -147,6 +150,11 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         // map [0,127] to [0, 254] due to limitaton of V4L2_CTRL_TYPE_INTEGER.
         LOG( LOG_INFO, "new af roi: 0x%x.\n", ctrl->val * 2 );
         ret = fw_intf_set_af_roi( ctx_id, ctrl->val * 2 );
+        break;
+    case ISP_V4L2_CID_AE_ROI:
+        // map [0,127] to [0, 254] due to limitaton of V4L2_CTRL_TYPE_INTEGER.
+        LOG( LOG_INFO, "new ae roi: 0x%x.\n", ctrl->val * 2 );
+        ret = fw_intf_set_ae_roi( ctx_id, ctrl->val * 2 );
         break;
     case ISP_V4L2_CID_OUTPUT_FR_ON_OFF:
         LOG( LOG_INFO, "output FR on/off: 0x%x.\n", ctrl->val );
@@ -578,6 +586,46 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         LOG( LOG_INFO, "new isp scale crop enable : %d.\n", ctrl->val);
         ret = fw_intf_set_scale_crop_enable( ctx_id, ctrl->val );
         break;
+    case ISP_V4L2_CID_SET_SENSOR_POWER:
+        LOG( LOG_INFO, "set sensor power : %d.\n", ctrl->val);
+        ret = fw_intf_set_sensor_power( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_SET_SENSOR_MD_EN:
+        LOG( LOG_INFO, "set sensor md : %d.\n", ctrl->val);
+        ret = fw_intf_set_sensor_md_en( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_SET_SENSOR_DECMPR_EN:
+        LOG( LOG_INFO, "set sensor decmpr : %d.\n", ctrl->val);
+        ret = fw_intf_set_sensor_decmpr_en( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_SET_SENSOR_DECMPR_LOSSLESS_EN:
+        LOG( LOG_INFO, "set sensor decmpr lossless_en : %d.\n", ctrl->val);
+        ret = fw_intf_set_sensor_decmpr_lossless_en( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_SET_SENSOR_FLICKER_EN:
+        LOG( LOG_INFO, "set sensor flicker : %d.\n", ctrl->val);
+        ret = fw_intf_set_sensor_flicker_en( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_SCALER_FPS:
+        LOG( LOG_INFO, "set sc fps: %x.\n", ctrl->val);
+        ret = fw_intf_set_scaler_fps( ctx_id, ctrl->val );
+        break;
+    case ISP_V4L2_CID_AE_ROI_EXACT_COORDINATES:
+        ret = fw_intf_set_isp_modules_ae_roi_exact_coordinates( ctx_id, ctrl->p_new.p_u32 );
+        LOG( LOG_INFO, "new isp module ae roi exact coordinates  rc: %d.\n", ret );
+        break;
+    case ISP_V4L2_CID_AF_ROI_EXACT_COORDINATES:
+        ret = fw_intf_set_isp_modules_af_roi_exact_coordinates( ctx_id, ctrl->p_new.p_u32 );
+        LOG( LOG_INFO, "new isp module af roi exact coordinates  rc: %d.\n", ret );
+        break;
+    case ISP_V4L2_CID_SET_IS_CAPTURING:
+        ret = fw_intf_set_isp_modules_is_capturing( ctx_id, ctrl->val );
+        LOG( LOG_INFO, "new isp module isp is capturing  rc: %d.\n", ret );
+        break;
+    case ISP_V4L2_CID_SET_FPS_RANGE:
+        ret = fw_intf_set_isp_modules_fps_range( ctx_id, ctrl->p_new.p_u32 );
+        LOG( LOG_INFO, "new isp module isp is fps range rc: %d.\n", ret );
+        break;
     }
 
     return ret;
@@ -951,6 +999,14 @@ static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
         ret = fw_intf_get_af_stats( ctx_id, ctrl->p_new.p_u32, ctrl->elems );
         LOG( LOG_INFO, "get af stats: rc: %d\n", ret );
         break;
+    case ISP_V4L2_CID_MD_STATS:
+        ret = fw_intf_get_md_stats( ctx_id, ctrl->p_new.p_u32, ctrl->elems );
+        LOG( LOG_INFO, "get md stats: rc: %d\n", ret );
+        break;
+    case ISP_V4L2_CID_FLICKER_STATS:
+        ret = fw_intf_get_flicker_stats( ctx_id, ctrl->p_new.p_u32, ctrl->elems );
+        LOG( LOG_INFO, "get flkr stats: rc: %d\n", ret );
+        break;
     case ISP_V4L2_CID_DPC_THRES_SLOPE:
         ret = fw_intf_get_dpc_threshold_slope( ctx_id, &ctrl->val );
         LOG( LOG_INFO, "get dpc threshold and slope: rc: %d\n", ret );
@@ -1055,6 +1111,10 @@ static int isp_v4l2_ctrl_g_ctrl_custom( struct v4l2_ctrl *ctrl )
         ret = fw_intf_get_stream_status( ctx_id, &ctrl->val );
         LOG( LOG_INFO, "fw_intf_get_stream_status: %d, rc: %d.\n", ctrl->val, ret );
         break;
+    case ISP_V4L2_CID_SCALER_FPS:
+        ret = fw_intf_get_scaler_fps( ctx_id, &ctrl->val );
+        LOG( LOG_INFO, "get sc fps:  %d, rc: %d.\n", ctrl->val, ret );
+        break;
     default:
         ret = 1;
         break;
@@ -1112,6 +1172,16 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_sensor_preset = {
     .def = 0,
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_ae_roi = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_AE_ROI,
+    .name = "ISP AE ROI",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7F7F7F7F,
+    .step = 1,
+    .def = 0x20206060,
+};
 
 static const struct v4l2_ctrl_config isp_v4l2_ctrl_af_roi = {
     .ops = &isp_v4l2_ctrl_ops_custom,
@@ -1302,7 +1372,7 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_ae_compensation = {
     .min = 0,
     .max = 255,
     .step = 1,
-    .def = 0,
+    .def = 128,
 };
 
 static const struct v4l2_ctrl_config isp_v4l2_ctrl_sensor_digital_gain = {
@@ -2287,6 +2357,30 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_ae_stats = {
     .dims = { ISP_V4L2_AE_STATS_SIZE },
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_md_stats = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_MD_STATS,
+    .name = "Get the MD stats",
+    .type = V4L2_CTRL_TYPE_U8,
+    .min = 0,
+    .max = 0xffffffff,
+    .step = 1,
+    .def = 0,
+    .dims = { ISP_V4L2_MD_STATS_SIZE },
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_flicker_stats = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_FLICKER_STATS,
+    .name = "Get the flkr stats",
+    .type = V4L2_CTRL_TYPE_U8,
+    .min = 0,
+    .max = 0xffffffff,
+    .step = 1,
+    .def = 0,
+    .dims = { ISP_V4L2_FLICKER_STATS_SIZE },
+};
+
 static const struct v4l2_ctrl_config isp_v4l2_ctrl_sensor_vmax = {
     .ops = &isp_v4l2_ctrl_ops_custom,
     .id = ISP_V4L2_CID_SENSOR_VMAX_FPS,
@@ -2632,6 +2726,119 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_get_stream_status = {
     .def = 0,
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_set_sensor_power = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_SENSOR_POWER,
+    .name = "Set sensor power",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7fffffff,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_set_sensor_md_en = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_SENSOR_MD_EN,
+    .name = "Set sensor md enable",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7fffffff,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_set_sensor_decmpr_en = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_SENSOR_DECMPR_EN,
+    .name = "Set sensor power",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7fffffff,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_set_sensor_decmpr_lossless_en = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_SENSOR_DECMPR_LOSSLESS_EN,
+    .name = "Set sensor power",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7fffffff,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_set_sensor_flicker_en = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_SENSOR_FLICKER_EN,
+    .name = "Set sensor power",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7fffffff,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_scaler_fps = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SCALER_FPS,
+    .name = "Set/Get scaler fps",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 0x7fffffff,
+    .step = 1,
+    .def = 30,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_isp_modules_ae_roi_exact_coordinates = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_AE_ROI_EXACT_COORDINATES,
+    .name = "Set/Get ISP ae roi coordinates",
+    .type = V4L2_CTRL_TYPE_U32,
+    .min = 0,
+    .max = 0xffffffff,
+    .step = 1,
+    .def = 0,
+    .dims = { ISP_V4L2_RIO_SIZE },
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_isp_modules_af_roi_exact_coordinates = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_AF_ROI_EXACT_COORDINATES,
+    .name = "Set/Get ISP af roi coordinates",
+    .type = V4L2_CTRL_TYPE_U32,
+    .min = 0,
+    .max = 0xffffffff,
+    .step = 1,
+    .def = 0,
+    .dims = { ISP_V4L2_RIO_SIZE },
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_isp_modules_is_capturing = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_IS_CAPTURING,
+    .name = "Set is capturing or not",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 1,
+    .step = 1,
+    .def = 0,
+};
+
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_isp_modules_ae_fps_range = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_SET_FPS_RANGE,
+    .name = "Set/Get sensor fps range",
+    .type = V4L2_CTRL_TYPE_U32,
+    .min = 0,
+    .max = 0xffffffff,
+    .step = 1,
+    .def = 0,
+    .dims = { 2 },
+};
+
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_standard,
 };
@@ -2747,6 +2954,9 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_STD( V4L2_CID_FOCUS_ABSOLUTE,
                   0, 255, 1, 0 );
 
+    /* scene : Max scene modes are increased to support custom scene modes from Camportal as well */
+    ADD_CTRL_STD_MENU( V4L2_CID_SCENE_MODE, V4L2_SCENE_MODE_TEXT, ~0xfffffffff, V4L2_SCENE_MODE_NONE);
+
     /* Init and add custom controls */
     v4l2_ctrl_handler_init( hdl_cst_ctrl, 2 );
     v4l2_ctrl_new_custom( hdl_cst_ctrl, &isp_v4l2_ctrl_class, NULL );
@@ -2761,7 +2971,7 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_WDR_MODE, &isp_v4l2_ctrl_sensor_wdr_mode, NULL );
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_EXPOSURE, &isp_v4l2_ctrl_sensor_exposure, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_FR_FPS, &isp_v4l2_ctrl_fr_fps, NULL);
-    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_SET_SENSOR_TESTPATTERN, &isp_v4l2_ctrl_sensor_testpattern, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SET_SENSOR_TESTPATTERN, &isp_v4l2_ctrl_sensor_testpattern, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_SENSOR_IR_CUT, &isp_v4l2_ctrl_sensor_ir_cut, NULL);
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_AE_ZONE_WEIGHT, &isp_v4l2_ctrl_ae_zone_weight, NULL);
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_CUSTOM_AWB_ZONE_WEIGHT, &isp_v4l2_ctrl_awb_zone_weight, NULL);
@@ -2785,9 +2995,10 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_WDR_SWITCH, &isp_v4l2_ctrl_wdr_mode, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_DEFOG_SWITCH, &isp_v4l2_ctrl_defog_mode, NULL);
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_DEFOG_STRENGTH, &isp_v4l2_ctrl_defog_ratio, NULL);
-    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_CALIBRATION,  &isp_v4l2_ctrl_calibration, NULL);
-
     ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_ANTIFLICKER, &isp_v4l2_ctrl_antiflicker, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_CUSTOM_CALIBRATION,  &isp_v4l2_ctrl_calibration, NULL);
+    ADD_CTRL_CST( ISP_V4L2_CID_AE_ROI, &isp_v4l2_ctrl_ae_roi, NULL );
+
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SYSTEM_FREEZE_FIRMWARE, &isp_v4l2_ctrl_system_freeze_firmware, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SYSTEM_MANUAL_EXPOSURE, &isp_v4l2_ctrl_system_manual_exposure, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SYSTEM_MANUAL_INTEGRATION_TIME, &isp_v4l2_ctrl_system_manual_integration_time, NULL );
@@ -2907,7 +3118,18 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SCALE_CROP_HEIGHT, &isp_v4l2_ctrl_scale_crop_height, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SCALE_CROP_ENABLE, &isp_v4l2_ctrl_scale_crop_enable, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_GET_STREAM_STATUS, &isp_v4l2_ctrl_get_stream_status, NULL );
-
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_SENSOR_POWER, &isp_v4l2_ctrl_set_sensor_power, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_SENSOR_MD_EN, &isp_v4l2_ctrl_set_sensor_md_en, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_SENSOR_DECMPR_EN, &isp_v4l2_ctrl_set_sensor_decmpr_en, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_SENSOR_DECMPR_LOSSLESS_EN, &isp_v4l2_ctrl_set_sensor_decmpr_lossless_en, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_SENSOR_FLICKER_EN, &isp_v4l2_ctrl_set_sensor_flicker_en, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_MD_STATS, &isp_v4l2_ctrl_md_stats, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SCALER_FPS, &isp_v4l2_ctrl_scaler_fps, NULL);
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_FLICKER_STATS, &isp_v4l2_ctrl_flicker_stats, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_AE_ROI_EXACT_COORDINATES, &isp_v4l2_ctrl_isp_modules_ae_roi_exact_coordinates, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_AF_ROI_EXACT_COORDINATES, &isp_v4l2_ctrl_isp_modules_ae_roi_exact_coordinates, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_IS_CAPTURING, &isp_v4l2_ctrl_isp_modules_is_capturing, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_FPS_RANGE, &isp_v4l2_ctrl_isp_modules_ae_fps_range, NULL );
     /* Add control handler to v4l2 device */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL, false );

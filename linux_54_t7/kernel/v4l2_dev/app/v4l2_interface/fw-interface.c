@@ -477,6 +477,9 @@ void fw_intf_stream_stop( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, in
 
     acamera_command( ctx_id, TAML_SCALER, SCALER_STREAMING_OFF, OFF | (dma_type << 16), COMMAND_SET, &ret_val );
 
+    if ( stream_on_count == 1 )
+        ((acamera_context_ptr_t)acamera_get_ctx_ptr(ctx_id))->isp_frame_counter = 0;
+
     LOG( LOG_CRIT, "Stream off %d, user: %d\n",  streamType, stream_on_count);
 }
 
@@ -1225,6 +1228,22 @@ static int isp_fw_do_set_af_roi( uint32_t ctx_id, int val )
     return 0;
 }
 
+static int isp_fw_do_set_ae_roi( uint32_t ctx_id, int val )
+{
+#if defined( TALGORITHMS ) && defined( AE_ROI_ID )
+    int result;
+    u32 ret_val;
+
+    result = acamera_command( ctx_id, TALGORITHMS, AE_ROI_ID, (uint32_t)val, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set AE_ROI_ID, ret_value: %u.", ret_val );
+        return result;
+    }
+#endif
+
+    return 0;
+}
+
 static int isp_fw_do_set_brightness( uint32_t ctx_id, int brightness )
 {
 #if defined( TSCENE_MODES ) && defined( BRIGHTNESS_STRENGTH_ID )
@@ -1781,6 +1800,29 @@ static int isp_fw_do_set_focus( uint32_t ctx_id, int focus )
     return 0;
 }
 
+static int isp_fw_do_set_ae_scene( uint32_t ctx_id, int scene )
+{
+#if defined( TSCENE_MODES ) && defined( AE_SCENE_MODE_ID )
+    int result;
+    uint32_t ret_val;
+
+    /* some controls(such brightness) will call acamera_command()
+     * before isp_fw initialed, so we need to check.
+     */
+    if ( !isp_started ) {
+        LOG( LOG_ERR, "ISP FW not inited yet" );
+        return -EBUSY;
+    }
+
+    result = acamera_command( ctx_id, TSCENE_MODES, AE_SCENE_MODE_ID, scene, COMMAND_SET, &ret_val );
+    if ( result ) {
+        LOG( LOG_ERR, "Failed to set AE_SCENE_MODE_ID to %d, ret_value: %d.", scene, result );
+        return result;
+    }
+#endif
+    return 0;
+}
+
 static int isp_fw_do_set_max_integration_time( uint32_t ctx_id, int val )
 {
     int result;
@@ -2227,6 +2269,11 @@ int fw_intf_set_af_roi( uint32_t ctx_id, int val )
     return isp_fw_do_set_af_roi( ctx_id, val );
 }
 
+int fw_intf_set_ae_roi( uint32_t ctx_id, int val )
+{
+    return isp_fw_do_set_ae_roi( ctx_id, val );
+}
+
 int fw_intf_set_brightness( uint32_t ctx_id, int val )
 {
     return isp_fw_do_set_brightness( ctx_id, val );
@@ -2356,6 +2403,11 @@ int fw_intf_set_focus_auto( uint32_t ctx_id, int val )
 int fw_intf_set_focus( uint32_t ctx_id, int val )
 {
     return isp_fw_do_set_focus( ctx_id, val );
+}
+
+int fw_intf_set_ae_scene( uint32_t ctx_id, int val )
+{
+    return isp_fw_do_set_ae_scene( ctx_id, val );
 }
 
 int fw_intf_set_output_fr_on_off( uint32_t ctx_id, uint32_t ctrl_val )
@@ -5187,6 +5239,46 @@ int fw_intf_get_af_stats( uint32_t ctx_id, uint32_t *ret_val_ptr, uint32_t elems
     return rc;
 }
 
+int fw_intf_get_md_stats( uint32_t ctx_id, uint32_t *ret_val_ptr, uint32_t elems )
+{
+    int rc = -1;
+
+    if ( elems != ISP_V4L2_MD_STATS_SIZE ) {
+        LOG( LOG_ERR, "Bad no. of elems: %d", elems );
+        return -1;
+    }
+
+#if defined( MD_STATS_ID )
+    rc = isp_fw_do_get_cmd( ctx_id, TALGORITHMS, MD_STATS_ID, ret_val_ptr );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to get MD_STATS_ID rc: %d", rc );
+        return rc;
+    }
+#endif
+
+    return rc;
+}
+
+int fw_intf_get_flicker_stats( uint32_t ctx_id, uint32_t *ret_val_ptr, uint32_t elems )
+{
+    int rc = -1;
+
+    if ( elems != ISP_V4L2_FLICKER_STATS_SIZE ) {
+        LOG( LOG_ERR, "Bad no. of elems: %d", elems );
+        return -1;
+    }
+
+#if defined( FLICKER_STATS_ID )
+    rc = isp_fw_do_get_cmd( ctx_id, TALGORITHMS, FLICKER_STATS_ID, ret_val_ptr );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to get FLICKER_STATS_ID rc: %d", rc );
+        return rc;
+    }
+#endif
+
+    return rc;
+}
+
 int fw_intf_set_dpc_threshold_slope( uint32_t ctx_id, int val )
 {
     int rc = -1;
@@ -5671,6 +5763,137 @@ int fw_intf_set_scale_crop_enable( uint32_t ctx_id, int val )
     return rc;
 }
 
+int fw_intf_set_sensor_power( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+    if (val == 1 ) {
+        rc = isp_fw_do_set_cmd( ctx_id, TSENSOR, SENSOR_POWER_ON, val );
+        if ( rc ) {
+            LOG( LOG_ERR, "Failed to set sensor power ON rc: %d.", rc );
+        }
+    } else {
+        rc = isp_fw_do_set_cmd( ctx_id, TSENSOR, SENSOR_POWER_OFF, val );
+        if ( rc ) {
+            LOG( LOG_ERR, "Failed to set sensor power OFF rc: %d.", rc );
+        }
+    }
+    return rc;
+}
+
+int fw_intf_set_sensor_md_en( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_set_cmd( ctx_id, TALGORITHMS, SENSOR_MD_EN, val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_MD_ON  rc: %d.", rc );
+    }
+
+    return rc;
+}
+
+int fw_intf_set_sensor_decmpr_en( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_set_cmd( ctx_id, TALGORITHMS, SENSOR_DECMPR_EN, val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_DECMPR_ON  rc: %d.", rc );
+    }
+
+    return rc;
+}
+
+int fw_intf_set_sensor_decmpr_lossless_en( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_set_cmd( ctx_id, TALGORITHMS, SENSOR_DECMPR_LOSSLESS_EN, val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_DECMPR_LOSSLESS_EN  rc: %d.", rc );
+    }
+
+    return rc;
+}
+
+int fw_intf_set_sensor_flicker_en( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_set_cmd( ctx_id, TALGORITHMS, SENSOR_FLICKER_EN, val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to set SENSOR_FLICKER_EN  rc: %d.", rc );
+    }
+
+    return rc;
+}
+
+int fw_intf_set_scaler_fps( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_set_cmd( ctx_id, TAML_SCALER, SCALER_FPS, val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to set SC FPS  rc: %d.", rc );
+    }
+
+    return rc;
+}
+
+int fw_intf_set_isp_modules_ae_roi_exact_coordinates( uint32_t ctx_id, uint32_t * val_ptr )
+{
+
+    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+
+    acamera_fsm_mgr_t *fsm_mgr = &(context_ptr->fsm_mgr);
+    fsm_common_t *fsm_arr = fsm_mgr->fsm_arr[FSM_ID_AE];
+    AE_fsm_t * ae_fsm = (AE_fsm_t *)(fsm_arr->p_fsm);
+    memcpy((void *) &ae_fsm->aeNnRoiTo3a, (void *)val_ptr, sizeof( struct CropTypeTo3A ));
+
+    return SUCCESS;
+}
+
+int fw_intf_set_isp_modules_af_roi_exact_coordinates( uint32_t ctx_id, uint32_t * val_ptr )
+{
+
+    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+
+    acamera_fsm_mgr_t *fsm_mgr = &(context_ptr->fsm_mgr);
+    fsm_common_t *fsm_arr = fsm_mgr->fsm_arr[FSM_ID_AF];
+    AF_fsm_t * af_fsm = (AF_fsm_t *)(fsm_arr->p_fsm);
+    memcpy((void *) &af_fsm->afNnRoiTo3a, (void *)val_ptr, sizeof( struct CropTypeTo3A ));
+
+    return SUCCESS;
+
+}
+
+int fw_intf_set_isp_modules_is_capturing( uint32_t ctx_id, int val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_set_cmd( ctx_id, TISP_MODULES, ISP_IS_CAPTURING, val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to set is capturing rc: %d.", rc );
+    }
+
+    return rc;
+}
+
+int fw_intf_set_isp_modules_fps_range( uint32_t ctx_id, uint32_t * val_ptr )
+{
+    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+
+    acamera_fsm_mgr_t *fsm_mgr = &(context_ptr->fsm_mgr);
+    fsm_common_t *fsm_arr = fsm_mgr->fsm_arr[FSM_ID_AE];
+    AE_fsm_t * ae_fsm = (AE_fsm_t *)(fsm_arr->p_fsm);
+    ae_fsm->fps_range[0] = val_ptr[0];//min fps
+    ae_fsm->fps_range[1] = val_ptr[1];//max fps
+
+    return SUCCESS;
+
+}
+
+
 int fw_intf_get_hist_mean( uint32_t ctx_id, int *ret_val )
 {
 
@@ -5768,6 +5991,19 @@ int fw_intf_get_stream_status( uint32_t ctx_id, int *ret_val )
 {
 
     *ret_val = isp_v4l2_get_stream_status( ctx_id );
+
+    return 0;
+}
+
+int fw_intf_get_scaler_fps( uint32_t ctx_id, int *ret_val )
+{
+    int rc = -1;
+
+    rc = isp_fw_do_get_cmd( ctx_id, TAML_SCALER, SCALER_FPS, ret_val );
+    if ( rc ) {
+        LOG( LOG_ERR, "Failed to get cmd rc: %d", rc );
+        return rc;
+    }
 
     return 0;
 }

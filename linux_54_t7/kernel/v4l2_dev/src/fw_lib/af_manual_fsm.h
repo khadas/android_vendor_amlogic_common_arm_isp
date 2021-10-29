@@ -37,7 +37,7 @@ typedef const struct _AF_fsm_t *AF_fsm_const_ptr_t;
 
 #define AF_SPOT_IGNORE_NUM 1
 #define AF_CALIBRATION_BOUNDARIES 1
-
+#include "sbuf.h"
 
 typedef struct _af_lms_param_t {
     uint32_t pos_min_down;
@@ -116,6 +116,7 @@ struct _AF_fsm_t {
     af_state_t state;
     uint8_t zones_horiz;
     uint8_t zones_vert;
+    struct CropTypeTo3A afNnRoiTo3a;
 };
 
 

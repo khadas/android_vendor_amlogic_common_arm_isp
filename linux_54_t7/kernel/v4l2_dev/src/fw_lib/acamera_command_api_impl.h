@@ -194,6 +194,12 @@ uint8_t status_info_exposure_correction_log2( acamera_fsm_mgr_t *instance, uint3
 uint8_t status_info_total_gain_log2( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t status_ae_stats_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t sensor_vmax_fps( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t sensor_md_en( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t sensor_decmpr_en( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t sensor_decmpr_lossless_en( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t sensor_flicker_en( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t status_md_stats_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t status_flicker_stats_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t sensor_power_on( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t sensor_power_off( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t status_awb_stats_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
@@ -216,5 +222,8 @@ uint8_t isp_modules_fr_sharpen_strength( acamera_fsm_mgr_t *instance, uint32_t v
 uint8_t isp_modules_ds1_sharpen_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t isp_modules_manual_pf(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t daynight_detect( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t ae_scene_mode(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+uint8_t scaler_fps(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+uint8_t isp_modules_is_capturing( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 
 #endif//_ACAMERA_COMMAND_API_IMPL_H_

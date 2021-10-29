@@ -133,6 +133,8 @@ struct am_sc3_info {
 	uint32_t in_fmt;
 	uint32_t out_fmt;
 	uint32_t csc_mode;
+	uint32_t c_fps;
+	uint32_t t_fps;
 };
 
 struct am_sc3 {
@@ -148,6 +150,13 @@ struct am_sc3 {
 	acamera_context_ptr_t ctx;
 	buffer_callback_t callback;
 	int port;
+	struct apb_dma_cmd *ping_cmd;
+	struct apb_dma_cmd *pong_cmd;
+	struct apb_dma_cmd *ping_cmd_next_ptr;
+	struct apb_dma_cmd *pong_cmd_next_ptr;
+	int dma_num;
+	int dma_ready_flag;
+	int crop_refresh_flag;
 };
 
 extern int am_sc3_parse_dt(struct device_node *node, int port);
@@ -163,12 +172,14 @@ extern void am_sc3_set_output_format(uint32_t value);
 extern void am_sc3_set_buf_num(uint32_t num);
 extern int am_sc3_set_callback(acamera_context_ptr_t p_ctx, buffer_callback_t sc3_callback);
 extern int am_sc3_system_init(void);
-extern int am_sc3_hw_init(void);
+extern int am_sc3_hw_init(int is_print, int clip_mode);
 extern int am_sc3_start(void);
 extern int am_sc3_reset(void);
 extern int am_sc3_stop(void);
 extern int am_sc3_system_deinit(void);
 extern int am_sc3_hw_deinit(void);
+extern void am_sc3_set_fps(uint32_t c_fps, uint32_t t_fps);
+extern uint32_t am_sc3_get_fps(void);
 extern uint32_t am_sc3_get_startx(void);
 extern uint32_t am_sc3_get_starty(void);
 extern void am_sc3_set_startx(uint32_t startx);
@@ -179,7 +190,7 @@ extern void am_sc3_set_crop_width(uint32_t c_width);
 extern void am_sc3_set_crop_height(uint32_t c_height);
 extern void am_sc3_set_src_width(uint32_t src_w);
 extern void am_sc3_set_src_height(uint32_t src_h);
-
+void am_sc3_set_crop_enable(void);
 
 #endif
 

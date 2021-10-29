@@ -39,7 +39,7 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm );
 void sensor_deinit( sensor_fsm_ptr_t p_fsm );
 void sensor_update_black( sensor_fsm_ptr_t p_fsm );
 uint32_t sensor_get_lines_second( sensor_fsm_ptr_t p_fsm );
-void sensor_isp_algorithm( sensor_fsm_ptr_t p_fsm );
+void sensor_isp_algorithm( sensor_fsm_ptr_t p_fsm, int module_id );
 
 struct _sensor_fsm_t {
     fsm_common_t cmn;
@@ -55,6 +55,10 @@ struct _sensor_fsm_t {
     uint8_t is_streaming;
     uint8_t info_preset_num;
     uint32_t boot_status;
+    uint32_t md_en;
+    uint32_t decmpr_en;
+    uint32_t flicker_en;
+    uint32_t lossless_en;
 };
 
 struct sqrt_ext_param_t {

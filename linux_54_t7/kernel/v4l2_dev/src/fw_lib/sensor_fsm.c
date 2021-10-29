@@ -34,6 +34,10 @@ void sensor_fsm_clear( sensor_fsm_t *p_fsm )
     p_fsm->info_preset_num = SENSOR_DEFAULT_PRESET_MODE;
     p_fsm->boot_status = sensor_boot_init( p_fsm );
     p_fsm->preset_mode = ((sensor_param_t *)(p_fsm->sensor_ctx))->mode;
+    p_fsm->md_en = 0;
+    p_fsm->decmpr_en = 0;
+    p_fsm->flicker_en = 0;
+    p_fsm->lossless_en = 0;
 }
 
 void sensor_request_interrupt( sensor_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -259,7 +263,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         sensor_hw_init( p_fsm );
         sensor_configure_buffers( p_fsm );
         sensor_sw_init( p_fsm );
-        sensor_isp_algorithm( p_fsm );
+        //sensor_isp_algorithm( p_fsm );
         ctx_ptr->irq_flag--;
         break;
 
@@ -400,6 +404,46 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
 
         break;
     }
+    case FSM_PARAM_SET_SENSOR_MD_EN: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+        p_fsm->md_en = *(uint32_t *)input;
+        sensor_isp_algorithm( p_fsm, FSM_PARAM_SET_SENSOR_MD_EN );
+        break;
+    }
+    case FSM_PARAM_SET_SENSOR_DECMPR_EN: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+        p_fsm->decmpr_en = *(uint32_t *)input;
+        sensor_isp_algorithm( p_fsm, FSM_PARAM_SET_SENSOR_DECMPR_EN );
+        break;
+    }
+    case FSM_PARAM_SET_SENSOR_FLICKER_EN: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+        p_fsm->flicker_en = *(uint32_t *)input;
+        sensor_isp_algorithm( p_fsm, FSM_PARAM_SET_SENSOR_FLICKER_EN );
+        break;
+    }
+    case FSM_PARAM_SET_SENSOR_DECMPR_LOSSLESS_EN: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+        p_fsm->lossless_en = *(uint32_t *)input;
+        break;
+    }
+
     default:
         rc = -1;
         break;

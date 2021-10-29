@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include "system_am_flicker.h"
+#include "nr_fw.h"
 
 #define AM_FLICKER_NAME        "amlogic, isp-flicker"
 
@@ -35,7 +36,7 @@ static struct flicker_pram param = {
     1,//reg_raw_mode;
     0,//reg_wdr_inp_chn;
     0,//reg_soft_rst;
-    0,//reg_flkr_stat_en;
+    1,//reg_flkr_stat_en;
     0,//reg_lXSizeIn;
     0,//reg_lYSizeIn;
     4,//reg_axi_bsize;
@@ -46,9 +47,9 @@ static struct flicker_pram param = {
     0,//reg_axi_reserved;
     0,//reg_wr_urgent_ctrl;
     0,//reg_axi_mode;
-    4,//reg_axi_buff_rst;
-    4096,//reg_axi_fbuf;
-    4096,//reg_axi_fsize;
+    0,//reg_axi_buff_rst;
+    4096*2,//reg_axi_fbuf;
+    4096*2,//reg_axi_fsize;
     0,//reg_axi_addr;
     0,//reg_axi_addrp;
     1,//reg_flkr_xphs_ofst;
@@ -57,11 +58,11 @@ static struct flicker_pram param = {
     0,//reg_flkr_stat_yed;
     0,//reg_flkr_stat_xst;
     0,//reg_flkr_stat_xed;
-    1920,//reg_flkr_stat_div_coef;
+    2592,//reg_flkr_stat_div_coef;
     64,//reg_flkr_wdr_ratio;
     31,//reg_flkr_avg_chnen;
     1,//reg_flkr_sta_input_format;
-    2,//reg_flkr_sta_cmpsel;
+    0,//reg_flkr_sta_cmpsel;
     0,//reg_flkr_binning_rs;
     1,//reg_flkr_ro_mode;
     0,//ro_flkr_ro0;
@@ -72,118 +73,114 @@ static struct flicker_pram param = {
 
 int am_flicker_parse_dt(struct device_node *node)
 {
-	int rtn = -1;
-#if 0
-	int irq = -1;
+    int rtn = -1;
+#if 1
+    int irq = -1;
 #endif
-	struct resource rs;
-	struct am_flicker *t_flicker = NULL;
+    struct resource rs;
+    struct am_flicker *t_flicker = NULL;
 
-	if (node == NULL) {
-		pr_err("%s: Error input param\n", __func__);
-		return -1;
-	}
+    if (node == NULL) {
+        pr_err("%s: Error input param\n", __func__);
+        return -1;
+    }
 
-	rtn = of_device_is_compatible(node, AM_FLICKER_NAME);
-	if (rtn == 0) {
-		pr_err("%s: Error match compatible\n", __func__);
-		return -1;
-	}
+    rtn = of_device_is_compatible(node, AM_FLICKER_NAME);
+    if (rtn == 0) {
+        pr_err("%s: Error match compatible\n", __func__);
+        return -1;
+    }
 
-	t_flicker = kzalloc(sizeof(*t_flicker), GFP_KERNEL);
-	if (t_flicker == NULL) {
-		pr_err("%s: Failed to alloc isp-flicker\n", __func__);
-		return -1;
-	}
+    t_flicker = kzalloc(sizeof(*t_flicker), GFP_KERNEL);
+    if (t_flicker == NULL) {
+        pr_err("%s: Failed to alloc isp-flicker\n", __func__);
+        return -1;
+    }
 
-	t_flicker->of_node = node;
+    t_flicker->of_node = node;
 
-	rtn = of_address_to_resource(node, 0, &rs);
-	if (rtn != 0) {
-		pr_err("%s:Error get isp-flicker reg resource\n", __func__);
-		goto reg_error;
-	}
+    rtn = of_address_to_resource(node, 0, &rs);
+    if (rtn != 0) {
+        pr_err("%s:Error get isp-flicker reg resource\n", __func__);
+        goto reg_error;
+    }
 
-	pr_info("%s: rs info: name: %s\n", __func__, rs.name);
-	t_flicker->reg = rs;
-	t_flicker->base_addr = ioremap_nocache(t_flicker->reg.start, resource_size(&t_flicker->reg));
+    irq = irq_of_parse_and_map(node, 0);
+    if (irq <= 0) {
+        pr_err("%s:Error get flicker irq\n", __func__);
+    }
+    t_flicker->irq = irq;
+    pr_info("%s:t_flicker info: irq: %d, ds%d\n", __func__, t_flicker->irq, 0);
 
-#if 0
-	irq = irq_of_parse_and_map(node, 0);
-	if (irq <= 0) {
-		pr_err("%s:Error get flicker irq\n", __func__);
-		goto irq_error;
-	}
-	t_flicker->irq = irq;
-	pr_info("%s:rs info: irq: %d\n", __func__, t_flicker->irq);
-#endif
+    t_flicker->reg = rs;
+    t_flicker->base_addr = ioremap_nocache(t_flicker->reg.start, resource_size(&t_flicker->reg));
 
-	t_flicker->p_dev = of_find_device_by_node(node);
+    t_flicker->p_dev = of_find_device_by_node(node);
 
-	g_flicker = t_flicker;
+    g_flicker = t_flicker;
 
-	return 0;
+    return 0;
 
 #if 0
 irq_error:
-	iounmap(t_flicker->base_addr);
-	t_flicker->base_addr = NULL;
+    iounmap(t_flicker->base_addr);
+    t_flicker->base_addr = NULL;
 #endif
 
 reg_error:
-	if (t_flicker != NULL)
-		kfree(t_flicker);
+    if (t_flicker != NULL)
+        kfree(t_flicker);
 
-	return -1;
+    return -1;
 }
 
 static inline void update_wr_bits(
-	unsigned int reg,
-	unsigned int mask,
-	unsigned int val)
+    unsigned int reg,
+    unsigned int mask,
+    unsigned int val)
 {
-	unsigned int tmp, orig;
-	void __iomem *base = g_flicker->base_addr;
+    unsigned int tmp, orig;
+    void __iomem *base = g_flicker->base_addr;
 
-	if (base !=  NULL) {
-		orig = readl(base + reg);
-		tmp = orig & ~mask;
-		tmp |= val & mask;
-		writel(tmp, base + reg);
-	}
+    if (base !=  NULL) {
+        orig = readl(base + reg);
+        tmp = orig & ~mask;
+        tmp |= val & mask;
+        writel(tmp, base + reg);
+    }
 }
 
 static inline void flicker_wr_bits(
-	unsigned int adr, unsigned int val,
-	unsigned int start, unsigned int len)
+    unsigned int adr, unsigned int val,
+    unsigned int start, unsigned int len)
 {
-	update_wr_bits(adr,
-		((1 << len) - 1) << start, val << start);
+    update_wr_bits(adr,
+        ((1 << len) - 1) << start, val << start);
 }
 
 static inline void flicker_wr(
-	int addr, uint32_t val)
+    int addr, uint32_t val)
 {
-	void __iomem *base = g_flicker->base_addr;
+    void __iomem *base = g_flicker->base_addr;
 
-	if (base != NULL) {
-		base = base + addr;
-		writel(val, base);
-	} else
-		pr_err("isp-flicker write register failed.\n");
+    if (base != NULL) {
+        base = base + addr;
+        writel(val, base);
+    } else
+        pr_err("isp-flicker write register failed.\n");
 
 }
 
 static inline void flicker_rd(
-	int addr, uint32_t *val)
+    int addr, uint32_t *val)
 {
-	void __iomem *base = g_flicker->base_addr;
+    void __iomem *base = g_flicker->base_addr;
 
-	if (base != NULL && val) {
-		base = base + addr;
-		*val = readl(base);
-	} else
-		pr_err("isp-flicker read register failed.\n");
+    if (base != NULL && val) {
+        base = base + addr;
+        *val = readl(base);
+    } else
+        pr_err("isp-flicker read register failed.\n");
 
 }
 
@@ -198,6 +195,7 @@ int flicker_cfg(struct flicker_pram *pram)
     //int lcge_luma_scal[9] = { 8, 8, 9, 10, 11, 12, 13, 14, 14};
 
 //FLICKER REGISTERS START
+    int flkr_winw = 0;//,flkr_wdr_ratio = 0;
     flicker_wr(ISP_DEFLICKER_CTRL0,
         pram->reg_ctrl0 );  //u32, latch control
     flicker_wr(ISP_DEFLICKER_CTRL1,
@@ -249,71 +247,101 @@ int flicker_cfg(struct flicker_pram *pram)
     flicker_wr(ISP_DEFLICKER_STAT_XPOSITION,
         (pram->reg_flkr_stat_xst <<16)|  //u14, column start for flicker statistic
         pram->reg_flkr_stat_xed);        //u14, column end for flicker statistic
+
+    flkr_winw = pram->reg_flkr_stat_xed - pram->reg_flkr_stat_xst;
+    pram->reg_flkr_stat_div_coef = MIN((1<<16)-1 , (1<<(16+6)) / flkr_winw);
+    flicker_wr(ISP_DEFLICKER_DIV_COEF,pram->reg_flkr_stat_div_coef);
+
     //flicker_wr(ISP_DEFLICKER_CNTL, 0x0007c201);
     return 0;
 }
 
 int aml_flicker_init(void){
-	if (!g_flicker) {
-		pr_info("%d, g_flicker is NULL.\n", __LINE__);
-		return -1;
-	}
-	param.reg_axi_mode = 2;
-	param.reg_insel = 6;
-	param.reg_ctrl2 = 0x8001388;//0x8000010;//vvalid p used as vsync
-	pr_err("flicker init success.\n");
-	return 0;
+    if (!g_flicker) {
+        pr_info("%d, g_flicker is NULL.\n", __LINE__);
+        return -1;
+    }
+    param.reg_axi_mode = 1;
+    param.reg_insel = 6;
+    param.reg_ctrl2 = 0x1388;//0x8001388;//0x8000010;//vvalid p used as vsync
+    pr_err("flicker init success.\n");
+    return 0;
 }
 
 int aml_flicker_deinit(void)
 {
-	if (!g_flicker) {
-		pr_info("%d, g_flicker is NULL.\n", __LINE__);
-		return -1;
-	}
+    if (!g_flicker) {
+        pr_info("%d, g_flicker is NULL.\n", __LINE__);
+        return -1;
+    }
 
-	iounmap(g_flicker->base_addr);
-	g_flicker->base_addr = NULL;
+    iounmap(g_flicker->base_addr);
+    g_flicker->base_addr = NULL;
 
-	kfree(g_flicker);
-	g_flicker = NULL;
-	return 0;
+    kfree(g_flicker);
+    g_flicker = NULL;
+    return 0;
 }
 
 int aml_flicker_start(int xsize, int ysize){
-	if (!g_flicker) {
-		pr_info("%d, g_flicker is NULL.\n", __LINE__);
-		return -1;
-	}
+    if (!g_flicker) {
+        pr_info("%d, g_flicker is NULL.\n", __LINE__);
+        return -1;
+    }
+
     param.reg_lXSizeIn  = xsize;
     param.reg_lYSizeIn  = ysize;
     param.reg_flkr_stat_yst  = 0;
     param.reg_flkr_stat_yed  = ysize-1;
     param.reg_flkr_stat_xst  = 0;
     param.reg_flkr_stat_xed  = xsize-1;
-	param.reg_axi_addr  = (uint64_t)paddr_flicker;
-    param.reg_axi_addrp  = (uint64_t)paddr_flicker;
-	flicker_cfg(&param);
+    param.reg_axi_addr  = (unsigned int)paddr_flicker;
+    param.reg_axi_addrp  = (unsigned int)(paddr_flicker + 0x2000);
+    flicker_cfg(&param);
     flicker_wr_bits(ISP_DEFLICKER_COMMON, 1, 0, 1);
-	pr_err("flicker start ok.\n");
-	return 0;
+
+/* not use flicker irq
+    ret = request_irq(g_flicker->irq, aml_flicker_isr, IRQF_SHARED | IRQF_TRIGGER_RISING,
+        "isp_flicker", (void *)g_flicker);
+    pr_err("flicker irq:%d ret:%d\n",g_flicker->irq,ret);
+*/
+    pr_err("flicker start ok.\n");
+    return 0;
 }
 
 int aml_flicker_stop(void){
     flicker_wr_bits(ISP_DEFLICKER_COMMON, 0, 0, 1);
-	return 0;
+    return 0;
 }
 
 extern void cache_flush(uint32_t buf_start, uint32_t buf_size);
 
-void aml_flicker_get_data(char* dst){
-	if (!paddr_flicker) {
-		pr_info("%d, paddr_flicker is NULL.\n", __LINE__);
-		return;
-	}
-	cache_flush(paddr_flicker, ISP_FLICKER_SIZE);
+void aml_flicker_get_data(uint32_t* dst){
+    static int get_stats_counter = 0;
+    //uint32_t data0 = 0, data1 = 0,data2 = 0,data3 = 0;
+    get_stats_counter++;
+    if (!paddr_flicker) {
+        pr_info("%d, paddr_flicker is NULL\n", __LINE__);
+        return;
+    }
+    /*
+    flicker_rd(ISP_DEFLICKER_STAT_INFO0, &data0);
+    flicker_rd(ISP_DEFLICKER_STAT_INFO1, &data1);
+    flicker_rd(ISP_DEFLICKER_STAT_INFO2, &data2);
+    flicker_rd(ISP_DEFLICKER_STAT_INFO3, &data3);
+    */
+    uint32_t data = 0;
+    flicker_rd(ISP_DEFLICKER_STAT_INFO4, &data);
+
+    //pr_err("GETDATA ISP_DEFLICKER_STAT_INFO0~4 0:%x,1:%x,2:%x,3:%x 4:%x get_stats_counter: %d\n",data0,data1,data2,data3,data,get_stats_counter);
+    data = data & 0x1;
     char* buf;
-	//pr_err("flicker get data ok.\n");
-	buf = phys_to_virt(paddr_flicker);
-	memcpy(dst, buf,ISP_FLICKER_SIZE);
+    //pr_err("flkr get data ok.pp: %d, %d\n", data, param.reg_axi_fsize);
+    if (data == 0)
+        buf = phys_to_virt(paddr_flicker + 0x2000);
+    else
+        buf = phys_to_virt(paddr_flicker);
+
+    //memcpy((void *)dst, buf, param.reg_axi_fsize);
+    memcpy((void *)dst, buf, FED_FLKR_STAT_MAX*2);
 }

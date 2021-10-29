@@ -142,8 +142,10 @@ void isp_update_setting(void)
     else
         paddr_flicker = paddr + temper_frame_size * 2;
 #endif
+    paddr_flicker = (paddr_flicker + 4095) & (~4095);
+
 #if ISP_HAS_MD
-	paddr_md = paddr_flicker + 1024*1024;
+    paddr_md = (paddr_flicker + 1024*1024 + 4095) & (~4095);
 #endif
     for (j = 0; j < FIRMWARE_CONTEXT_NUMBER; j++) {
         aframe = settings[j].temper_frames;
@@ -161,6 +163,7 @@ void isp_update_setting(void)
         }
 
         settings[j].temper_frames_number = temper_frame_num;
+
     }
 }
 

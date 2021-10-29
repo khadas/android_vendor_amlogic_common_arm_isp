@@ -29,6 +29,7 @@
 #include "acamera.h"
 #include "acamera_fw.h"
 #include <linux/kfifo.h>
+#include "system_apb_dma.h"
 
 #define ISP_SCWR_TOP_CTRL 				(0x30 << 2)
 #define ISP_SCWR_GCLK_CTRL 				(0x31 << 2)
@@ -133,6 +134,8 @@ struct am_sc_info {
 	uint32_t in_fmt;
 	uint32_t out_fmt;
 	uint32_t csc_mode;
+	uint32_t c_fps;
+	uint32_t t_fps;
 };
 
 struct am_sc {
@@ -148,6 +151,13 @@ struct am_sc {
 	acamera_context_ptr_t ctx;
 	buffer_callback_t callback;
 	int port;
+	struct apb_dma_cmd *ping_cmd;
+	struct apb_dma_cmd *pong_cmd;
+	struct apb_dma_cmd *ping_cmd_next_ptr;
+	struct apb_dma_cmd *pong_cmd_next_ptr;
+	int dma_num;
+	int dma_ready_flag;
+	int crop_refresh_flag;
 };
 
 extern int am_sc_parse_dt(struct device_node *node, int port);
@@ -163,7 +173,8 @@ extern void am_sc_set_output_format(uint32_t value);
 extern void am_sc_set_buf_num(uint32_t num);
 int am_sc_set_callback(acamera_context_ptr_t p_ctx, buffer_callback_t sc0_callback);
 int am_sc_system_init(void);
-int am_sc_hw_init(void);
+int am_sc_hw_init(int is_print, int clip_mode);
+int am_sc_hw_init_dma_for_crop(void);
 extern int am_sc_start(void);
 extern int am_sc_reset(void);
 extern int am_sc_stop(void);
@@ -171,6 +182,8 @@ int am_sc_system_deinit(void);
 int am_sc_hw_deinit(void);
 extern uint32_t am_sc_get_startx(void);
 extern uint32_t am_sc_get_starty(void);
+extern void am_sc_set_fps(uint32_t c_fps, uint32_t t_fps);
+extern uint32_t am_sc_get_fps(void);
 extern void am_sc_set_startx(uint32_t startx);
 extern void am_sc_set_starty(uint32_t starty);
 extern uint32_t am_sc_get_crop_width(void);
@@ -179,6 +192,7 @@ extern void am_sc_set_crop_width(uint32_t c_width);
 extern void am_sc_set_crop_height(uint32_t c_height);
 extern void am_sc_set_src_width(uint32_t src_w);
 extern void am_sc_set_src_height(uint32_t src_h);
+void am_sc_set_crop_enable(void);
 
 #endif
 

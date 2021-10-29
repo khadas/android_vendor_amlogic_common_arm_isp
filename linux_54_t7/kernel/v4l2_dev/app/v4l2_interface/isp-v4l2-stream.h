@@ -32,7 +32,18 @@
 #include <linux/platform_device.h>
 
 #include "isp-v4l2-common.h"
-
+//#define ENABLE_DI_YUV_DNR
+#ifdef ENABLE_DI_YUV_DNR
+#include <linux/amlogic/media/di/di_interface.h>
+#include <linux/amlogic/media/vfm/vframe.h>
+#define DI_BUFFER_SIZE 6
+struct di_buffer_t {
+    uint32_t buf_flag;
+    struct di_buffer di_buf;
+    struct vframe_s v_frame;
+};
+static struct di_buffer_t di_buffer_array[DI_BUFFER_SIZE];
+#endif
 /* buffer for one video frame */
 typedef struct _isp_v4l2_buffer {
     /* vb or vvb (depending on kernel version) must be first */
@@ -112,6 +123,16 @@ typedef struct _isp_v4l2_stream_t {
     int fw_frame_seq_count;
     struct vb2_queue* vb2_q;
     struct ion_client *ion_client;
+#ifdef ENABLE_DI_YUV_DNR
+    int di_idx;
+    void *t_frame;
+    tframe_t* d1_frame;
+    uint32_t is_first;
+    uint32_t num;
+    char *d_kmem;
+    uint32_t d0_phy;
+    struct completion d_comp;
+#endif
 } isp_v4l2_stream_t;
 
 

@@ -51,6 +51,7 @@ void AE_fsm_clear( AE_fsm_t *p_fsm )
 #endif
     p_fsm->frame_id_tracking = 0;
     p_fsm->daynight = 0;
+    p_fsm->scene_mode = 0;
 }
 
 void AE_request_interrupt( AE_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask )
@@ -126,22 +127,33 @@ int AE_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
 
         break;
     }
-	case FSM_PARAM_SET_AE_PRESET:
+    case FSM_PARAM_SET_AE_SCENE_MODE: {
+        if (!input || input_size == 0) {
+            LOG(LOG_ERR, "Invalid param. param id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+        p_fsm->scene_mode = *(uint8_t *)input;
+
+        break;
+    }
+    case FSM_PARAM_SET_AE_PRESET:
         if ( !input || input_size != sizeof( isp_ae_preset_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-	    isp_ae_preset_t *p_new = (isp_ae_preset_t *)input;
+        isp_ae_preset_t *p_new = (isp_ae_preset_t *)input;
         p_fsm->new_exposure_log2 = p_new->exposure_log2;
-		p_fsm->new_exposure_ratio = p_new->exposure_ratio;
-		p_ae_preset.error_log2 = p_new->error_log2;
-		p_ae_preset.exposure_log2 = p_new->exposure_log2;
-		p_ae_preset.integrator = p_new->integrator;
-		p_ae_preset.exposure_ratio = p_new->exposure_ratio;
-		ae_calculate_exposure( p_fsm );
-		break;
+        p_fsm->new_exposure_ratio = p_new->exposure_ratio;
+        p_ae_preset.error_log2 = p_new->error_log2;
+        p_ae_preset.exposure_log2 = p_new->exposure_log2;
+        p_ae_preset.integrator = p_new->integrator;
+        p_ae_preset.exposure_ratio = p_new->exposure_ratio;
+        ae_calculate_exposure( p_fsm );
+        break;
 
     default:
         rc = -1;
@@ -225,6 +237,17 @@ int AE_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
             break;
         }
         ae_get_zone_weight(p_fsm, (uint8_t *)output);
+        break;
+    }
+    case FSM_PARAM_GET_AE_SCENE_MODE: {
+        if ( !output) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+
+        *(uint8_t *)output = p_fsm->scene_mode;
+
         break;
     }
 

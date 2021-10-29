@@ -29,6 +29,9 @@
 #define ISP_DMA_IRQ_MASK0             (0x04 << 2)
 #define ISP_DMA_IRQ_MASK1             (0x05 << 2)
 
+#define ISP_DMA_STAT0                 (0x10 << 2)
+#define ISP_DMA_STAT1                 (0x11 << 2)
+
 #define ISP_DMA_ARBIT_CNTL0           (0x20 << 2)
 #define ISP_DMA_ARBIT_CNTL1           (0x21 << 2)
 #define ISP_DMA_ARBIT_CNTL2           (0x22 << 2)
@@ -128,5 +131,10 @@ void dma_cfg_src6_enable(void);
 void dma_cfg_src6_disable(void);
 void dma_cfg_src6_ping(struct apb_dma_cfg *cfg);
 void dma_cfg_src6_pong(struct apb_dma_cfg *cfg);
+int dma_src3_get_current_state(void);
+void dma_src3_set_force_pong(void);
+uint32_t dma_is_working(void);
+uint32_t dma_read_reg(uint32_t reg);
+
 
 #endif

@@ -30,11 +30,17 @@
 
 #include "sbuf.h"
 
+#include "system_am_sc1.h"
+#include "system_am_sc2.h"
+
 #include <linux/vmalloc.h>
 #include <asm/uaccess.h>
 #include <linux/uaccess.h>
 #include "system_am_flicker.h"
+#include "system_am_decmpr.h"
+
 #include "nr_fw.h"
+#include "cmos_fsm.h"
 
 #define DEFAULT_AE_EXPOSURE_LOG2 2250000 //3390000
 
@@ -193,6 +199,34 @@ void ae_initialize( AE_fsm_ptr_t p_fsm )
 
     // set default exposure value
     ae_calculate_exposure( p_fsm );
+}
+
+#ifdef ISP_HAS_CMPR
+int cmpr_cnt;
+#endif
+static char dump_name[100];
+static loff_t pos;
+
+static int dump_flicker_stats (void* data, int size,int frame_id_current) {
+
+    memset((void *)dump_name, 0, 100);
+
+    sprintf(dump_name, "/data/flicker/dump_flicker-frameid-%d.stats", frame_id_current);
+
+    struct file *fp = filp_open(dump_name,O_RDWR|O_CREAT,0666);
+    if (fp == NULL) {
+        LOG( LOG_CRIT,"open %s fail",dump_name);
+        return -1;
+    }
+    pos = fp->f_pos;
+    int ret = vfs_write(fp,data, size, &pos);
+    if (ret == -1) {
+        LOG( LOG_CRIT,"write file fail:%s",dump_name);
+        return -1;
+    }
+    filp_close(fp,NULL);
+
+    return 0;
 }
 
 void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )

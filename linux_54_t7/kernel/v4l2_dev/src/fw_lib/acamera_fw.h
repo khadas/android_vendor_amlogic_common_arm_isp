@@ -104,7 +104,8 @@ typedef struct _sytem_tab {
     uint8_t global_calibrate_bad_pixels;
     uint32_t global_info_preset_num;
     uint8_t global_dynamic_gamma_enable;
-	uint8_t global_manual_pf;
+    uint8_t global_manual_pf;
+    uint8_t global_is_capturing;
 } system_tab;
 
 typedef struct _acamera_isp_sw_regs_map {
@@ -152,6 +153,7 @@ struct _acamera_context_t {
     /* frame counters */
     uint32_t isp_frame_counter_raw; // frame counter for raw callback
     uint32_t isp_frame_counter;     // frame counter for frame / metadata callbacks
+    uint32_t isp_decmp_counter;
 
     acamera_isp_sw_regs_map sw_reg_map;
     auto_write_cfg_t fr_auto_cfg;

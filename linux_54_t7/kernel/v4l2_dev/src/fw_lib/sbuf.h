@@ -32,6 +32,7 @@
 #endif
 
 #include "acamera_lens_api.h"
+#include "nr_fw.h"
 
 #ifndef _SHARED_BUFFER_H_
 #define _SHARED_BUFFER_H_
@@ -125,6 +126,45 @@ struct kf_info {
     struct calibration_info cali_info;
 };
 
+/* 32*4 bytes for custom user/kernel. The space is also reserved for libispaaa.so but */
+/* it does not use it, allowing binary compatibility with libispaaa_custom_main.so */
+#define ISP_MAX_CUSTOM_SBUF_SIZE 32
+
+/* These unions ensure a fixed-space space for the sbuf_@@_custom structures, */
+/* allowing both libispaaa.so and libispaaa_custom_main.so to see the exact same */
+/* member offsets w.r.t user<->kernel communication */
+/* Access member fields this way:    p_sbuf_ae->u.sbuf_ae_custom.enable */
+union u_sbuf_ae_custom {
+    uint32_t space[ISP_MAX_CUSTOM_SBUF_SIZE];
+    struct sbuf_ae_custom {  // must not be larger than ISP_MAX_CUSTOM_SBUF_SIZE*4
+        uint16_t enable;
+        uint16_t again_8p8;                  // again*256
+        uint32_t integration_time_in_lines;  // not image lines, but sensor exposure units
+    } sbuf_ae_custom;
+};
+
+union u_sbuf_awb_custom {
+    uint32_t space[ISP_MAX_CUSTOM_SBUF_SIZE];
+    struct sbuf_awb_custom {
+        uint16_t enable;
+        uint16_t rgain_8p8;                  // rgain*256
+        uint16_t bgain_8p8;                  // bgain*256
+    } sbuf_awb_custom;
+};
+
+struct CropTypeTo3A {
+    uint32_t size;
+    struct CropType {
+        uint32_t type;
+        uint32_t avg_luma;
+        uint32_t top_x;
+        uint32_t top_y;
+        uint32_t width;
+        uint32_t height;
+    } array[10];
+};
+
+
 #if defined( ISP_HAS_AE_BALANCED_FSM ) || defined( ISP_HAS_AE_MANUAL_FSM )
 typedef struct sbuf_ae {
     // KF -> UF: Data shared from kernel-FW to user-FW
@@ -138,7 +178,7 @@ typedef struct sbuf_ae {
 
     uint32_t frame_id;
     uint8_t day_night_light;
-	int32_t ae_hist_mean;
+    int32_t ae_hist_mean;
     int32_t max_target;
 
     ae_state_t state;

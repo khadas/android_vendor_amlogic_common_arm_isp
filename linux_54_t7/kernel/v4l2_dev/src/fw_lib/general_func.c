@@ -54,6 +54,8 @@
 #include "acamera_radial_shading_mem_config.h"
 #endif
 
+#include "system_am_decmpr.h"
+
 #ifdef LOG_MODULE
 #undef LOG_MODULE
 #define LOG_MODULE LOG_MODULE_GENERAL
@@ -656,6 +658,35 @@ static void pf_ext_param_update(general_fsm_ptr_t p_fsm)
 
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
+    if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter > DECMPR_FRM_CNT * 2) {
+        uint32_t val = 0;
+
+        // only detect temper3 case, 0 means temper3
+        if (acamera_isp_temper_temper2_mode_read(ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base) == 0) {
+            if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter % 2)
+                cmpr_wr(MIPI_TNR_CMPR_RO_INT_STATUS, 0xffffffff);
+
+            if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter % 2  == 0) {
+                cmpr_rd(MIPI_TNR_CMPR_RO_INT_STATUS, &val);
+
+                if ((val & (DECMPR_DEC_FRMEND | DECMPR_DEC_FRMRST)) == 0)
+                    ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter ++;
+
+                if ((val & (DECMPR_DEC_UNK0 | DECMPR_DEC_UNK1)) == (DECMPR_DEC_UNK0 | DECMPR_DEC_UNK1))
+                    ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter ++;
+
+                if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter == DECMPR_FRM_CNT) {
+                    LOG(LOG_CRIT, "Decmpr exception status and protect method %x, frm cnt %x", val, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter);
+                    acamera_isp_temper_temper2_mode_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 );
+                    acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR & ~(1 << ISP_INTERRUPT_EVENT_ISP_END_FRAME_END));
+                }
+            }
+        }
+    }
+
+    if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter == (DECMPR_FRM_CNT * 5))
+        LOG(LOG_CRIT, "Decmpr exception counter = %d", ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter);
+
     p_fsm->gamma2_enable = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0];
 
     if ( p_fsm->gamma2_enable && ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_dynamic_gamma_enable )

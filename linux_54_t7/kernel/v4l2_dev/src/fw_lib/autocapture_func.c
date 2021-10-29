@@ -113,6 +113,7 @@ void fw_auto_cap_deinit(struct autocapture_context *p_ctx);
 static int autocap_v4l2_stream_copy_thread( void *data );
 #endif
 
+extern void cache_flush(uint32_t buf_start, uint32_t buf_size);
 static int autocapture_fops_mmap( struct file *f, struct vm_area_struct *vma )
 {
 	struct autocapture_context *p_ctx = (struct autocapture_context *)f->private_data;

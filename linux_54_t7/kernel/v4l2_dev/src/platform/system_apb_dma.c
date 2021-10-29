@@ -26,6 +26,12 @@
 
 static void __iomem *m_base = NULL;
 
+uint32_t dma_read_reg(uint32_t reg)
+{
+	return readl(m_base + reg);
+}
+
+
 static void dma_write(void __iomem *base, uint32_t reg, uint32_t val)
 {
 	writel(val, base + reg);
@@ -128,6 +134,35 @@ void dma_cfg_src3_pong(struct apb_dma_cfg *cfg)
 	val |= (1 << 3);
 	dma_write(base, ISP_DMA_SRC3_CTL, val);
 }
+
+int dma_src3_get_current_state()
+{
+	uint32_t val = 0;
+	void __iomem *base = m_base;
+
+	val = dma_read(base, ISP_DMA_STAT1);
+	return (val & (1 << 3));
+}
+
+uint32_t dma_is_working()
+{
+	uint32_t val = 0;
+	void __iomem *base = m_base;
+
+	val = dma_read(base, ISP_DMA_STAT0);
+	return (val & (7 << 28));
+}
+
+void dma_src3_set_force_pong()
+{
+	uint32_t val = 0;
+	void __iomem *base = m_base;
+
+	val = dma_read(base, ISP_DMA_SRC3_CTL);
+	val |= (1 << 3) | (1 << 2);
+	dma_write(base, ISP_DMA_SRC3_CTL, val);
+}
+
 
 void dma_cfg_src4_enable(void)
 {

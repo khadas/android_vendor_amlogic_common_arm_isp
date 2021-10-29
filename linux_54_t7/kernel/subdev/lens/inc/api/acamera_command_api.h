@@ -186,12 +186,15 @@
 #define CALIBRATION_PF_CORRECTION                         0x00000088
 #define CALIBRATION_FC_CORRECTION                         0x00000089
 #define CALIBRATION_DAYNIGHT_DETECT                       0x0000008A
+#define CALIBRATION_TEMPER_MD_STRENGTH                    0x0000008B
+#define CALIBRATION_TEMPER_MD_MODE                        0x0000008C
+#define CALIBRATION_TEMPER2_STRENGTH                      0x0000008E
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 139
+#define CALIBRATION_TOTAL_SIZE 141
 
 
 //------------------FILE TRANSFER-------------------
