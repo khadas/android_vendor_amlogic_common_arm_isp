@@ -804,7 +804,6 @@ static void configure_all_frame_buffers( acamera_context_ptr_t p_ctx )
 #if ISP_HAS_SC3
     am_sc3_set_callback(p_ctx, external_callback_sc3);
 #endif
-
 }
 
 void acamera_fw_get_sensor_name(uint32_t *sname)
@@ -1084,7 +1083,9 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         LOG( LOG_CRIT, "Failed to allocate memory for ISP config context" );
     }
 
+    acamera_isp_iridix_context_no_write(p_ctx->fsm_mgr.isp_base, p_ctx->context_id);
     acamera_3aalg_preset(&p_ctx->fsm_mgr);
+    //acamera_isp_top_bypass_temper_write(p_ctx->fsm_mgr.isp_base, 1);
 
     return result;
 }

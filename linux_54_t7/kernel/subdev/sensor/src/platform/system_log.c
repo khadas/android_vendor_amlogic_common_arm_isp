@@ -46,7 +46,7 @@ static ssize_t adap_dbg_read(
 	uint32_t y_start_isp = 0;
 	uint32_t y_start_mem = 0;
 
-	adap_read_ext(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &adapter_err);
+	adap_read_ext(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, &adapter_err);
 	adap_read_ext(CSI2_X_START_END_ISP, FRONTEND0_IO, &x_start_isp);
 	adap_read_ext(CSI2_X_START_END_MEM, FRONTEND0_IO, &x_start_mem);
 	adap_read_ext(CSI2_Y_START_END_ISP, FRONTEND0_IO, &y_start_isp);
@@ -69,7 +69,7 @@ static ssize_t adap_dbg_read(
 	phy_lan2 = mipi_phy2_reg_rd_ext(MIPI_PHY_DATA_LANE2_STS);
 	phy_lan3 = mipi_phy2_reg_rd_ext(MIPI_PHY_DATA_LANE3_STS);
 
-	adap_read_ext(MIPI_ADAPT_IRQ_PENDING0, ALIGN_IO, &adapter_err);
+	adap_read_ext(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, &adapter_err);
 	adap_read_ext(CSI2_X_START_END_ISP, FRONTEND2_IO, &x_start_isp);
 	adap_read_ext(CSI2_X_START_END_MEM, FRONTEND2_IO, &x_start_mem);
 	adap_read_ext(CSI2_Y_START_END_ISP, FRONTEND2_IO, &y_start_isp);

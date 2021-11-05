@@ -59,12 +59,7 @@ typedef struct _sensor_context_t {
     exp_offset_t win_offset;
     void *sbp;
     void *sdrv;
-    atomic_t is_sensor_power_on;
-    atomic_t sensor_user_counter;
-
-    uint8_t vmax_cnt;        // used to control vmax_adjust in the update() function
-    uint8_t vmax_increases;  // used to control vmax_adjust in the update() function
-    uint8_t usm_state;       // used to control vmax_adjust in the update() function
+	int dcam_mode;
 } sensor_context_t;
 
 int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev);
@@ -79,8 +74,8 @@ int clk_am_enable(sensor_bringup_t* sensor_bp, const char* propname);
 int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t rate);
 int gp_pl_am_disable(sensor_bringup_t* sensor_bp, const char* propname);
 int clk_am_disable(sensor_bringup_t *sensor_bp);
-void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset);
+void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
 void sensor_iface_disable(void);
-void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset);
+void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
 void sensor_iface2_disable(void);
 

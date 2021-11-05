@@ -241,7 +241,7 @@ int clk_am_disable(sensor_bringup_t *sensor_bp)
     return 0;
 }
 
-void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset)
+void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx)
 {
     am_mipi_info_t mipi_info;
     struct am_adap_info info;
@@ -253,7 +253,6 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset)
 
     memset(&mipi_info, 0, sizeof(mipi_info));
     memset(&info, 0, sizeof(struct am_adap_info));
-    mipi_info.fte1_flag = get_fte1_flag();
     mipi_info.lanes = mode->lanes;
     mipi_info.ui_val = 1000 / mode->bps;
 
@@ -283,6 +282,7 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset)
         else
             info.fmt = MIPI_CSI_YUV422_10BIT;
     }
+    //p_ctx->dcam_mode = 1;
 
     info.img.width = mode->resolution.width;
     info.img.height = mode->resolution.height;
@@ -298,21 +298,29 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset)
         }
     } else {
         info.type = mode->dol_type;
-        info.mode = DIR_MODE;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_MODE;
+        else
+            info.mode = DIR_MODE;
     }
+    uint32_t isp_clk_rate = 0;
+    camera_notify(NOTIFY_GET_ISP_CLKRATE, &isp_clk_rate);
+    isp_clk_rate = (isp_clk_rate / 10) * 9;
+    info.align_width = isp_clk_rate / ((mode->resolution.height + 60) * (mode->fps / 256) * 2);
+    pr_info("Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
-    am_adap_init(FRONTEND0_IO);
-    am_adap_start(FRONTEND0_IO);
+    am_adap_init(CAM0_ACT);
+    am_adap_start(CAM0_ACT, p_ctx->dcam_mode);
 }
 
 void sensor_iface_disable(void)
 {
-    am_adap_deinit(FRONTEND0_IO);
+    am_adap_deinit(CAM0_ACT);
     am_mipi_deinit();
 }
 
-void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset)
+void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx)
 {
     am_mipi_info_t mipi_info;
     struct am_adap_info info;
@@ -324,7 +332,6 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset)
 
     memset(&mipi_info, 0, sizeof(mipi_info));
     memset(&info, 0, sizeof(struct am_adap_info));
-    mipi_info.fte1_flag = get_fte1_flag();
     mipi_info.lanes = mode->lanes;
     mipi_info.ui_val = 1000 / mode->bps;
 
@@ -354,10 +361,11 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset)
         else
             info.fmt = MIPI_CSI_YUV422_10BIT;
     }
+    //p_ctx->dcam_mode = 1;
 
     info.img.width = mode->resolution.width;
     info.img.height = mode->resolution.height;
-    info.path = PATH0;
+    info.path = PATH1;
     info.offset.offset_x = offset.offset_x;
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
@@ -369,17 +377,25 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset)
         }
     } else {
         info.type = mode->dol_type;
-        info.mode = DIR_MODE;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_MODE;
+        else
+            info.mode = DIR_MODE;
     }
+    uint32_t isp_clk_rate = 0;
+    camera_notify(NOTIFY_GET_ISP_CLKRATE, &isp_clk_rate);
+    isp_clk_rate = (isp_clk_rate / 10) * 9;
+    info.align_width = isp_clk_rate / ((mode->resolution.height + 60) * (mode->fps / 256) * 2);
+    pr_info("Sub Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
-    am_adap_init(FRONTEND2_IO);
-    am_adap_start(FRONTEND2_IO);
+    am_adap_init(CAM1_ACT);
+    am_adap_start(CAM1_ACT, p_ctx->dcam_mode);
 }
 
 void sensor_iface2_disable(void)
 {
-    am_adap_deinit(FRONTEND2_IO);
+    am_adap_deinit(CAM1_ACT);
     am_mipi2_deinit();
 }
 

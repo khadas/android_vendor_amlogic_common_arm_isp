@@ -24,7 +24,7 @@ static struct am_cmpr *g_cmpr;
 #define CMPR_BASE_ADDR 0xfe3b4000
 #define CMPR_CNTL_ADDR 0xfe3b3000
 
-extern resource_size_t isp_paddr;
+extern temper_addr isp_temper_paddr[FIRMWARE_CONTEXT_NUMBER];
 
 static inline void cntl_wr(
     int addr, uint32_t val)
@@ -690,8 +690,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
         s_cmpr2mif_tnr_sub0_wmif.reg_dol_mode  = 0;
         s_cmpr2mif_tnr_sub0_wmif.reg_mif_dbl_baddr_init = 1;
         s_cmpr2mif_tnr_sub0_wmif.reg_mif_dbl_baddr_en   = 1;
-        s_cmpr2mif_tnr_sub0_wmif.reg_mif_baddr0 = (unsigned int)isp_paddr;
-        s_cmpr2mif_tnr_sub0_wmif.reg_mif_baddr1 = (unsigned int)isp_paddr + w*h*3;
+        s_cmpr2mif_tnr_sub0_wmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr;
+        s_cmpr2mif_tnr_sub0_wmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr + w*h*3;
         init_mipi_cmpr2mif(MIPI_TNR_ENC_WMIF_PATH,TNR_CMPR_SUB0_WMIF_BASE,&s_cmpr2mif_tnr_sub0_wmif);
         //TNR enc sub0 rmif
         s_cmpr2mif_tnr_sub0_rmif.reg_pic_hsize = w;
@@ -701,8 +701,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
         s_cmpr2mif_tnr_sub0_rmif.reg_dol_mode = 0;
         s_cmpr2mif_tnr_sub0_rmif.reg_mif_dbl_baddr_init = 1;
         s_cmpr2mif_tnr_sub0_rmif.reg_mif_dbl_baddr_en   = 1;
-        s_cmpr2mif_tnr_sub0_rmif.reg_mif_baddr0 = (unsigned int)isp_paddr;
-        s_cmpr2mif_tnr_sub0_rmif.reg_mif_baddr1 = (unsigned int)isp_paddr + w*h*3;
+        s_cmpr2mif_tnr_sub0_rmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr;
+        s_cmpr2mif_tnr_sub0_rmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr + w*h*3;
         init_mipi_cmpr2mif(MIPI_TNR_DEC_RMIF_PATH,TNR_CMPR_SUB0_RMIF_BASE,&s_cmpr2mif_tnr_sub0_rmif);
         //TNR meta sub0 wmif
         s_cmpr2mif_tnr_meta0_wmif.reg_pic_hsize = w;
@@ -712,8 +712,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
         s_cmpr2mif_tnr_meta0_wmif.reg_dol_mode  = 0;
         s_cmpr2mif_tnr_meta0_wmif.reg_mif_dbl_baddr_init = 1;
         s_cmpr2mif_tnr_meta0_wmif.reg_mif_dbl_baddr_en   = 1;
-        s_cmpr2mif_tnr_meta0_wmif.reg_mif_baddr0 = (unsigned int)isp_paddr + w * h * cmpr_tnr_bits /8;
-        s_cmpr2mif_tnr_meta0_wmif.reg_mif_baddr1 = (unsigned int)isp_paddr + w * h * cmpr_tnr_bits /8 + w*h*3;
+        s_cmpr2mif_tnr_meta0_wmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr + w * h * cmpr_tnr_bits /8;
+        s_cmpr2mif_tnr_meta0_wmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr + w * h * cmpr_tnr_bits /8 + w*h*3;
         init_mipi_cmpr2mif(MIPI_TNR_META_WMIF_PATH,MIPI_TNR_WSUB0_META_BASE,&s_cmpr2mif_tnr_meta0_wmif);
         //TNR meta sub0 rmif
         s_cmpr2mif_tnr_meta0_rmif.reg_pic_hsize = w;
@@ -723,8 +723,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
         s_cmpr2mif_tnr_meta0_rmif.reg_dol_mode = 0;
         s_cmpr2mif_tnr_meta0_rmif.reg_mif_dbl_baddr_init = 1;
         s_cmpr2mif_tnr_meta0_rmif.reg_mif_dbl_baddr_en   = 1;
-        s_cmpr2mif_tnr_meta0_rmif.reg_mif_baddr0 = (unsigned int)isp_paddr + w * h * cmpr_tnr_bits /8;
-        s_cmpr2mif_tnr_meta0_rmif.reg_mif_baddr1 = (unsigned int)isp_paddr + w * h * cmpr_tnr_bits /8 + w*h*3;
+        s_cmpr2mif_tnr_meta0_rmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr + w * h * cmpr_tnr_bits /8;
+        s_cmpr2mif_tnr_meta0_rmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr + w * h * cmpr_tnr_bits /8 + w*h*3;
         init_mipi_cmpr2mif(MIPI_TNR_META_RMIF_PATH,MIPI_TNR_RSUB0_META_BASE,&s_cmpr2mif_tnr_meta0_rmif);
         if (cmpr_tnr_temp3_en == 1) {
             //TNR enc sub1
@@ -745,8 +745,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
             s_cmpr2mif_tnr_sub1_wmif.reg_dol_mode  = 0;
             s_cmpr2mif_tnr_sub1_wmif.reg_mif_dbl_baddr_init = 1;
             s_cmpr2mif_tnr_sub1_wmif.reg_mif_dbl_baddr_en   = 1;
-            s_cmpr2mif_tnr_sub1_wmif.reg_mif_baddr0 = (unsigned int)isp_paddr  + w*h*3 * 2;
-            s_cmpr2mif_tnr_sub1_wmif.reg_mif_baddr1 = (unsigned int)isp_paddr  + w*h*3 * 3;
+            s_cmpr2mif_tnr_sub1_wmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 2;
+            s_cmpr2mif_tnr_sub1_wmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 3;
             init_mipi_cmpr2mif(MIPI_TNR_ENC_WMIF_PATH,TNR_CMPR_SUB1_WMIF_BASE, &s_cmpr2mif_tnr_sub1_wmif);
             //TNR enc sub1 rmif
             s_cmpr2mif_tnr_sub1_rmif.reg_pic_hsize = w;
@@ -756,8 +756,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
             s_cmpr2mif_tnr_sub1_rmif.reg_dol_mode = 0;
             s_cmpr2mif_tnr_sub1_rmif.reg_mif_dbl_baddr_init = 1;
             s_cmpr2mif_tnr_sub1_rmif.reg_mif_dbl_baddr_en   = 1;
-            s_cmpr2mif_tnr_sub1_rmif.reg_mif_baddr0 = (unsigned int)isp_paddr  + w*h*3 * 2;
-            s_cmpr2mif_tnr_sub1_rmif.reg_mif_baddr1 = (unsigned int)isp_paddr  + w*h*3 * 3;
+            s_cmpr2mif_tnr_sub1_rmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 2;
+            s_cmpr2mif_tnr_sub1_rmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 3;
             init_mipi_cmpr2mif(MIPI_TNR_DEC_RMIF_PATH,TNR_CMPR_SUB1_RMIF_BASE, &s_cmpr2mif_tnr_sub1_rmif);
             //TNR meta sub1 wmif
             s_cmpr2mif_tnr_meta1_wmif.reg_pic_hsize = w;
@@ -767,8 +767,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
             s_cmpr2mif_tnr_meta1_wmif.reg_dol_mode  = 0;
             s_cmpr2mif_tnr_meta1_wmif.reg_mif_dbl_baddr_init = 1;
             s_cmpr2mif_tnr_meta1_wmif.reg_mif_dbl_baddr_en   = 1;
-            s_cmpr2mif_tnr_meta1_wmif.reg_mif_baddr0 = (unsigned int)isp_paddr  + w*h*3 * 2 + w*h*cmpr_tnr_bits/8;
-            s_cmpr2mif_tnr_meta1_wmif.reg_mif_baddr1 = (unsigned int)isp_paddr  + w*h*3 * 3 + w*h*cmpr_tnr_bits/8;
+            s_cmpr2mif_tnr_meta1_wmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 2 + w*h*cmpr_tnr_bits/8;
+            s_cmpr2mif_tnr_meta1_wmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 3 + w*h*cmpr_tnr_bits/8;
             init_mipi_cmpr2mif(MIPI_TNR_META_WMIF_PATH,MIPI_TNR_WSUB1_META_BASE,&s_cmpr2mif_tnr_meta1_wmif);
             //TNR enc sub1 rmif
             s_cmpr2mif_tnr_meta1_rmif.reg_pic_hsize = w;
@@ -778,8 +778,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
             s_cmpr2mif_tnr_meta1_rmif.reg_dol_mode = 0;
             s_cmpr2mif_tnr_meta1_rmif.reg_mif_dbl_baddr_init = 1;
             s_cmpr2mif_tnr_meta1_rmif.reg_mif_dbl_baddr_en   = 1;
-            s_cmpr2mif_tnr_meta1_rmif.reg_mif_baddr0 = (unsigned int)isp_paddr  + w*h*3 * 2 + w*h*cmpr_tnr_bits/8;
-            s_cmpr2mif_tnr_meta1_rmif.reg_mif_baddr1 = (unsigned int)isp_paddr  + w*h*3 * 3 + w*h*cmpr_tnr_bits/8;
+            s_cmpr2mif_tnr_meta1_rmif.reg_mif_baddr0 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 2 + w*h*cmpr_tnr_bits/8;
+            s_cmpr2mif_tnr_meta1_rmif.reg_mif_baddr1 = (unsigned int)isp_temper_paddr[0].isp_paddr  + w*h*3 * 3 + w*h*cmpr_tnr_bits/8;
             init_mipi_cmpr2mif(MIPI_TNR_META_RMIF_PATH,MIPI_TNR_RSUB1_META_BASE, &s_cmpr2mif_tnr_meta1_rmif);
         }
        //TNR split
@@ -792,8 +792,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
        s_mipi2cmpr_tnr_split.reg_frmrst_dlys4abort = cmpr_tnr_vblank_dlys;   //vblank delay
        s_mipi2cmpr_tnr_split.reg_raw67_ext         = 0;
        s_mipi2cmpr_tnr_split.reg_raw_mode          = cmpr_tnr_data_16bit;
-       s_mipi2cmpr_tnr_split.reg_iaddr_bgn[0]      = (unsigned int)isp_paddr;
-       s_mipi2cmpr_tnr_split.reg_iaddr_bgn[1]      = (unsigned int)isp_paddr + w*h*3 * 2;
+       s_mipi2cmpr_tnr_split.reg_iaddr_bgn[0]      = (unsigned int)isp_temper_paddr[0].isp_paddr;
+       s_mipi2cmpr_tnr_split.reg_iaddr_bgn[1]      = (unsigned int)isp_temper_paddr[0].isp_paddr + w*h*3 * 2;
        s_mipi2cmpr_tnr_split.line_stride           = cmpr_tnr_line_stride;
        init_mipi_mipi2cmpr(MIPI2CMPR_TNR_SPLIT_PATH,MIPI_TNR_CMPR_SPLIT_BASE, &s_mipi2cmpr_tnr_split);
        //TNR pack
@@ -809,8 +809,8 @@ int aml_cmpr_init(int tnr_cmpr_en, int w, int h, int lossloss_en, uint8_t bayer)
        s_mipi2cmpr_tnr_pack.reg_frmrst_dlys4abort = cmpr_tnr_vblank_dlys;   //vblank delay
        s_mipi2cmpr_tnr_pack.reg_raw67_ext         = 0;
        s_mipi2cmpr_tnr_pack.reg_raw_mode          = cmpr_tnr_data_16bit;
-       s_mipi2cmpr_tnr_pack.reg_iaddr_bgn[0]      = (unsigned int)isp_paddr;
-       s_mipi2cmpr_tnr_pack.reg_iaddr_bgn[1]      = (unsigned int)isp_paddr + w*h*3 * 2;
+       s_mipi2cmpr_tnr_pack.reg_iaddr_bgn[0]      = (unsigned int)isp_temper_paddr[0].isp_paddr;
+       s_mipi2cmpr_tnr_pack.reg_iaddr_bgn[1]      = (unsigned int)isp_temper_paddr[0].isp_paddr + w*h*3 * 2;
        s_mipi2cmpr_tnr_pack.line_stride           = cmpr_tnr_line_stride;
        init_mipi_mipi2cmpr(MIPI2CMPR_TNR_PACK_PATH,MIPI_TNR_CMPR_PACK_BASE, &s_mipi2cmpr_tnr_pack);
 

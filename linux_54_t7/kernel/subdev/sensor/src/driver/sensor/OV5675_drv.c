@@ -52,7 +52,7 @@
 // This mode is a minimum-change vmax adjustment to ensure that
 // the vmax (lines per frame) does not smother the integration time
 // which results in a dark-frame glitch on an FPS transition
-#define USE_TWOSIDED_VMAX    1
+#define USE_TWOSIDED_VMAX    0
 
 #define FS_LIN_1080P 1
 
@@ -469,7 +469,6 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     LOG( LOG_CRIT, "Mode %d, Setting num: %d, RES:%dx%d  USE_TWOSIDED_VMAX=%d\n", mode, setting_num,
                 (int)param->active.width, (int)param->active.height, USE_TWOSIDED_VMAX );
 
-    p_ctx->vmax_cnt = 0;
     p_ctx->int_cnt = 0;
     p_ctx->gain_cnt = 0;
 }
@@ -509,7 +508,6 @@ static void stop_streaming( void *ctx )
 
     reset_sensor_bus_counter();
     sensor_iface2_disable();
-    atomic_set( &p_ctx->is_sensor_power_on,0 );
     gp_pl_am_disable(sensor_bp, "mclk_0");
     gp_pl_am_disable(sensor_bp, "mclk_1");
 }
@@ -522,7 +520,7 @@ static void start_streaming( void *ctx )
     sensor_bringup_t* sensor_bp = p_ctx->sbp;
     gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
     gp_pl_am_enable(sensor_bp, "mclk_1", 24000000);
-    sensor_set_iface2(&param->modes_table[param->mode], p_ctx->win_offset);
+    sensor_set_iface2(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
     acamera_sbus_write_u8(p_sbus, 0x0100, 0x01);
 }
@@ -621,7 +619,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.sbus.mask = SBUS_MASK_ADDR_16BITS |
            SBUS_MASK_SAMPLE_8BITS |SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = I2C_CONTROL_MASK;
-    sensor_ctx.sbus.bus = 1;//get_next_sensor_bus_address();
+    sensor_ctx.sbus.bus = 0;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init(&sensor_ctx.sbus, sbus_i2c);
 
@@ -652,8 +650,6 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.param.isp_context_seq.sequence = p_isp_data;
     sensor_ctx.param.isp_context_seq.seq_num = 0;
     sensor_ctx.param.isp_context_seq.seq_table_max = array_size_s( isp_seq_table );
-    atomic_set( &sensor_ctx.is_sensor_power_on, 1 );//default is on,because probe will power on
-    atomic_set( &sensor_ctx.sensor_user_counter, 1 );//default is on,because probe will power on
     memset(&sensor_ctx.win_offset, 0, sizeof(sensor_ctx.win_offset));
 
     return &sensor_ctx;
@@ -768,6 +764,7 @@ int sensor_detect_ov5675( void* sbp)
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
     reset_am_disable(sensor_bp);
+    gp_pl_am_disable(sensor_bp, "mclk_0");
     return ret;
 }
 //*************************************************************************************

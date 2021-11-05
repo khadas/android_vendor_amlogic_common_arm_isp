@@ -41,18 +41,42 @@
 #include <linux/completion.h>
 #include <linux/jiffies.h>
 #include <linux/version.h>
+#include <linux/kthread.h>
+#include <linux/slab.h>
+#include <linux/freezer.h>
+#include <linux/delay.h>
+#include <uapi/linux/sched/types.h>
+#include "acamera_command_api.h"
+#include "acamera_logger.h"
 #include "system_log.h"
 
 #define AM_ADAPTER_NAME "amlogic, isp-adapter"
 #define BOUNDRY             16
-#define FRONTEDN_USED       3
+#define FRONTEDN_USED       4
 #define RD_USED             1
 
-resource_size_t ddr_buf[DDR_BUF_SIZE];
+struct am_adap_fsm_t {
+    uint8_t cam_en;
+    int control_flag;
+    int wbuf_index;
+
+    int next_buf_index;
+    resource_size_t read_buf;
+    resource_size_t buffer_start;
+    resource_size_t ddr_buf[DDR_BUF_SIZE];
+    struct kfifo adapt_fifo;
+
+    struct page *cma_pages;
+
+    struct am_adap_info para;
+};
+
+struct am_adap_fsm_t adap_fsm[CAMERA_NUM];
+uint32_t camera_frame_fifo[CAMERA_QUEUE_NUM];
+
 resource_size_t dol_buf[DOL_BUF_SIZE];
 
 struct am_adap *g_adap = NULL;
-struct am_adap_info para;
 struct adaptfe_param fe_param[FRONTEDN_USED];
 struct adaptrd_param rd_param;
 struct adaptpixel_param pixel_param;
@@ -61,37 +85,8 @@ struct adaptalig_param alig_param;
 struct kfifo adapt_fifo;
 
 /*we allocte from CMA*/
-static uint8_t *isp_cma_mem = NULL;
-static struct page *cma_pages = NULL;
-static resource_size_t buffer_start;
 
 #define DEFAULT_ADAPTER_BUFFER_SIZE 24
-
-static int dump_width;
-static int dump_height;
-static int dump_flag;
-static int dump_cur_flag;
-static int dump_buf_index;
-static int irq_count;
-static int cur_buf_index;
-static int current_flag;
-static int control_flag;
-static int wbuf_index;
-
-static int fte1_index;
-static int fte0_index;
-static int buffer_index;
-
-static int dump_dol_frame;
-static int fte_state;
-
-static struct completion wakeupdump;
-static unsigned int data_process_para;
-static unsigned int frontend1_flag = 0;
-static unsigned int virtcam_flag = 0;
-
-module_param(data_process_para, uint, 0664);
-MODULE_PARM_DESC(data_process_para, "\n control inject or dump data parameter from adapter\n");
 
 static int ceil_upper(int val, int mod)
 {
@@ -107,38 +102,6 @@ static int ceil_upper(int val, int mod)
         }
     }
     return ret;
-}
-
-static void parse_param(char *buf_orig, char **parm, int num)
-{
-    char *ps, *token;
-    unsigned int n = 0;
-    char delim1[3] = " \n";
-
-    ps = buf_orig;
-
-    token = strsep(&ps, delim1);
-    while (token != NULL) {
-        if (*token != '\0') {
-            parm[n++] = token;
-        }
-        if (n > num - 1) {
-            printk("string element larger than array.\n");
-            break;
-        }
-        token = strsep(&ps, delim1);
-    }
-}
-
-static long getulfromstr(char* input)
-{
-    long out = 0;
-    if (!input)
-        return -1;
-    if (kstrtoul(input, 10, &out) < 0) {
-        return -1;
-    }
-    return out;
 }
 
 int write_index_to_file(char *path, char *buf, int index, int size)
@@ -239,14 +202,23 @@ void inline adap_wr_bit(unsigned int adr,
         adap_io_type_t io_type, unsigned int val,
         unsigned int start, unsigned int len)
 {
+    unsigned long flags;
+
+    spin_lock_irqsave(&g_adap->reg_lock, flags);
+
     update_wr_reg_bits(adr, io_type,
                    ((1<<len)-1)<<start, val<<start);
+    spin_unlock_irqrestore(&g_adap->reg_lock, flags);
 }
 
 void inline adap_write(int addr, adap_io_type_t io_type, uint32_t val)
 {
     void __iomem *base_reg_addr = NULL;
     void __iomem *reg_addr = NULL;
+    unsigned long flags;
+
+    spin_lock_irqsave(&g_adap->reg_lock, flags);
+
     switch (io_type) {
         case FRONTEND0_IO:
             base_reg_addr = g_adap->base_addr + FRONTEND0_BASE;
@@ -293,12 +265,17 @@ void inline adap_write(int addr, adap_io_type_t io_type, uint32_t val)
     } else
         pr_err("mipi adapter write register failed.\n");
 
+    spin_unlock_irqrestore(&g_adap->reg_lock, flags);
 }
 
 void inline adap_read(int addr, adap_io_type_t io_type, uint32_t *val)
 {
     void __iomem *base_reg_addr = NULL;
     void __iomem *reg_addr = NULL;
+    unsigned long flags;
+
+    spin_lock_irqsave(&g_adap->reg_lock, flags);
+
     switch (io_type) {
         case FRONTEND0_IO:
             base_reg_addr = g_adap->base_addr + FRONTEND0_BASE;
@@ -345,6 +322,7 @@ void inline adap_read(int addr, adap_io_type_t io_type, uint32_t *val)
     } else
         pr_err("mipi adapter read register failed.\n");
 
+    spin_unlock_irqrestore(&g_adap->reg_lock, flags);
 }
 
 void adap_read_ext(int addr, adap_io_type_t io_type, uint32_t *val)
@@ -389,285 +367,6 @@ void adap_read_ext(int addr, adap_io_type_t io_type, uint32_t *val)
 
 }
 
-static ssize_t adapt_frame_read(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    pr_info("adapt-read.\n");
-    uint8_t buf1[100];
-
-    return sprintf(buf1,"dump flag:%d", 0);
-}
-
-
-static ssize_t adapt_frame_write(struct device *dev,
-    struct device_attribute *attr, char const *buf, size_t size)
-{
-    long val = 0;
-    ssize_t ret = size;
-    char *virt_buf = NULL;
-    int depth;
-    uint32_t stride;
-    uint32_t frame_size;
-    char *buf_orig, *parm[10] = {NULL};
-    unsigned int frame_index = 0;
-    resource_size_t dump_buf_addr;
-
-    if (!buf)
-        return ret;
-
-    buf_orig = kstrdup(buf, GFP_KERNEL);
-    if (!buf_orig)
-        return ret;
-
-    parse_param(buf_orig, (char **)&parm, sizeof(parm)/sizeof(parm[0]));
-
-    if (!parm[0]) {
-        ret = -EINVAL;
-        goto Err;
-    }
-
-    if (!parm[1] || (kstrtoul(parm[1], 10, &val) < 0)) {
-        ret = -EINVAL;
-        goto Err;
-    } else {
-        dump_cur_flag = val;
-    }
-
-    if (!parm[2] || (kstrtoul(parm[2], 10, &val) < 0)) {
-        ret = -EINVAL;
-        goto Err;
-    } else {
-        cur_buf_index = val;
-        if (cur_buf_index >= DDR_BUF_SIZE) {
-            pr_info("dump current index is invalid.\n");
-            ret = -EINVAL;
-            goto Err;
-        }
-    }
-
-    depth = am_adap_get_depth();
-    stride = ((dump_width * depth)/8);
-    stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
-    frame_index = ((data_process_para) & (0xfffffff));
-    frame_size = stride * dump_height;
-    pr_info("dump width = %d, height = %d, size = %d\n",
-        dump_width, dump_height, frame_size);
-
-    if (dump_cur_flag) {
-        dump_buf_addr = ddr_buf[cur_buf_index];
-        pr_info("dump current buffer index %d.\n", cur_buf_index);
-        if (dump_buf_addr)
-            virt_buf = phys_to_virt(dump_buf_addr);
-        write_index_to_file(parm[0], virt_buf, cur_buf_index, frame_size);
-        dump_cur_flag = 0;
-        current_flag = 0;
-    } else if (frame_index > 0) {
-        pr_info("dump the buf_index = %d\n", dump_buf_index);
-        dump_buf_addr = ddr_buf[dump_buf_index];
-        if (dump_buf_addr)
-            virt_buf = phys_to_virt(dump_buf_addr);
-        write_index_to_file(parm[0], virt_buf, dump_buf_index, frame_size);
-        dump_flag = 0;
-    } else {
-        pr_info("No match condition to dump file.\n");
-    }
-
-Err:
-    kfree(buf_orig);
-    return ret;
-
-}
-
-static DEVICE_ATTR(adapt_frame, S_IRUGO | S_IWUSR, adapt_frame_read, adapt_frame_write);
-
-static ssize_t dol_frame_read(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    pr_info("adapt-read.\n");
-    uint8_t buf1[100];
-
-    return sprintf(buf1,"dump flag:%d", 0);
-}
-
-static ssize_t dol_frame_write(struct device *dev,
-    struct device_attribute *attr, char const *buf, size_t size)
-{
-    ssize_t ret = size;
-    char *virt_buf = NULL;
-    int depth;
-    uint32_t stride;
-    uint32_t frame_size;
-    uint32_t frame_count = 0;
-    char *buf_orig, *parm[10] = {NULL};
-    resource_size_t dump_buf_addr;
-
-    if (!buf)
-        return ret;
-
-    buf_orig = kstrdup(buf, GFP_KERNEL);
-    if (!buf_orig)
-        return ret;
-
-    parse_param(buf_orig, (char **)&parm, sizeof(parm)/sizeof(parm[0]));
-
-    if (!parm[0]) {
-        ret = -EINVAL;
-        goto Err;
-    }
-
-    frame_count = getulfromstr(parm[1]);
-    depth = am_adap_get_depth();
-    stride = ((dump_width * depth)/8);
-    stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
-    frame_size = stride * dump_height;
-    pr_info("dump width = %d, height = %d, size = %d\n",
-        dump_width, dump_height, frame_size);
-
-restart:
-    dump_dol_frame = 1;
-
-    if (!wait_for_completion_timeout(&wakeupdump, msecs_to_jiffies(100))) {
-        pr_err("wait for same frame timeout.\n");
-        dump_dol_frame = 0;
-        return ret;
-    }
-
-    dump_buf_addr = dol_buf[(buffer_index - 1) % 2];
-    pr_info("dump ft0/ft1 buffer index %d.\n", buffer_index);
-    if (dump_buf_addr)
-        virt_buf = phys_to_virt(dump_buf_addr);
-    write_index_to_file(parm[0], virt_buf, frame_count * 2, frame_size);
-
-    dump_buf_addr = dol_buf[(buffer_index - 1)% 2 + 2];
-    if (dump_buf_addr)
-        virt_buf = phys_to_virt(dump_buf_addr);
-    write_index_to_file(parm[0], virt_buf, frame_count * 2 - 1, frame_size);
-
-    dump_dol_frame = 0;
-
-    if (frame_count > 0) {
-        frame_count --;
-        goto restart;
-    }
-
-    /*if (buffer_index % 2 == 1) {
-        adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, dol_buf[0]);
-        adap_write(CSI2_DDR_START_PIX + FTE1_OFFSET, FRONTEND0_IO, dol_buf[2]);
-    } else {
-        adap_write(CSI2_DDR_START_PIX_ALT, FRONTEND0_IO, dol_buf[1]);
-        adap_write(CSI2_DDR_START_PIX_ALT + FTE1_OFFSET, FRONTEND0_IO, dol_buf[3]);
-    }*/
-
-Err:
-    kfree(buf_orig);
-    return ret;
-
-}
-
-static DEVICE_ATTR(dol_frame, S_IRUGO | S_IWUSR, dol_frame_read, dol_frame_write);
-
-static int write_data_to_buf(char *path, char *buf, int size)
-{
-    int ret = 0;
-    struct file *fp = NULL;
-    mm_segment_t old_fs;
-    loff_t pos = 0;
-    unsigned int r_size = 0;
-
-    old_fs = get_fs();
-    set_fs(KERNEL_DS);
-    fp = filp_open(path, O_RDONLY, 0);
-    if (IS_ERR(fp)) {
-        pr_info("read error.\n");
-        return -1;
-    }
-    r_size = vfs_read(fp, buf, size, &pos);
-    pr_info("read r_size = %u, size = %u\n", r_size, size);
-
-    vfs_fsync(fp, 0);
-    filp_close(fp, NULL);
-    set_fs(old_fs);
-
-    return ret;
-}
-
-static const char *adapt_inject_usage_str = {
-    "Usage:\n"
-    "echo <src_path> <width> <height> <bit_depth> > /sys/devices/platform/ff650000.isp-adapter/inject_frame\n"
-};
-
-static ssize_t err_note(void) {
-    uint8_t buf1[128];
-    return sprintf(buf1, "%s\n", adapt_inject_usage_str);
-}
-
-static ssize_t inject_frame_read(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    return sprintf(buf, "%s\n", adapt_inject_usage_str);
-}
-
-
-static ssize_t inject_frame_write(struct device *dev,
-    struct device_attribute *attr, char const *buf, size_t size)
-{
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
-    char *buf_orig, *parm[30] = {NULL};
-#else
-    char *buf_orig, *parm[100] = {NULL};
-#endif
-    long stride = 0;
-    long frame_width = 0;
-    long frame_height = 0;
-    long bit_depth = 0;
-    char *virt_buf = NULL;
-    uint32_t file_size;
-    ssize_t ret = size;
-
-    if (!buf)
-        return ret;
-
-    buf_orig = kstrdup(buf, GFP_KERNEL);
-    if (!buf_orig)
-        return ret;
-
-    parse_param(buf_orig, (char **)&parm, sizeof(parm)/sizeof(parm[0]));
-
-    if (!parm[0]) {
-        ret = -EINVAL;
-        pr_err("error---path--->:%s\n", adapt_inject_usage_str);
-        goto Err;
-    }
-
-    pr_info("file_path = %s\n", parm[0]);
-
-    frame_width = getulfromstr(parm[1]);
-    frame_height = getulfromstr(parm[2]);
-    bit_depth = getulfromstr(parm[3]);
-    if (frame_width < 0 || frame_height < 0 || bit_depth < 0) {
-        ret = -EINVAL;
-        goto Err;
-    }
-
-    stride = (frame_width * bit_depth)/8;
-    stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
-    if (ddr_buf[DDR_BUF_SIZE - 1] != 0)
-        virt_buf = phys_to_virt(ddr_buf[DDR_BUF_SIZE - 1]);
-    file_size = stride * frame_height;
-    pr_info("inject frame width = %ld, height = %ld, bitdepth = %ld, size = %d\n",
-        frame_width, frame_height,
-        bit_depth, file_size);
-    write_data_to_buf(parm[0], virt_buf, file_size);
-
-Err:
-    if (ret < 0)
-        err_note();
-    kfree(buf_orig);
-    return ret;
-}
-
-static DEVICE_ATTR(inject_frame, S_IRUGO | S_IWUSR, inject_frame_read, inject_frame_write);
-
 int am_adap_parse_dt(struct device_node *node)
 {
     int rtn = -1;
@@ -696,6 +395,7 @@ int am_adap_parse_dt(struct device_node *node)
     t_adap->of_node = node;
     t_adap->f_end_irq = 0;
     t_adap->f_fifo = 0;
+    t_adap->f_adap = 0;
 
     rtn = of_address_to_resource(node, 0, &rs);
     if (rtn != 0) {
@@ -733,16 +433,17 @@ int am_adap_parse_dt(struct device_node *node)
         pr_err("failed to get adap-buf-size from dts, use default value\n");
         t_adap->adap_buf_size = DEFAULT_ADAPTER_BUFFER_SIZE;
     }
-    //t_adap->adap_buf_size = 48;
 
-    device_create_file(&(t_adap->p_dev->dev), &dev_attr_adapt_frame);
-    device_create_file(&(t_adap->p_dev->dev), &dev_attr_inject_frame);
-    device_create_file(&(t_adap->p_dev->dev), &dev_attr_dol_frame);
+    t_adap->adap_buf_size = t_adap->adap_buf_size / CAMERA_NUM;
+
     system_dbg_create(&(t_adap->p_dev->dev));
 
     g_adap = t_adap;
 
-    bypass_init(); //bypass de_compress_TNR and de_compress_ADAPT
+    spin_lock_init(&g_adap->reg_lock);
+
+    adap_fsm[0].cam_en = CAM_DIS;
+    adap_fsm[1].cam_en = CAM_DIS;
 
     return 0;
 
@@ -769,9 +470,6 @@ void am_adap_deinit_parse_dt(void)
         return;
     }
 
-    device_remove_file(&(t_adap->p_dev->dev), &dev_attr_adapt_frame);
-    device_remove_file(&(t_adap->p_dev->dev), &dev_attr_inject_frame);
-    device_remove_file(&(t_adap->p_dev->dev), &dev_attr_dol_frame);
     system_dbg_remove(&(t_adap->p_dev->dev));
 
     iounmap(t_adap->base_addr);
@@ -787,35 +485,14 @@ void am_adap_deinit_parse_dt(void)
 
 void am_adap_set_info(struct am_adap_info *info)
 {
-    int inject_data_flag;
-    int dump_data_flag;
-
-    memset(&para, 0, sizeof(struct am_adap_info));
-    memcpy(&para, info, sizeof(struct am_adap_info));
-    frontend1_flag = ((data_process_para >> 30) & 0x1);
-    inject_data_flag = ((data_process_para >> 29) & 0x1);
-    dump_data_flag = ((data_process_para >> 28) & 0x1);
-
-    pr_info("inject_data_flag = %x, dump_data_flag = %x\n",
-         inject_data_flag, dump_data_flag);
-
-    if ((inject_data_flag) || (dump_data_flag) || (virtcam_flag)) {
-        para.mode = DDR_MODE;
-    }
-    dump_width = para.img.width;
-    dump_height = para.img.height;
+    memset(&adap_fsm[info->path].para, 0, sizeof(struct am_adap_info));
+    memcpy(&adap_fsm[info->path].para, info, sizeof(struct am_adap_info));
 }
 
-int get_fte1_flag(void)
-{
-    frontend1_flag = (data_process_para >> 30) & 0x1;
-    return frontend1_flag;
-}
-
-int am_adap_get_depth(void)
+int am_adap_get_depth(uint8_t channel)
 {
     int depth = 0;
-    switch (para.fmt) {
+    switch (adap_fsm[channel].para.fmt) {
         case MIPI_CSI_RAW6:
             depth = 6;
             break;
@@ -844,11 +521,16 @@ int am_adap_get_depth(void)
     return depth;
 }
 
-int am_disable_irq(void)
+int am_disable_irq(uint8_t channel)
 {
     //disable irq mask
-    adap_write(CSI2_INTERRUPT_CTRL_STAT, FRONTEND0_IO, 0);
-    adap_write(MIPI_ADAPT_IRQ_MASK0, ALIGN_IO, 0);
+    //adap_write(CSI2_INTERRUPT_CTRL_STAT, FRONTEND0_IO, 0);
+    if (channel == ADAP0_PATH) {
+        adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, FRONT0_WR_DONE, 1);
+    } else {
+        adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 0, FRONT2_WR_DONE, 1);
+    }
+    //adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1 );//rd0 done
 
     return 0;
 }
@@ -857,10 +539,10 @@ int am_disable_irq(void)
  *========================AM ADAPTER FRONTEND INTERFACE========================
  */
 
-void am_adap_frontend_start(int port)
+void am_adap_frontend_start(uint8_t channel)
 {
     int fe_io = 0;
-    switch (fe_param[port].fe_sel) {
+    switch (fe_param[channel].fe_sel) {
         case 0:
             fe_io = FRONTEND0_IO;
             break;
@@ -880,7 +562,7 @@ void am_adap_frontend_start(int port)
 }
 
 
-int am_adap_frontend_init(struct adaptfe_param* prm) {
+int am_adap_frontend_init(struct adaptfe_param* prm, uint8_t channel) {
     uint32_t fe_io = FRONTEND0_IO;
     switch (prm->fe_sel) {
         case 0:
@@ -903,18 +585,18 @@ int am_adap_frontend_init(struct adaptfe_param* prm) {
     uint32_t cfg_line_sup_vs_en,cfg_line_sup_vs_sel,cfg_line_sup_sel;
     uint32_t mem_addr0_a,mem_addr0_b,mem_addr1_a,mem_addr1_b;
 
-    if (para.mode == DDR_MODE) {
-        prm->fe_mem_ping_addr = ddr_buf[0];
-        prm->fe_mem_pong_addr = ddr_buf[0];
-        prm->fe_mem_other_addr= ddr_buf[1];
-    } else if (para.mode == DOL_MODE) {
+    if (adap_fsm[channel].para.mode == DDR_MODE) {
+        prm->fe_mem_ping_addr = adap_fsm[channel].ddr_buf[0];
+        prm->fe_mem_pong_addr = adap_fsm[channel].ddr_buf[0];
+        prm->fe_mem_other_addr= adap_fsm[channel].ddr_buf[1];
+    } else if (adap_fsm[channel].para.mode == DOL_MODE) {
         prm->fe_mem_ping_addr = dol_buf[0];
         prm->fe_mem_pong_addr = dol_buf[1];
         prm->fe_mem_other_addr= dol_buf[1];
     } else {
-        prm->fe_mem_ping_addr = ddr_buf[0];
-        prm->fe_mem_pong_addr = ddr_buf[0];
-        prm->fe_mem_other_addr= ddr_buf[1];
+        prm->fe_mem_ping_addr = adap_fsm[channel].ddr_buf[0];
+        prm->fe_mem_pong_addr = adap_fsm[channel].ddr_buf[0];
+        prm->fe_mem_other_addr= adap_fsm[channel].ddr_buf[1];
     }
 
     mem_addr0_a = prm->fe_mem_ping_addr;
@@ -1029,10 +711,7 @@ int am_adap_frontend_init(struct adaptfe_param* prm) {
     adap_write(CSI2_DDR_START_PIX_ALT  , fe_io, mem_addr0_b);
     adap_write(CSI2_DDR_START_PIX_B    , fe_io, mem_addr1_a);
     adap_write(CSI2_DDR_START_PIX_B_ALT, fe_io, mem_addr1_b);
-    if ( (fe_io == FRONTEND1_IO) && frontend1_flag ) {
-        adap_write(CSI2_DDR_START_PIX      , fe_io, dol_buf[2]);
-        adap_write(CSI2_DDR_START_PIX_ALT  , fe_io, dol_buf[3]);
-    }
+
     adap_write(CSI2_DDR_START_OTHER    , fe_io, prm->fe_mem_other_addr);
     adap_write(CSI2_DDR_START_OTHER_ALT, fe_io, prm->fe_mem_other_addr);
     adap_write(CSI2_DDR_STRIDE_PIX     , fe_io, prm->fe_mem_line_stride << 4);
@@ -1046,16 +725,14 @@ int am_adap_frontend_init(struct adaptfe_param* prm) {
     adap_write(CSI2_GEN_CTRL0          , fe_io, cfg_all_to_mem  << 4 |
                                          pingpong_en            << 5 |
                                          0x01                    << 12 |
-                                         0x03				    << 16 |
+                                         0x03                    << 16 |
                                          cfg_isp2ddr_enable     << 25 |
                                          cfg_isp2comb_enable    << 26);
 
     if (prm->fe_work_mode == MODE_MIPI_RAW_HDR_DDR_DIRCT) {
-        if (para.type == DOL_LINEINFO) {
+        if (adap_fsm[channel].para.type == DOL_LINEINFO) {
             adap_write(CSI2_VC_MODE, fe_io, 0x11110052);
-            if ((fe_io == FRONTEND1_IO) && frontend1_flag )
-                adap_write(CSI2_VC_MODE, fe_io, 0x11110046);   //ft1 vc_mode
-            if (para.fmt == MIPI_CSI_RAW10 ) {
+            if (adap_fsm[channel].para.fmt == MIPI_CSI_RAW10 ) {
                 adap_write(CSI2_VC_MODE2_MATCH_MASK_A_L, fe_io, 0x6e6e6e6e);
                 adap_write(CSI2_VC_MODE2_MATCH_MASK_A_H, fe_io, 0xffffff00);
                 adap_write(CSI2_VC_MODE2_MATCH_A_L, fe_io, 0x90909090);
@@ -1064,7 +741,7 @@ int am_adap_frontend_init(struct adaptfe_param* prm) {
                 adap_write(CSI2_VC_MODE2_MATCH_MASK_B_H, fe_io, 0xffffff00);
                 adap_write(CSI2_VC_MODE2_MATCH_B_L, fe_io, 0x90909090);
                 adap_write(CSI2_VC_MODE2_MATCH_B_H, fe_io, 0xaa);
-            } else if (para.fmt == MIPI_CSI_RAW12) {
+            } else if (adap_fsm[channel].para.fmt == MIPI_CSI_RAW12) {
                 adap_write(CSI2_VC_MODE2_MATCH_MASK_A_L, fe_io, 0xff000101);
                 adap_write(CSI2_VC_MODE2_MATCH_MASK_A_H, fe_io, 0xffffffff);
                 adap_write(CSI2_VC_MODE2_MATCH_A_L, fe_io, 0x112424);
@@ -1074,27 +751,25 @@ int am_adap_frontend_init(struct adaptfe_param* prm) {
                 adap_write(CSI2_VC_MODE2_MATCH_B_L, fe_io, 0x222424);
                 adap_write(CSI2_VC_MODE2_MATCH_B_H, fe_io, 0x0);
             }
-            int long_exp_offset = para.offset.long_offset;
-            int short_exp_offset = para.offset.short_offset;
+            int long_exp_offset = adap_fsm[channel].para.offset.long_offset;
+            int short_exp_offset = adap_fsm[channel].para.offset.short_offset;
             adap_wr_bit(CSI2_X_START_END_MEM, fe_io, 0xc, 0, 16);
             adap_wr_bit(CSI2_X_START_END_MEM, fe_io,
-                        0xc + para.img.width - 1, 16, 16);
+                        0xc + adap_fsm[channel].para.img.width - 1, 16, 16);
             adap_wr_bit(CSI2_Y_START_END_MEM, fe_io,
                         long_exp_offset, 0, 16);
             adap_wr_bit(CSI2_Y_START_END_MEM, fe_io,
-                        long_exp_offset + para.img.height - 1, 16, 16);
+                        long_exp_offset + adap_fsm[channel].para.img.height - 1, 16, 16);
             //set short exposure offset
             adap_wr_bit(CSI2_X_START_END_ISP, fe_io, 0xc, 0, 16);
             adap_wr_bit(CSI2_X_START_END_ISP, fe_io,
-                        0xc + para.img.width - 1, 16, 16);
+                        0xc + adap_fsm[channel].para.img.width - 1, 16, 16);
             adap_wr_bit(CSI2_Y_START_END_ISP, fe_io,
                         short_exp_offset, 0, 16);
             adap_wr_bit(CSI2_Y_START_END_ISP, fe_io,
-                        short_exp_offset + para.img.height - 1, 16, 16);
-        }else if (para.type == DOL_VC) {
+                        short_exp_offset + adap_fsm[channel].para.img.height - 1, 16, 16);
+        }else if (adap_fsm[channel].para.type == DOL_VC) {
             adap_write(CSI2_VC_MODE, fe_io, 0x11220040);
-            if ((fe_io == FRONTEND1_IO) && frontend1_flag )
-                adap_write(CSI2_VC_MODE, fe_io, 0x22110000);
         }
     }
     return 0;
@@ -1105,7 +780,7 @@ int am_adap_frontend_init(struct adaptfe_param* prm) {
  *========================AM ADAPTER READER INTERFACE==========================
  */
 
-void am_adap_reader_start(void)
+void am_adap_reader_start(uint8_t channel)
 {
     uint32_t data = 0;
     adap_read(MIPI_ADAPT_DDR_RD0_CNTL0,  RD_IO, &data);
@@ -1114,7 +789,7 @@ void am_adap_reader_start(void)
     adap_write(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, data | (1 << 31));
 }
 
-int am_adap_reader_init(struct adaptrd_param* prm) {
+int am_adap_reader_init(struct adaptrd_param* prm, uint8_t channel) {
     uint32_t dol_mode,pingpong_mode;
     uint32_t port_sel_0;
     uint32_t port_sel_1;
@@ -1128,15 +803,15 @@ int am_adap_reader_init(struct adaptrd_param* prm) {
     //wire    direct_path_sel = port_sel == 2'b00;
     //wire    ddr_path_sel    = port_sel == 2'b01;
     //wire    comb_path_sel    = port_sel == 2'b10;
-    if (para.mode == DDR_MODE) {
-        prm->rd_mem_ping_addr = ddr_buf[0];
-        prm->rd_mem_pong_addr = ddr_buf[0];
-    } else if (para.mode == DOL_MODE) {
+    if (adap_fsm[channel].para.mode == DDR_MODE) {
+        prm->rd_mem_ping_addr = adap_fsm[channel].ddr_buf[0];
+        prm->rd_mem_pong_addr = adap_fsm[channel].ddr_buf[0];
+    } else if (adap_fsm[channel].para.mode == DOL_MODE) {
         prm->rd_mem_ping_addr = dol_buf[0];
         prm->rd_mem_pong_addr = dol_buf[1];
     } else {
-        prm->rd_mem_ping_addr = ddr_buf[0];
-        prm->rd_mem_pong_addr = ddr_buf[0];
+        prm->rd_mem_ping_addr = adap_fsm[channel].ddr_buf[0];
+        prm->rd_mem_pong_addr = adap_fsm[channel].ddr_buf[0];
     }
 
     ddr_rd0_ping  = prm->rd_mem_ping_addr;
@@ -1222,6 +897,7 @@ int am_adap_reader_init(struct adaptrd_param* prm) {
 
     adap_write(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 3<<28 | //axi burst
                                          1<<26 | //reg_sample_sel
+                                         continue_mode << 24 |
                                          dol_mode << 23 |
                                          pingpong_mode << 22 |
                                          prm->rd_mem_line_stride << 4);
@@ -1255,17 +931,16 @@ int am_adap_reader_init(struct adaptrd_param* prm) {
  *========================AM ADAPTER PIXEL INTERFACE===========================
  */
 
-void am_adap_pixel_start(void)
+void am_adap_pixel_start(uint8_t channel)
 {
     uint32_t data = 0;
     adap_read( MIPI_ADAPT_PIXEL0_CNTL0, PIXEL_IO, &data);
     adap_write(MIPI_ADAPT_PIXEL0_CNTL0, PIXEL_IO, data | pixel_param.pixel_en_0<< 31);
     adap_read( MIPI_ADAPT_PIXEL1_CNTL0, PIXEL_IO, &data);
     adap_write(MIPI_ADAPT_PIXEL1_CNTL0, PIXEL_IO, data | pixel_param.pixel_en_1 << 31);
-
 }
 
-int am_adap_pixel_init(struct adaptpixel_param* prm) {
+int am_adap_pixel_init(struct adaptpixel_param* prm, uint8_t channel) {
     uint32_t data_mode_0;  // 0:raw from ddr 1:raw from direct 2:comb from ddr 3:comb from direct
     uint32_t data_mode_1;  // 0:raw from ddr 1:raw from direct 2:comb from ddr 3:comb from direct
 
@@ -1347,15 +1022,21 @@ int am_adap_pixel_init(struct adaptpixel_param* prm) {
  *========================AM ADAPTER ALIGNMENT INTERFACE=======================
  */
 
-void am_adap_alig_start(void)
+void am_adap_alig_start(uint8_t channel)
 {
     int width, height, alig_width, alig_height;
-    width = para.img.width;
-    height = para.img.height;
-    if (virtcam_flag)
-        alig_width = width + 2000; //hblank > 3840
-    else
-        alig_width = width + 40; //hblank > 32 cycles
+    width = adap_fsm[channel].para.img.width;
+    height = adap_fsm[channel].para.img.height;
+    alig_width = width + 40; //hblank > 32 cycles
+    alig_width = adap_fsm[channel].para.align_width;
+    if (channel) {
+        if (adap_fsm[channel - 1].para.align_width > adap_fsm[channel].para.align_width)
+            alig_width = adap_fsm[channel - 1].para.align_width;
+    } else {
+        if (adap_fsm[channel + 1].para.align_width > adap_fsm[channel].para.align_width)
+            alig_width = adap_fsm[channel + 1].para.align_width;
+    }
+
     alig_height = height + 60; //vblank > 48 lines
     //val = width + 35; // width < val < alig_width
     adap_wr_bit(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, alig_width, 0, 13);
@@ -1366,7 +1047,7 @@ void am_adap_alig_start(void)
     adap_wr_bit(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 1, 31, 1);  // enable
 }
 
-int am_adap_alig_init(struct adaptalig_param* prm)
+int am_adap_alig_init(struct adaptalig_param* prm, uint8_t channel)
 {
     uint32_t lane0_en      ; //  = mipi_alig_cntl6[0] ;  //lane enable
     uint32_t lane0_sel     ; //  = mipi_alig_cntl6[1] ;  //lane select
@@ -1527,175 +1208,283 @@ int am_adap_alig_init(struct adaptalig_param* prm)
  *========================AM ADAPTER INTERFACE==========================
  */
 
-static int get_next_wr_buf_index(int inject_flag)
+static int get_next_wr_buf_index(uint8_t channel)
 {
     int index = 0;
-    wbuf_index = wbuf_index + 1;
+    int total_size = DDR_BUF_SIZE;
+    adap_fsm[channel].wbuf_index = adap_fsm[channel].wbuf_index + 1;
 
-    if (inject_flag) {
-        index = wbuf_index % (DDR_BUF_SIZE - 1);
-    } else {
-        if (dump_flag) {
-            index = wbuf_index % DDR_BUF_SIZE;
-            if (index == dump_buf_index) {
-                wbuf_index = wbuf_index + 1;
-                index = wbuf_index % DDR_BUF_SIZE;
-            }
-        } else if (current_flag){
-            index = wbuf_index % DDR_BUF_SIZE;
-            if (index == cur_buf_index) {
-                wbuf_index = wbuf_index + 1;
-                index = wbuf_index % DDR_BUF_SIZE;
-            }
-        } else {
-            index = wbuf_index % DDR_BUF_SIZE;
-        }
-    }
+    index = adap_fsm[channel].wbuf_index % total_size;
 
     return index;
 }
 
-static resource_size_t read_buf;
-static int next_buf_index;
 static irqreturn_t adpapter_isr(int irq, void *para)
 {
     uint32_t data = 0;
+    uint32_t data1 = 0;
     resource_size_t val = 0;
-    int kfifo_ret = 0;
-    int inject_data_flag = ((data_process_para >> 29) & 0x1);
-    int frame_index = ((data_process_para) & (0xfffffff));
 
     adap_read(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, &data);
+    adap_read(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, &data1);
+    adap_write(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, data);
+    adap_write(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, data1);
 
-    if (data & (1 << 28)) {
-        adap_wr_bit(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, 1, 28, 1); //clear write done irq
-        if ((dump_cur_flag) && (next_buf_index == cur_buf_index)) {
-            current_flag = 1;
-        }
-        if (!control_flag) {
-            if (!kfifo_is_full(&adapt_fifo)) {
-                kfifo_in(&adapt_fifo, &ddr_buf[next_buf_index], sizeof(resource_size_t));
-                irq_count = irq_count + 1;
-                if (irq_count == frame_index) {
-                    dump_buf_index = next_buf_index;
-                    dump_flag = 1;
-                }
-            } else {
-                pr_err("adapt fifo is full .\n");
-            }
-
-            next_buf_index = get_next_wr_buf_index(inject_data_flag);
-            val = ddr_buf[next_buf_index];
-            adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, val);
-        }
-        if ((!control_flag) && (kfifo_len(&adapt_fifo) > 0)) {
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
-            kfifo_ret = kfifo_out(&adapt_fifo, &val, sizeof(val));
-            read_buf = val;
-            control_flag = 1;
+    if ((data & (1 << FRONT0_WR_DONE))) {
+        if ((kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) / 8) < (DDR_BUF_SIZE - 2)) {
+            kfifo_in(&adap_fsm[ADAP0_PATH].adapt_fifo, &adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index], sizeof(resource_size_t));
+            camera_frame_fifo[g_adap->write_frame_ptr ++] = CAM0_ACT;
+            if (g_adap->write_frame_ptr == CAMERA_QUEUE_NUM)
+                g_adap->write_frame_ptr = 0;
+        } else {
+            LOG(LOG_INFO, "adapt fifo 0 is full .\n");
+            return IRQ_HANDLED;
         }
 
+        adap_fsm[ADAP0_PATH].next_buf_index = get_next_wr_buf_index(ADAP0_PATH);
+        val = adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index];
+        adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, val);
+        LOG(LOG_INFO, "frontend cam0 wr start %x", val);
+        g_adap->frame_state = FRAME_READY;
+        wake_up_interruptible( &g_adap->frame_wq);
     }
 
-    if (data & (1 << 21)) {
-        adap_wr_bit(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, 1, 21, 1);
-        if (inject_data_flag) {
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, ddr_buf[DDR_BUF_SIZE - 1]);
+    if (data & (1 << 9)) {
+        adap_fsm[ADAP0_PATH].control_flag = 0;
+        adap_fsm[ADAP1_PATH].control_flag = 0;
+        LOG(LOG_INFO, "align read done");
+    }
+
+    if (data1 & (1 << FRONT2_WR_DONE)) {
+        if ((kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo) / 8) < (DDR_BUF_SIZE - 2)) {
+            kfifo_in(&adap_fsm[ADAP1_PATH].adapt_fifo, &adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index], sizeof(resource_size_t));
+            camera_frame_fifo[g_adap->write_frame_ptr ++] = CAM1_ACT;
+            if (g_adap->write_frame_ptr == CAMERA_QUEUE_NUM)
+                g_adap->write_frame_ptr = 0;
         } else {
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, read_buf);
+            LOG(LOG_INFO, "adapt fifo 1 is full .\n");
+            return IRQ_HANDLED;
         }
-        if (virtcam_flag)
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
-        control_flag = 0;
+
+        adap_fsm[ADAP1_PATH].next_buf_index = get_next_wr_buf_index(ADAP1_PATH);
+        val = adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index];
+        adap_write(CSI2_DDR_START_PIX, FRONTEND2_IO, val);
+        LOG(LOG_INFO, "frontend cam1 wr start %x", val);
+        g_adap->frame_state = FRAME_READY;
+        wake_up_interruptible( &g_adap->frame_wq);
     }
 
     return IRQ_HANDLED;
 }
 
-static irqreturn_t dol_isr(int irq, void *para)
+static int am_adap_isp_check_status(uint8_t adapt_path)
 {
-    uint32_t pending0 = 0;
-    uint32_t pending1 = 0;
+    resource_size_t val = 0;
+    int check_count = 0;
+    int frame_state = 0;
+    int kfifo_ret = -1;
 
-    adap_read(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, &pending0);
-    adap_read(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, &pending1);
-
-    if (pending0 & (1 << 28)) {
-        adap_wr_bit(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, 1, 28, 1); //clear write done irq
-        fte0_index ++;
+    while (adap_fsm[CAM0_ACT].control_flag || adap_fsm[CAM1_ACT].control_flag) {
+        if (check_count ++ > 16) {
+            pr_err("adapt read%d done timeout %d-%d.\n",adapt_path, adap_fsm[CAM0_ACT].control_flag,adap_fsm[CAM1_ACT].control_flag);
+            adap_fsm[CAM0_ACT].control_flag = 0;
+            adap_fsm[CAM1_ACT].control_flag = 0;
+            frame_state = -1;
+            break;
+        } else
+            mdelay(1);
     }
 
-    if (frontend1_flag) {
-        if (pending1 & (1 << 2)) {
-            adap_wr_bit(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, 1, 2, 1); //clear write done irq
-            fte1_index ++;
+    check_count = 0;
+    if (adap_fsm[CAM0_ACT].para.type != DOL_YUV && adap_fsm[CAM1_ACT].para.type != DOL_YUV) {
+        while (kfifo_ret) {
+            camera_notify(NOTIFY_GET_QUEUE_STATUS, &kfifo_ret);
+            if (kfifo_ret == 0)
+                break;
+            if (check_count ++ > 16) {
+                pr_err("isp %d busy now, kfifo_ret: %d\n", adapt_path, kfifo_ret);
+                frame_state = -1;
+                break;
+            } else
+                mdelay(1);
         }
     }
 
-    if (dump_dol_frame) {   //replace ping/pong buffer
-        pr_info("frontend0 index:%d, frontend1 index:%d\n",fte0_index, fte1_index);
-        if (fte0_index == fte1_index) {
-            /*if (fte0_index % 2 == 1) {
-                adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, dol_buf[4]);
-                adap_write(CSI2_DDR_START_PIX + FTE1_OFFSET, FRONTEND0_IO, dol_buf[5]);
-            } else {
-                adap_write(CSI2_DDR_START_PIX_ALT, FRONTEND0_IO, dol_buf[4]);
-                adap_write(CSI2_DDR_START_PIX_ALT + FTE1_OFFSET, FRONTEND0_IO, dol_buf[5]);
-            }*/
-            buffer_index = fte0_index;
-            dump_dol_frame = 0;
-            complete(&wakeupdump);
-        } /*else if (fte0_index > fte1_index){
-            if (fte0_index % 2 == 1) {
-                adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, dol_buf[4]);
-            } else {
-                adap_write(CSI2_DDR_START_PIX_ALT, FRONTEND0_IO, dol_buf[4]);
-            }
-        } else {
-            if (fte1_index % 2 == 1) {
-                adap_write(CSI2_DDR_START_PIX + FTE1_OFFSET, FRONTEND0_IO, dol_buf[5]);
-            } else {
-                adap_write(CSI2_DDR_START_PIX_ALT + FTE1_OFFSET, FRONTEND0_IO, dol_buf[5]);
-            }
-        }*/
+    check_count = 0;
+    kfifo_ret = -1;
+    while (kfifo_ret) {
+        camera_notify(NOTIFY_GET_SC03_STATUS, &kfifo_ret);
+        if (kfifo_ret == SCMIF_IDLE)
+           break;
+        if (check_count ++ > 16) {
+           pr_err("sc %d busy now, kfifo_ret: %d\n", adapt_path, kfifo_ret);
+           frame_state = -1;
+           break;
+        } else
+           mdelay(1);
     }
-    return IRQ_HANDLED;
+
+    kfifo_ret = kfifo_out(&adap_fsm[adapt_path].adapt_fifo, &val, sizeof(val));
+    adap_fsm[adapt_path].read_buf = val;
+    adap_fsm[adapt_path].control_flag = 1;
+    if (g_adap->read_frame_ptr > 0)
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[g_adap->read_frame_ptr - 1], CAM_LAST, 1);
+    else
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[CAMERA_QUEUE_NUM - 1], CAM_LAST, 1);
+    adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[g_adap->read_frame_ptr], CAM_CURRENT, 1);
+    adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[(g_adap->read_frame_ptr + 1)%CAMERA_QUEUE_NUM], CAM_NEXT, 1);
+    adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[(g_adap->read_frame_ptr + 2)%CAMERA_QUEUE_NUM], CAM_NEXT_NEXT, 1);
+
+    g_adap->read_frame_ptr ++ ;
+    g_adap->read_frame_ptr %= CAMERA_QUEUE_NUM;
+
+    if (adap_fsm[adapt_path].para.type == DOL_YUV) {
+        rd_param.rd_work_mode         = MODE_MIPI_YUV_SDR_DDR;
+        pixel_param.pixel_work_mode  = MODE_MIPI_YUV_SDR_DDR;
+        alig_param.alig_work_mode     = MODE_MIPI_YUV_SDR_DDR;
+    } else {
+        rd_param.rd_work_mode         = MODE_MIPI_RAW_SDR_DDR;
+        pixel_param.pixel_work_mode  = MODE_MIPI_RAW_SDR_DDR;
+        alig_param.alig_work_mode     = MODE_MIPI_RAW_SDR_DDR;
+    }
+
+    rd_param.rd_mem_line_stride     = (adap_fsm[adapt_path].para.img.width * am_adap_get_depth(adapt_path) + 127) >> 7;
+    rd_param.rd_mem_line_size        = (adap_fsm[adapt_path].para.img.width * am_adap_get_depth(adapt_path) + 127) >> 7;
+    rd_param.rd_mem_line_number     = adap_fsm[adapt_path].para.img.height;
+    pixel_param.pixel_data_type     = adap_fsm[adapt_path].para.fmt;
+    pixel_param.pixel_isp_x_start    = 0;
+    pixel_param.pixel_isp_x_end     = adap_fsm[adapt_path].para.img.width - 1;
+    pixel_param.pixel_line_size     = (adap_fsm[adapt_path].para.img.width * am_adap_get_depth(adapt_path) + 127) >> 7;
+    pixel_param.pixel_pixel_number    = adap_fsm[adapt_path].para.img.width;
+    alig_param.alig_hsize            = adap_fsm[adapt_path].para.img.width;
+    alig_param.alig_vsize            = adap_fsm[adapt_path].para.img.height;
+    am_adap_reader_init(&rd_param, adapt_path);
+    am_adap_pixel_init(&pixel_param, adapt_path);
+    am_adap_alig_init(&alig_param, adapt_path);
+
+    kfifo_ret = SCMIF_BUSY;
+    camera_notify(NOTIFY_SET_SC03_STATUS, &kfifo_ret);
+
+    return frame_state;
 }
 
-int am_adap_alloc_mem(void)
+static int adap_stream_copy_thread( void *data )
 {
+    uint8_t cam_mode = 0;
+    uint8_t frame_num = 0;
+    int8_t frame_state = 0;
 
-    if (para.mode == DDR_MODE) {
+    set_freezable();
+
+    for ( ;; ) {
+        try_to_freeze();
+
+        if ( kthread_should_stop() )
+            break;
+
+        frame_state = 0;
+        cam_mode = adap_fsm[ADAP0_PATH].cam_en + adap_fsm[ADAP1_PATH].cam_en;
+        frame_num = kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) + kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo);
+
+        if ( wait_event_interruptible_timeout( g_adap->frame_wq,
+            (g_adap->frame_state == FRAME_READY),
+            msecs_to_jiffies( 5 ) ) < 0 ) {
+            continue;
+        }
+
+        if (g_adap->frame_state == FRAME_READY)
+            g_adap->frame_state = FRAME_NOREADY;
+
+        if ((frame_num / 8 ) < 3)
+            continue;
+
+        if ((kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) > 0) && camera_frame_fifo[g_adap->read_frame_ptr] == CAM0_ACT) {
+            frame_state = am_adap_isp_check_status(ADAP0_PATH);
+            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP0_PATH].read_buf);
+            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
+            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
+
+            if (frame_state == 0)
+                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));// 0<<10 no care isp req
+            else
+                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001000 | (1 << 6) | (1 << 5));// 3<<10 care isp req
+
+            adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
+            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+            LOG(LOG_INFO, "send cam 0 \n");
+            continue;
+        }
+
+        if ((kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo) > 0)  && camera_frame_fifo[g_adap->read_frame_ptr] == CAM1_ACT) {
+            frame_state = am_adap_isp_check_status(ADAP1_PATH);
+            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP1_PATH].read_buf);
+            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
+            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
+
+            if (frame_state == 0)
+                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));
+            else
+                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001000 | (1 << 6) | (1 << 5));
+
+            adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
+            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+            LOG(LOG_INFO, "send cam 1 \n");
+            continue;
+        }
+    }
+
+    return 0;
+}
+
+int am_adap_alloc_mem(uint8_t channel)
+{
+    if (adap_fsm[channel].para.mode == DDR_MODE) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
-        cma_pages = dma_alloc_from_contiguous(
+        adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
                   (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0, false);
 #else
-        cma_pages = dma_alloc_from_contiguous(
+        adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                  &(g_adap->p_dev->dev),
                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0);
 
 #endif
-        if (cma_pages) {
-            buffer_start = page_to_phys(cma_pages);
+        if (adap_fsm[channel].cma_pages) {
+            adap_fsm[channel].buffer_start = page_to_phys(adap_fsm[channel].cma_pages);
         } else {
             pr_err("alloc cma pages failed.\n");
             return 0;
         }
-        isp_cma_mem = phys_to_virt(buffer_start);
-    } else if (para.mode == DOL_MODE) {
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
-        cma_pages = dma_alloc_from_contiguous(
+        adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
                   (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0, false);
 #else
-        cma_pages = dma_alloc_from_contiguous(
+        adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
+                 &(g_adap->p_dev->dev),
+                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0);
+
+#endif
+        if (adap_fsm[channel].cma_pages) {
+            adap_fsm[channel].buffer_start = page_to_phys(adap_fsm[channel].cma_pages);
+        } else {
+            pr_err("alloc cma pages failed.\n");
+            return 0;
+        }
+    } else if (adap_fsm[channel].para.mode == DOL_MODE) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+        adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
+                  &(g_adap->p_dev->dev),
+                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0, false);
+#else
+        adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
                   (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0);
 
 #endif
-        if (cma_pages) {
-            buffer_start = page_to_phys(cma_pages);
+        if (adap_fsm[channel].cma_pages) {
+            adap_fsm[channel].buffer_start = page_to_phys(adap_fsm[channel].cma_pages);
         } else {
             pr_err("alloc dol cma pages failed.\n");
             return 0;
@@ -1704,33 +1493,43 @@ int am_adap_alloc_mem(void)
     return 0;
 }
 
-int am_adap_free_mem(void)
+int am_adap_free_mem(uint8_t channel)
 {
-    if (para.mode == DDR_MODE) {
-        if (cma_pages) {
+    if (adap_fsm[channel].para.mode == DDR_MODE) {
+        if (adap_fsm[channel].cma_pages) {
             dma_release_from_contiguous(
                  &(g_adap->p_dev->dev),
-                 cma_pages,
+                 adap_fsm[channel].cma_pages,
                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT);
-            cma_pages = NULL;
-            buffer_start = 0;
-            pr_info("release alloc CMA buffer.\n");
+            adap_fsm[channel].cma_pages = NULL;
+            adap_fsm[channel].buffer_start = 0;
+            pr_info("release alloc CMA buffer. channel:%d\n",channel);
         }
-    } else if (para.mode == DOL_MODE) {
-        if (cma_pages) {
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE) {
+        if (adap_fsm[channel].cma_pages) {
             dma_release_from_contiguous(
                  &(g_adap->p_dev->dev),
-                 cma_pages,
+                 adap_fsm[channel].cma_pages,
                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT);
-            cma_pages = NULL;
-            buffer_start = 0;
-            pr_info("release alloc dol CMA buffer.\n");
+            adap_fsm[channel].cma_pages = NULL;
+            adap_fsm[channel].buffer_start = 0;
+            pr_info("release alloc CMA buffer. channel:%d\n",channel);
+        }
+    } else if (adap_fsm[channel].para.mode == DOL_MODE) {
+        if (adap_fsm[channel].cma_pages) {
+            dma_release_from_contiguous(
+                 &(g_adap->p_dev->dev),
+                 adap_fsm[channel].cma_pages,
+                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT);
+            adap_fsm[channel].cma_pages = NULL;
+            adap_fsm[channel].buffer_start = 0;
+            pr_info("release alloc dol CMA buffer. channel:%d\n",channel);
         }
     }
     return 0;
 }
 
-int am_adap_init(int idx)
+int am_adap_init(uint8_t channel)
 {
     int ret = 0;
     int depth;
@@ -1741,61 +1540,58 @@ int am_adap_init(int idx)
     uint32_t stride;
     int buf_cnt;
     int temp_work_mode = DIR_MODE;
-    control_flag = 0;
-    wbuf_index = 0;
-    dump_flag = 0;
-    dump_cur_flag = 0;
-    dump_buf_index = 0;
-    next_buf_index = 0;
-    irq_count = 0;
-    cur_buf_index = 0;
-    current_flag = 0;
+    adap_fsm[channel].control_flag = 0;
+    adap_fsm[channel].wbuf_index = 0;
+    adap_fsm[channel].next_buf_index = 0;
 
-    if (frontend1_flag) {
-        fte0_index = 0;
-        fte1_index = 0;
-        dump_dol_frame = 0;
-        fte_state = FTE_DONE;
-        init_completion(&wakeupdump);
-    }
-    if (cma_pages) {
-        am_adap_free_mem();
-        cma_pages = NULL;
+    if (adap_fsm[channel].cma_pages) {
+        am_adap_free_mem(channel);
+        adap_fsm[channel].cma_pages = NULL;
     }
 
-    if ((para.mode == DDR_MODE) ||
-        (para.mode == DOL_MODE)) {
-
-        if (g_adap->adap_buf_size != 0) {
-            am_adap_alloc_mem();
-        }
-        depth = am_adap_get_depth();
-        if ((cma_pages) && (para.mode == DDR_MODE)) {
+    if ((adap_fsm[channel].para.mode == DDR_MODE) ||
+        (adap_fsm[channel].para.mode == DCAM_MODE) ||
+        (adap_fsm[channel].para.mode == DOL_MODE)) {
+        am_adap_alloc_mem(channel);
+        depth = am_adap_get_depth(channel);
+        if ((adap_fsm[channel].cma_pages) && (adap_fsm[channel].para.mode == DDR_MODE)) {
             //note important : ddr_buf[0] and ddr_buf[1] address should alignment 16 byte
-            stride = (para.img.width * depth)/8;
+            stride = (adap_fsm[channel].para.img.width * depth)/8;
             stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
-            ddr_buf[0] = buffer_start;
-            ddr_buf[0] = (ddr_buf[0] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
-            temp_buf = ddr_buf[0];
-            buf = phys_to_virt(ddr_buf[0]);
-            memset(buf, 0x0, (stride * para.img.height));
+            adap_fsm[channel].ddr_buf[0] = adap_fsm[channel].buffer_start;
+            adap_fsm[channel].ddr_buf[0] = (adap_fsm[channel].ddr_buf[0] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
+            temp_buf = adap_fsm[channel].ddr_buf[0];
+            buf = phys_to_virt(adap_fsm[channel].ddr_buf[0]);
+            memset(buf, 0x0, (stride * adap_fsm[channel].para.img.height));
             for (i = 1; i < DDR_BUF_SIZE; i++) {
-                ddr_buf[i] = temp_buf + (stride * (para.img.height));
-                ddr_buf[i] = (ddr_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
-                temp_buf = ddr_buf[i];
-                buf = phys_to_virt(ddr_buf[i]);
-                if (virtcam_flag == 0)
-                    memset(buf, 0x0, (stride * para.img.height));
+                adap_fsm[channel].ddr_buf[i] = temp_buf + (stride * (adap_fsm[channel].para.img.height + 100));
+                adap_fsm[channel].ddr_buf[i] = (adap_fsm[channel].ddr_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
+                temp_buf = adap_fsm[channel].ddr_buf[i];
+                buf = phys_to_virt(adap_fsm[channel].ddr_buf[i]);
             }
-        } else if ((cma_pages) && (para.mode == DOL_MODE)) {
-            dol_buf[0] = buffer_start;
+        } else if ((adap_fsm[channel].cma_pages) && (adap_fsm[channel].para.mode == DCAM_MODE)) {
+            //note important : ddr_buf[0] and ddr_buf[1] address should alignment 16 byte
+            stride = (adap_fsm[channel].para.img.width * depth)/8;
+            stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
+            adap_fsm[channel].ddr_buf[0] = adap_fsm[channel].buffer_start;
+            adap_fsm[channel].ddr_buf[0] = (adap_fsm[channel].ddr_buf[0] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
+            temp_buf = adap_fsm[channel].ddr_buf[0];
+            buf = phys_to_virt(adap_fsm[channel].ddr_buf[0]);
+            memset(buf, 0x0, (stride * adap_fsm[channel].para.img.height));
+            for (i = 1; i < DDR_BUF_SIZE; i++) {
+                adap_fsm[channel].ddr_buf[i] = temp_buf + (stride * (adap_fsm[channel].para.img.height + 100));
+                adap_fsm[channel].ddr_buf[i] = (adap_fsm[channel].ddr_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
+                temp_buf = adap_fsm[channel].ddr_buf[i];
+                buf = phys_to_virt(adap_fsm[channel].ddr_buf[i]);
+                memset(buf, 0x0, (stride * adap_fsm[channel].para.img.height));
+            }
+        } else if ((adap_fsm[channel].cma_pages) && (adap_fsm[channel].para.mode == DOL_MODE)) {
+            dol_buf[0] = adap_fsm[channel].buffer_start;
             dol_buf[0] = (dol_buf[0] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
             temp_buf = dol_buf[0];
             buf_cnt = 2;
-            if (frontend1_flag)
-                buf_cnt = 4;
             for (i = 1; i < buf_cnt; i++) {
-                dol_buf[i] = temp_buf + ((para.img.width) * (para.img.height) * depth)/8;
+                dol_buf[i] = temp_buf + ((adap_fsm[channel].para.img.width) * (adap_fsm[channel].para.img.height) * depth)/8;
                 dol_buf[i] = (dol_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
                 temp_buf = dol_buf[i];
             }
@@ -1804,41 +1600,66 @@ int am_adap_init(int idx)
         }
     }
 
-    if (para.mode == DOL_MODE && g_adap->f_end_irq == 0 && frontend1_flag) {
-        ret = request_irq(g_adap->rd_irq, &dol_isr, IRQF_SHARED | IRQF_TRIGGER_HIGH,
-        "adapter-irq", (void *)g_adap);
-        g_adap->f_end_irq = 1;
-        pr_err("adapter dol irq = %d, ret = %d\n", g_adap->rd_irq, ret);
-    }
-
-    if (para.mode == DDR_MODE && g_adap->f_end_irq == 0) {
+    if (adap_fsm[channel].para.mode == DDR_MODE && g_adap->f_end_irq == 0) {
         ret = request_irq(g_adap->rd_irq, &adpapter_isr, IRQF_SHARED | IRQF_TRIGGER_HIGH,
         "adapter-irq", (void *)g_adap);
         g_adap->f_end_irq = 1;
         pr_info("adapter irq = %d, ret = %d\n", g_adap->rd_irq, ret);
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE && g_adap->f_end_irq == 0) {
+        ret = request_irq(g_adap->rd_irq, &adpapter_isr, IRQF_SHARED | IRQF_TRIGGER_HIGH,
+        "adapter-irq", (void *)g_adap);
+        g_adap->f_end_irq = 1;
+        pr_info("adapter irq = %d, ret = %d\n", g_adap->rd_irq, ret);
+        pr_info("am_adap_init: create irq dcam\n");
     }
 
-    if (para.mode == DDR_MODE && g_adap->f_fifo == 0) {
-        kfifo_ret = kfifo_alloc(&adapt_fifo, PAGE_SIZE, GFP_KERNEL);
+    if (adap_fsm[channel].para.mode == DDR_MODE && g_adap->f_fifo == 0) {
+        kfifo_ret = kfifo_alloc(&adap_fsm[CAM0_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+        kfifo_ret = kfifo_alloc(&adap_fsm[CAM1_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
         if (kfifo_ret) {
             pr_info("alloc adapter fifo failed.\n");
             return kfifo_ret;
         }
+
+        init_waitqueue_head( &g_adap->frame_wq );
+        static struct sched_param param;
+        param.sched_priority = 2;//struct sched_param param = { .sched_priority = 2 };
+        g_adap->kadap_stream = kthread_run( adap_stream_copy_thread, NULL, "adap-stream");
+        sched_setscheduler(g_adap->kadap_stream, SCHED_IDLE, &param);
+        wake_up_process(g_adap->kadap_stream);
+        g_adap->f_fifo = 1;
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE && g_adap->f_fifo == 0) {
+        kfifo_ret = kfifo_alloc(&adap_fsm[CAM0_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+        kfifo_ret = kfifo_alloc(&adap_fsm[CAM1_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+        if (kfifo_ret) {
+            pr_info("alloc adapter fifo failed.\n");
+            return kfifo_ret;
+        }
+        pr_info("am_adap_init: create thread dcam\n");
+
+        init_waitqueue_head( &g_adap->frame_wq );
+        static struct sched_param param;
+        param.sched_priority = 2;   //struct sched_param param = { .sched_priority = 2 };
+        g_adap->kadap_stream = kthread_run( adap_stream_copy_thread, NULL, "adap-stream");
+        sched_setscheduler(g_adap->kadap_stream, SCHED_IDLE, &param);
+        wake_up_process(g_adap->kadap_stream);
         g_adap->f_fifo = 1;
     }
 
-    am_adap_reset(idx);
-    if (frontend1_flag)
-        am_adap_reset(idx+1);
-    pr_err("adapt_reset success, mode:%d(0:ddr 1:dir 2:dol)\n", para.mode);
+    if (g_adap->f_adap == 0) {
+        if (channel == CAM0_ACT)
+            am_adap_reset(ADAP0_PATH);
+        else
+            am_adap_reset(ADAP2_PATH);
+    }
 
-    switch (para.mode) {
+    switch (adap_fsm[channel].para.mode) {
         case DIR_MODE:
             rd_param.rd_work_mode        = MODE_MIPI_RAW_SDR_DIRCT;
             pixel_param.pixel_work_mode     = MODE_MIPI_RAW_SDR_DIRCT;
             alig_param.alig_work_mode    = MODE_MIPI_RAW_SDR_DIRCT;
             temp_work_mode               = MODE_MIPI_RAW_SDR_DIRCT;
-            if ( para.type == DOL_YUV ) {
+            if ( adap_fsm[channel].para.type == DOL_YUV ) {
                 rd_param.rd_work_mode         = MODE_MIPI_YUV_SDR_DIRCT;
                 pixel_param.pixel_work_mode  = MODE_MIPI_YUV_SDR_DIRCT;
                 alig_param.alig_work_mode     = MODE_MIPI_YUV_SDR_DIRCT;
@@ -1850,122 +1671,171 @@ int am_adap_init(int idx)
             pixel_param.pixel_work_mode     = MODE_MIPI_RAW_SDR_DDR;
             alig_param.alig_work_mode    = MODE_MIPI_RAW_SDR_DDR;
             temp_work_mode               = MODE_MIPI_RAW_SDR_DDR;
-            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 28, 1 );
-            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 21, 1 );
+            if ( adap_fsm[channel].para.type == DOL_YUV ) {
+                rd_param.rd_work_mode         = MODE_MIPI_YUV_SDR_DDR;
+                pixel_param.pixel_work_mode  = MODE_MIPI_YUV_SDR_DDR;
+                alig_param.alig_work_mode     = MODE_MIPI_YUV_SDR_DDR;
+                temp_work_mode                 = MODE_MIPI_YUV_SDR_DDR;
+            }
+            if (channel == 0)
+                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, FRONT0_WR_DONE, 1 );//fe0 wr done
+            else
+                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT2_WR_DONE, 1 );//fe2 wr done
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 9, 1 );//rd0 done
+            break;
+        case DCAM_MODE:
+            rd_param.rd_work_mode        = MODE_MIPI_RAW_SDR_DDR;
+            pixel_param.pixel_work_mode     = MODE_MIPI_RAW_SDR_DDR;
+            alig_param.alig_work_mode    = MODE_MIPI_RAW_SDR_DDR;
+            temp_work_mode               = MODE_MIPI_RAW_SDR_DDR;
+            if ( adap_fsm[channel].para.type == DOL_YUV ) {
+                rd_param.rd_work_mode         = MODE_MIPI_YUV_SDR_DDR;
+                pixel_param.pixel_work_mode  = MODE_MIPI_YUV_SDR_DDR;
+                alig_param.alig_work_mode     = MODE_MIPI_YUV_SDR_DDR;
+                temp_work_mode                 = MODE_MIPI_YUV_SDR_DDR;
+            }
+            if (channel == 0)
+                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, FRONT0_WR_DONE, 1 );//fe0 wr done
+            else
+                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT2_WR_DONE, 1 );//fe2 wr done
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 9, 1 );//rd0 done
             break;
         case DOL_MODE:
             rd_param.rd_work_mode        = MODE_MIPI_RAW_HDR_DDR_DIRCT;
             pixel_param.pixel_work_mode     = MODE_MIPI_RAW_HDR_DDR_DIRCT;
             alig_param.alig_work_mode    = MODE_MIPI_RAW_HDR_DDR_DIRCT;
             temp_work_mode               = MODE_MIPI_RAW_HDR_DDR_DIRCT;
-            if (frontend1_flag) {
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 28, 1 );
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 21, 1 );
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, 2, 1 );
-            }
             break;
         default:
             pr_err("invalid adapt work mode!\n");
             break;
     }
-    int cnt = 1;
-    if (frontend1_flag)
-        cnt = 2;
-    for (i = idx; ((i < FRONTEDN_USED) && (i < idx + cnt)); i++) {
-        fe_param[i].fe_sel              = i; //0~3
-        fe_param[i].fe_work_mode        = temp_work_mode;
-        fe_param[i].fe_mem_x_start      = 0;
-        fe_param[i].fe_mem_x_end        = para.img.width - 1;
-        fe_param[i].fe_mem_y_start      = 0;
-        fe_param[i].fe_mem_y_end        = para.img.height - 1;
-        fe_param[i].fe_isp_x_start      = 0;
-        fe_param[i].fe_isp_x_end        = para.img.width - 1;
-        fe_param[i].fe_isp_y_start      = 0x0;
-        fe_param[i].fe_isp_y_end        = para.img.height - 1;
-        fe_param[i].fe_mem_line_stride  = ceil_upper((am_adap_get_depth() * para.img.width), (8 * 16));
-        fe_param[i].fe_mem_line_minbyte = (am_adap_get_depth() * para.img.width + 7) >> 3;
-        fe_param[i].fe_int_mask         = 0x0;
-        pr_err("config--frontend[%d]", i);
-        am_adap_frontend_init(&fe_param[i]);
-    }
-    {
-        rd_param.rd_mem_line_stride     = (para.img.width * am_adap_get_depth() + 127) >> 7;
-        rd_param.rd_mem_line_size       = (para.img.width * am_adap_get_depth() + 127) >> 7;
-        rd_param.rd_mem_line_number     = para.img.height;
-        pixel_param.pixel_data_type        = para.fmt;
+
+    if (channel == CAM1_ACT)
+        fe_param[channel].fe_sel              = ADAP2_PATH;
+    else
+        fe_param[channel].fe_sel              = ADAP0_PATH;
+    fe_param[channel].fe_work_mode        = temp_work_mode;
+    fe_param[channel].fe_mem_x_start      = 0;
+    fe_param[channel].fe_mem_x_end        = adap_fsm[channel].para.img.width - 1;
+    fe_param[channel].fe_mem_y_start      = 0;
+    fe_param[channel].fe_mem_y_end        = adap_fsm[channel].para.img.height - 1;
+    fe_param[channel].fe_isp_x_start      = 0;
+    fe_param[channel].fe_isp_x_end        = adap_fsm[channel].para.img.width - 1;
+    fe_param[channel].fe_isp_y_start      = 0x0;
+    fe_param[channel].fe_isp_y_end        = adap_fsm[channel].para.img.height - 1;
+    fe_param[channel].fe_mem_line_stride  = ceil_upper((am_adap_get_depth(channel) * adap_fsm[channel].para.img.width), (8 * 16));
+    fe_param[channel].fe_mem_line_minbyte = (am_adap_get_depth(channel) * adap_fsm[channel].para.img.width + 7) >> 3;
+    fe_param[channel].fe_int_mask         = 0x0;
+    am_adap_frontend_init(&fe_param[channel], channel);
+
+    if (g_adap->f_adap == 0) {
+        rd_param.rd_mem_line_stride     = (adap_fsm[channel].para.img.width * am_adap_get_depth(channel) + 127) >> 7;
+        rd_param.rd_mem_line_size       = (adap_fsm[channel].para.img.width * am_adap_get_depth(channel) + 127) >> 7;
+        rd_param.rd_mem_line_number     = adap_fsm[channel].para.img.height;
+        pixel_param.pixel_data_type        = adap_fsm[channel].para.fmt;
         pixel_param.pixel_isp_x_start   = 0;
-        pixel_param.pixel_isp_x_end        = para.img.width - 1;
-        pixel_param.pixel_line_size        = (para.img.width * am_adap_get_depth() + 127) >> 7;
-        pixel_param.pixel_pixel_number  = para.img.width;
-        alig_param.alig_hsize            = para.img.width;
-        alig_param.alig_vsize            = para.img.height;
-        am_adap_reader_init(&rd_param);
-        am_adap_pixel_init(&pixel_param);
-        am_adap_alig_init(&alig_param);
+        pixel_param.pixel_isp_x_end        = adap_fsm[channel].para.img.width - 1;
+        pixel_param.pixel_line_size        = (adap_fsm[channel].para.img.width * am_adap_get_depth(channel) + 127) >> 7;
+        pixel_param.pixel_pixel_number  = adap_fsm[channel].para.img.width;
+        alig_param.alig_hsize            = adap_fsm[channel].para.img.width;
+        alig_param.alig_vsize            = adap_fsm[channel].para.img.height;
+        am_adap_reader_init(&rd_param, channel);
+        am_adap_pixel_init(&pixel_param, channel);
+        am_adap_alig_init(&alig_param, channel);
+
+        //set tnr frame_vs
+        //uint32_t data = 0;
+        //adap_read(MIPI_ADAPT_FE_MUX_CTL4, MISC_IO, &data);
+        //adap_write(MIPI_ADAPT_FE_MUX_CTL4, MISC_IO,(0<<8)  | (2<<14));//15:8  wr frame vs sel isp frame start
+        //adap_write(MIPI_ADAPT_FE_MUX_CTL4, MISC_IO, data|(0<<16) | (2<<22));//23:16 rd frame vs sel isp frame start
+        adap_wr_bit(MIPI_ADAPT_ALIG_CNTL10, PIXEL_IO, 0xf, 24, 4 );  //wait ds frame sync
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL1, MISC_IO, 0xf, 24, 4);
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL1, MISC_IO, 0xf, 20, 4);
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL2, MISC_IO, 0x1, 22, 2);    //ds0 see fe_vs
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL2, MISC_IO, 0x1, 30, 2);    //change see fe_vs
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL3, MISC_IO, 0x1,  6, 2);     //change see fe_vs
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL3, MISC_IO, 0x1, 14, 2);    //change see fe_vs
+
+        adap_wr_bit(MIPI_ADAPT_ALIG_CNTL11, MISC_IO, 0x2, 16, 3);
+        adap_wr_bit(MIPI_ADAPT_ALIG_CNTL12, MISC_IO, 0x2, 16, 3);
+        adap_wr_bit(MIPI_ADAPT_ALIG_CNTL13, MISC_IO, 0x2, 16, 3);
+        adap_wr_bit(MIPI_ADAPT_ALIG_CNTL14, MISC_IO, 0x2, 16, 3);
     }
 
-    //set tnr frame_vs
-    //uint32_t data = 0;
-    //adap_read(MIPI_ADAPT_FE_MUX_CTL4, MISC_IO, &data);
-    //adap_write(MIPI_ADAPT_FE_MUX_CTL4, MISC_IO,(0<<8)  | (2<<14));//15:8  wr frame vs sel isp frame start
-    //adap_write(MIPI_ADAPT_FE_MUX_CTL4, MISC_IO, data|(0<<16) | (2<<22));//23:16 rd frame vs sel isp frame start
-    adap_wr_bit(MIPI_ADAPT_ALIG_CNTL10, PIXEL_IO, 0xf, 24, 4 );  //wait ds frame sync
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL1, MISC_IO, 0xf, 24, 4);
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL2, MISC_IO, 0x1, 22, 2);    //ds0 see fe_vs
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL2, MISC_IO, 0x1, 30, 2);    //change see fe_vs
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL3, MISC_IO, 0x1,  6, 2);     //change see fe_vs
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL3, MISC_IO, 0x1, 14, 2);    //change see fe_vs
+    g_adap->f_adap = 1;
 
-    if (idx == 2) {//use adapter 2
-        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 24, 4);
-        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 0, 2);
-        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 8, 2);
+    if (adap_fsm[channel].para.mode != DCAM_MODE) {
+        if (channel == CAM0_ACT) {
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_LAST, 1);
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_CURRENT, 1);
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT, 1);
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT_NEXT, 1);
+
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 0, 24, 4);
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 0, 0, 2);
+        } else {
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_LAST, 1);
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_CURRENT, 1);
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT, 1);
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT_NEXT, 1);
+
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 24, 4);
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 0, 2);
+        }
+
+        kfifo_ret = SCMIF_BUSY;
+        camera_notify(NOTIFY_UPDATE_SC03_CAMID, &kfifo_ret);
     }
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL1, MISC_IO, 0xf, 20, 4);
 
-    adap_wr_bit(MIPI_ADAPT_ALIG_CNTL11, MISC_IO, 0x2, 16, 3);
-    adap_wr_bit(MIPI_ADAPT_ALIG_CNTL12, MISC_IO, 0x2, 16, 3);
-    adap_wr_bit(MIPI_ADAPT_ALIG_CNTL13, MISC_IO, 0x2, 16, 3);
-    adap_wr_bit(MIPI_ADAPT_ALIG_CNTL14, MISC_IO, 0x2, 16, 3);
-
-    adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0x2, 2, 2);
-    adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL1, RD_IO, 0x2, 10, 2);
-    adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL1, RD_IO, 0x1, 29, 1);
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 0x8, 16, 4);
-    adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL1, MISC_IO, 0x8, 20, 4);
-    adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL3, PIXEL_IO, 0x1, 2, 1);
-    adap_wr_bit(MIPI_ADAPT_ALIG_CNTL7, ALIGN_IO, 0x3, 13, 2);
-
-    return 0;
-}
-
-int am_adap_start(int idx)
-{
-#if ISP_HAS_CMPR_ADAPT
-    if (para.mode == DOL_MODE)
-        aml_adap_decmpr_init(1, para.img.width, para.img.height, para.fmt);
-#else
-    //bypass_init();
-#endif
-
-    am_adap_alig_start();
-    am_adap_pixel_start();
-    am_adap_reader_start();
-    am_adap_frontend_start(idx);
-    if (frontend1_flag)
-        am_adap_frontend_start(idx+1);
-
-    if (virtcam_flag) {
-        read_buf = ddr_buf[0];
-        adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+    if (adap_fsm[channel].para.mode != DIR_MODE) {
+        if (channel == CAM0_ACT)
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 4, 24, 4); //interrput source for sc
+        else
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 6, 24, 4);
     }
 
     return 0;
 }
 
-int am_adap_reset(int idx)
+int am_adap_start(uint8_t channel, uint8_t dcam)
 {
-    switch (idx) {
+    adap_fsm[channel].cam_en = CAM_EN;
+    if ( dcam ) {
+        am_adap_frontend_start(channel);
+        if ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_EN) {
+            am_adap_alig_start(channel);
+            am_adap_pixel_start(channel);
+            am_adap_reader_start(channel);
+            memset(camera_frame_fifo, 0, CAMERA_QUEUE_NUM * sizeof(uint32_t));
+            g_adap->read_frame_ptr = 0;
+            g_adap->write_frame_ptr = 0;
+            if (channel == CAM0_ACT) {
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_LAST, 1);
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_CURRENT, 1);
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT, 1);
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT_NEXT, 1);
+            } else {
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_LAST, 1);
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_CURRENT, 1);
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT, 1);
+                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT_NEXT, 1);
+            }
+        }
+    } else {
+        am_adap_alig_start(channel);
+        am_adap_pixel_start(channel);
+        am_adap_reader_start(channel);
+        am_adap_frontend_start(channel);
+        adap_fsm[DUAL_CAM_EN - 1 - channel].cam_en = CAM_DIS;
+    }
+
+    return 0;
+}
+
+int am_adap_reset(uint8_t channel)
+{
+    switch (channel) {
         case FRONTEND0_IO:
             adap_write(CSI2_GEN_CTRL0, FRONTEND0_IO, 0x00000000);
             adap_wr_bit(CSI2_CLK_RESET, FRONTEND0_IO, 1, 0, 1);
@@ -1987,60 +1857,72 @@ int am_adap_reset(int idx)
             adap_wr_bit(CSI2_CLK_RESET, FRONTEND3_IO, 0, 0, 1);
             break;
     }
+
     adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 0, 1);
     adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 0, 1);
     system_timer_usleep(1000);
     adap_wr_bit(MIPI_TOP_CSI2_CTRL0, CMPR_CNTL_IO, 1, 6, 1);
     adap_wr_bit(MIPI_TOP_CSI2_CTRL0, CMPR_CNTL_IO, 0, 6, 1);
 
+    pr_err("am_adap_reset");
     return 0;
 }
 
-int am_adap_deinit(int idx)
+int am_adap_deinit(uint8_t channel)
 {
-    am_adap_reset(idx);
-    if (frontend1_flag)
-        am_adap_reset(idx+1);
-    am_disable_irq();
+    adap_fsm[channel].cam_en = CAM_DIS;
 
-    if (para.mode == DDR_MODE) {
-        am_adap_free_mem();
-        if (g_adap->f_fifo)
-        {
-            g_adap->f_fifo = 0;
-            kfifo_free(&adapt_fifo);
-        }
-    } else if (para.mode == DOL_MODE) {
-        am_adap_free_mem();
+    if ( (adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_DIS ) {
+        am_adap_reset(ADAP0_PATH);
+        am_adap_reset(ADAP2_PATH);
     }
 
-    if (g_adap->f_end_irq)
-    {
+    if (adap_fsm[channel].para.mode == DDR_MODE) {
+        am_disable_irq(channel);
+        am_adap_free_mem(channel);
+        if (g_adap->f_fifo && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_DIS)) {
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1);  //align rd done
+            g_adap->f_fifo = 0;
+            kfifo_free(&adap_fsm[CAM0_ACT].adapt_fifo);
+            kfifo_free(&adap_fsm[CAM1_ACT].adapt_fifo);
+        }
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE) {
+        am_disable_irq(channel);
+        am_adap_free_mem(channel);
+        // switch sc interrput source
+        if (channel == CAM0_ACT)
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 6, 24, 4);
+        else
+            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 4, 24, 4);
+
+        if (g_adap->f_fifo && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_DIS)) {
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1);  //align rd done
+            g_adap->f_fifo = 0;
+            kfifo_free(&adap_fsm[CAM0_ACT].adapt_fifo);
+            kfifo_free(&adap_fsm[CAM1_ACT].adapt_fifo);
+        }
+    } else if (adap_fsm[channel].para.mode == DOL_MODE) {
+        am_adap_free_mem(channel);
+    }
+
+    if (g_adap->f_end_irq && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_DIS)) {
         g_adap->f_end_irq = 0;
         free_irq( g_adap->rd_irq, (void *)g_adap );
     }
 
-    control_flag = 0;
-    wbuf_index = 0;
-    dump_flag = 0;
-    dump_cur_flag = 0;
-    dump_buf_index = 0;
-    next_buf_index = 0;
-    irq_count = 0;
-    cur_buf_index = 0;
-    current_flag = 0;
-    virtcam_flag = 0;
+    adap_fsm[channel].control_flag = 0;
+    adap_fsm[channel].wbuf_index = 0;
+    adap_fsm[channel].next_buf_index = 0;
+    if ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_DIS)
+        g_adap->f_adap = 0;
 
-    if (frontend1_flag) {
-        fte0_index = 0;
-        fte1_index = 0;
-        dump_dol_frame = 0;
-        fte_state = 0;
+    if ( g_adap->kadap_stream != NULL && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en) == CAM_DIS)) {
+        kthread_stop( g_adap->kadap_stream);
+        g_adap->kadap_stream = NULL;
+        g_adap->read_frame_ptr = 0;
+        g_adap->write_frame_ptr = 0;
     }
+
     return 0;
 }
 
-void adapt_set_virtcam(void)
-{
-    virtcam_flag = 1;
-}

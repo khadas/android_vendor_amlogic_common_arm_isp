@@ -55,6 +55,7 @@ uint8_t sensor_ir_cut_set( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t 
 uint8_t sensor_mode_dynamic_switch( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t sensor_antiflicker_switch( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t sensor_hw_id( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
+uint8_t sensor_dcam_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t system_logger_level(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t system_logger_mask(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t buffer_data_type(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
@@ -133,9 +134,9 @@ uint8_t scaler_width(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direct
 uint8_t scaler_height(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t scaler_src_width(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t scaler_src_height(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
-uint8_t scaler_output_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
-void scaler_streaming_on(uint32_t value);
-void scaler_streaming_off(uint32_t value);
+uint8_t scaler_output_mode(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+void scaler_streaming_on(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+void scaler_streaming_off(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t orientation_vflip(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t orientation_hflip(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t image_resize_type(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);

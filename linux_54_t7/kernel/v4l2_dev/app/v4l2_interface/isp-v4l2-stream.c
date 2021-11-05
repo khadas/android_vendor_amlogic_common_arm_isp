@@ -164,8 +164,7 @@ static isp_v4l2_fmt_t ext_supported_formats[] =
 #endif
 };
 
-extern uint8_t *isp_kaddr;
-extern resource_size_t isp_paddr;
+extern temper_addr isp_temper_paddr[FIRMWARE_CONTEXT_NUMBER];
 
 extern void cache_flush(uint32_t buf_start, uint32_t buf_size);
 
@@ -1128,8 +1127,8 @@ void isp_v4l2_stream_fill_buf( isp_v4l2_stream_t *pstream, isp_v4l2_buffer_t *bu
     vb->v4l2_buf.field = V4L2_FIELD_NONE;
 #endif
 
-    ddr_mem = (uint8_t *)isp_kaddr;
-    paddr = isp_paddr;
+    ddr_mem = (uint8_t *)phys_to_virt(isp_temper_paddr[0].isp_paddr);
+    paddr = isp_temper_paddr[0].isp_paddr;
     map_size = ISP_DDR_SIZE;
 #if ISP_HAS_RAW_CB
 #if JUNO_DIRECT_DDR_ACCESS

@@ -626,6 +626,10 @@ static int isp_v4l2_ctrl_s_ctrl_custom( struct v4l2_ctrl *ctrl )
         ret = fw_intf_set_isp_modules_fps_range( ctx_id, ctrl->p_new.p_u32 );
         LOG( LOG_INFO, "new isp module isp is fps range rc: %d.\n", ret );
         break;
+    case ISP_V4L2_CID_ISP_DCAM_MODE:
+        LOG( LOG_INFO, "set dcam mode: %d,%d.\n", ctx_id,ctrl->val );
+        ret = fw_intf_set_custom_dcam_mode(ctx_id, ctrl->val);
+        break;
     }
 
     return ret;
@@ -2839,6 +2843,17 @@ static const struct v4l2_ctrl_config isp_v4l2_ctrl_isp_modules_ae_fps_range = {
     .dims = { 2 },
 };
 
+static const struct v4l2_ctrl_config isp_v4l2_ctrl_dcam_mode = {
+    .ops = &isp_v4l2_ctrl_ops_custom,
+    .id = ISP_V4L2_CID_ISP_DCAM_MODE,
+    .name = "ISP Dcam mode",
+    .type = V4L2_CTRL_TYPE_INTEGER,
+    .min = 0,
+    .max = 2,
+    .step = 1,
+    .def = 0,
+};
+
 static const struct v4l2_ctrl_ops isp_v4l2_ctrl_ops = {
     .s_ctrl = isp_v4l2_ctrl_s_ctrl_standard,
 };
@@ -3130,6 +3145,8 @@ int isp_v4l2_ctrl_init( uint32_t ctx_id, isp_v4l2_ctrl_t *ctrl )
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_AF_ROI_EXACT_COORDINATES, &isp_v4l2_ctrl_isp_modules_ae_roi_exact_coordinates, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_IS_CAPTURING, &isp_v4l2_ctrl_isp_modules_is_capturing, NULL );
     ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_SET_FPS_RANGE, &isp_v4l2_ctrl_isp_modules_ae_fps_range, NULL );
+    ADD_CTRL_CST_VOLATILE( ISP_V4L2_CID_ISP_DCAM_MODE, &isp_v4l2_ctrl_dcam_mode, NULL);
+
     /* Add control handler to v4l2 device */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
     v4l2_ctrl_add_handler( hdl_std_ctrl, hdl_cst_ctrl, NULL, false );

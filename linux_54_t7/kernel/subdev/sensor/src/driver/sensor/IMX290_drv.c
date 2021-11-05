@@ -453,7 +453,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     p_ctx->vmax_adjust = p_ctx->vmax;
     p_ctx->vmax_fps = p_ctx->s_fps;
 
-    sensor_set_iface(&param->modes_table[mode], p_ctx->win_offset);
+    //sensor_set_iface(&param->modes_table[mode], p_ctx->win_offset, p_ctx);
 
     LOG( LOG_INFO, "Output resolution from sensor: %dx%d", param->active.width, param->active.height ); // LOG_NOTICE Causes errors in some projects
 }
@@ -487,6 +487,7 @@ static void stop_streaming( void *ctx )
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     p_ctx->streaming_flg = 0;
+    p_ctx->dcam_mode = 0;
 
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x01 );
 
@@ -512,7 +513,7 @@ static void start_streaming( void *ctx )
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     sensor_param_t *param = &p_ctx->param;
-    sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset);
+    sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x00 );
 }
@@ -527,6 +528,13 @@ static void sensor_test_pattern( void *ctx, uint8_t mode )
         return;
     }
     sensor_load_sequence( p_sbus, p_ctx->seq_width, p_sensor_data, SENSOR_IMX290_SEQUENCE_DEFAULT_TEST_PATTERN );
+}
+
+static void sensor_dcam_mode( void *ctx, int32_t mode )
+{
+    sensor_context_t *p_ctx = ctx;
+    LOG(LOG_CRIT, "imx290 set dcam mode:%d", mode);
+    p_ctx->dcam_mode = mode;
 }
 
 void sensor_deinit_imx290( void *ctx )
@@ -575,7 +583,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     if (ret < 0 )
         pr_info("set mclk fail\n");
     udelay(30);
-#if PLATFORM_C305X
+#if PLATFORM_T7
     pwr_am_enable(sensor_bp,"pwdn", 0);
 #endif
     ret = reset_am_enable(sensor_bp,"reset", 1);
@@ -585,7 +593,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
 
     sensor_ctx.sbus.mask = SBUS_MASK_SAMPLE_8BITS | SBUS_MASK_ADDR_16BITS | SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = 0;
-    sensor_ctx.sbus.bus = 1;
+    sensor_ctx.sbus.bus = 0;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init( &sensor_ctx.sbus, sbus_i2c );
 
@@ -677,7 +685,7 @@ void sensor_init_imx290( void **ctx, sensor_control_t *ctrl, void* sbp)
     ctrl->stop_streaming = stop_streaming;
     ctrl->sensor_test_pattern = sensor_test_pattern;
     ctrl->vmax_fps = sensor_vmax_fps;
-
+    ctrl->dcam_mode = sensor_dcam_mode;
     // Reset sensor during initialization
     sensor_hw_reset_enable();
     system_timer_usleep( 1000 ); // reset at least 1 ms
@@ -697,7 +705,7 @@ int sensor_detect_imx290( void* sbp)
         pr_info("set mclk fail\n");
     udelay(30);
 
-#if PLATFORM_C305X
+#if PLATFORM_T7
     pwr_am_enable(sensor_bp,"pwdn", 0);
 #endif
 
@@ -719,7 +727,7 @@ int sensor_detect_imx290( void* sbp)
         pr_info("sensor_detect_imx290:%d\n", sensor_get_id(&sensor_ctx));
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
-
+    gp_pl_am_disable(sensor_bp, "mclk_0");
     return ret;
 }
 

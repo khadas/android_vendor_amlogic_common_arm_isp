@@ -34,6 +34,10 @@ extern void sensor_init_imx290( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_imx290( void *ctx );
 extern int sensor_detect_imx290( void* sbp);
 
+extern void sensor_init_imx290sub( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_imx290sub( void *ctx );
+extern int sensor_detect_imx290sub( void* sbp);
+
 extern void sensor_init_imx227( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_imx227( void *ctx );
 extern int sensor_detect_imx227( void* sbp);
@@ -86,6 +90,10 @@ extern void sensor_init_ov5640( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_ov5640( void *ctx );
 extern int sensor_detect_ov5640( void* sbp);
 
+extern void sensor_init_ov5640sub( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_ov5640sub( void *ctx );
+extern int sensor_detect_ov5640sub( void* sbp);
+
 extern void sensor_init_ov5675( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_ov5675( void *ctx );
 extern int sensor_detect_ov5675( void* sbp);
@@ -113,6 +121,10 @@ extern int sensor_detect_lt6911( void* sbp);
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290 sensor_init_imx290
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290 sensor_deinit_imx290
 #define SENSOR_DETECT_FUNCTIONS_IMX290 sensor_detect_imx290
+
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB sensor_init_imx290sub
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB sensor_deinit_imx290sub
+#define SENSOR_DETECT_FUNCTIONS_IMX290SUB sensor_detect_imx290sub
 
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_IMX227 sensor_init_imx227
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX227 sensor_deinit_imx227
@@ -157,6 +169,10 @@ extern int sensor_detect_lt6911( void* sbp);
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640 sensor_init_ov5640
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640 sensor_deinit_ov5640
 #define SENSOR_DETECT_FUNCTIONS_OV5640 sensor_detect_ov5640
+
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640SUB sensor_init_ov5640sub
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640SUB sensor_deinit_ov5640sub
+#define SENSOR_DETECT_FUNCTIONS_OV5640SUB sensor_detect_ov5640sub
 
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_OV5675 sensor_init_ov5675
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5675 sensor_deinit_ov5675

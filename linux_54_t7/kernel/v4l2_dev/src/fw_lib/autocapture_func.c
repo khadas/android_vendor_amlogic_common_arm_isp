@@ -258,18 +258,6 @@ static ssize_t autocapture_fops_read( struct file *file, char __user *buf, size_
 		p_ctx->autocap_frame[dma_ds1].memory_size = autowrite_ds1_writer_memsize_read();
 #endif
 	}
-	else if(p_ctx->get_fr_ds == GET_SC0)
-	{
-		p_ctx->autocap_frame[dma_sc0].format = am_sc_get_output_format();
-		p_ctx->autocap_frame[dma_sc0].imagesize = am_sc_get_width() << 16;
-		p_ctx->autocap_frame[dma_sc0].imagesize |= am_sc_get_height();
-
-#ifdef AUTOWRITE_MODULE
-		p_ctx->autocap_frame[dma_sc0].imagebufferstride = autowrite_sc0_image_buffer_stride_read();
-		p_ctx->autocap_frame[dma_sc0].count = autowrite_sc0_writer_frame_wcount_read();
-		p_ctx->autocap_frame[dma_sc0].memory_size = autowrite_sc0_writer_memsize_read();
-#endif
-	}
 
 	rc = copy_to_user( buf, &p_ctx->autocap_frame[p_ctx->get_fr_ds], sizeof(struct autocap_image) );
 	if ( rc ) {

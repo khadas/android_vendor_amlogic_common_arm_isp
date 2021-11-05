@@ -181,6 +181,13 @@ struct _acamera_firmware_t {
     uint32_t initialized;
 
     semaphore_t sem_evt_avail;
+    uint32_t isp_user;
+    int32_t dma_ready;
+    uint32_t cam_id_last;
+    uint32_t cam_id_current;
+    uint32_t cam_id_next;
+    uint32_t cam_id_next_next;
+
 };
 
 void acamera_load_isp_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num );

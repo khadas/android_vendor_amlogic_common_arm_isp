@@ -25,7 +25,6 @@
 #include <linux/ioport.h>
 #include <linux/of_platform.h>
 #include <linux/dma-mapping.h>
-#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/dma-contiguous.h>
@@ -39,244 +38,10 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 
-
 #define AM_SC_NAME "amlogic, isp-sc"
-static int buffer_id;
 
-#define ENABLE_SC_BOTTOM_HALF_TASKLET
-
-#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-// tasklet structure
-struct sc_tasklet_t {
-    struct tasklet_struct tasklet_obj;
-    struct kfifo sc_fifo_out;
-};
-static int frame_id = 0;
-static struct sc_tasklet_t sc_tasklet;
-#endif
-
-static bool stop_flag = true;
-static tframe_t* temp_buf = NULL;
-static tframe_t* pre_frame[3];
-static u32 frame_delay = 2;
-
-static const int isp_filt_coef0[] =   //bicubic
-{
-    0x00800000,
-    0x007f0100,
-    0xff7f0200,
-    0xfe7f0300,
-    0xfd7e0500,
-    0xfc7e0600,
-    0xfb7d0800,
-    0xfb7c0900,
-    0xfa7b0b00,
-    0xfa7a0dff,
-    0xf9790fff,
-    0xf97711ff,
-    0xf87613ff,
-    0xf87416fe,
-    0xf87218fe,
-    0xf8701afe,
-    0xf76f1dfd,
-    0xf76d1ffd,
-    0xf76b21fd,
-    0xf76824fd,
-    0xf76627fc,
-    0xf76429fc,
-    0xf7612cfc,
-    0xf75f2ffb,
-    0xf75d31fb,
-    0xf75a34fb,
-    0xf75837fa,
-    0xf7553afa,
-    0xf8523cfa,
-    0xf8503ff9,
-    0xf84d42f9,
-    0xf84a45f9,
-    0xf84848f8
-};
-
-#if 0
-const int isp_filt_coef1[] =  // 2point bilinear
-{
-    0x00800000,
-    0x007e0200,
-    0x007c0400,
-    0x007a0600,
-    0x00780800,
-    0x00760a00,
-    0x00740c00,
-    0x00720e00,
-    0x00701000,
-    0x006e1200,
-    0x006c1400,
-    0x006a1600,
-    0x00681800,
-    0x00661a00,
-    0x00641c00,
-    0x00621e00,
-    0x00602000,
-    0x005e2200,
-    0x005c2400,
-    0x005a2600,
-    0x00582800,
-    0x00562a00,
-    0x00542c00,
-    0x00522e00,
-    0x00503000,
-    0x004e3200,
-    0x004c3400,
-    0x004a3600,
-    0x00483800,
-    0x00463a00,
-    0x00443c00,
-    0x00423e00,
-    0x00404000
-};
-#endif
-
-static int isp_filt_coef2[] =  // 2point bilinear, bank_length == 2
-{
-    0x80000000,
-    0x7e020000,
-    0x7c040000,
-    0x7a060000,
-    0x78080000,
-    0x760a0000,
-    0x740c0000,
-    0x720e0000,
-    0x70100000,
-    0x6e120000,
-    0x6c140000,
-    0x6a160000,
-    0x68180000,
-    0x661a0000,
-    0x641c0000,
-    0x621e0000,
-    0x60200000,
-    0x5e220000,
-    0x5c240000,
-    0x5a260000,
-    0x58280000,
-    0x562a0000,
-    0x542c0000,
-    0x522e0000,
-    0x50300000,
-    0x4e320000,
-    0x4c340000,
-    0x4a360000,
-    0x48380000,
-    0x463a0000,
-    0x443c0000,
-    0x423e0000,
-    0x40400000
-};
-
-#define ZOOM_BITS       20
-#define PHASE_BITS      16
-
-typedef enum {
-    F2V_IT2IT = 0,
-    F2V_IB2IB,
-    F2V_IT2IB,
-    F2V_IB2IT,
-    F2V_P2IT,
-    F2V_P2IB,
-    F2V_IT2P,
-    F2V_IB2P,
-    F2V_P2P,
-    F2V_TYPE_MAX
-} f2v_vphase_type_t;   /* frame to video conversion type */
-
-typedef struct {
-    u8 rcv_num; //0~15
-    u8 rpt_num; // 0~3
-    u16 phase;
-    //s8 repeat_skip_chroma;
-    //u8 phase_chroma;
-} f2v_vphase_t;
-
-typedef struct ISP_MIF_TYPE {
-    int reg_rev_x;
-    int reg_rev_y;
-    int reg_little_endian;
-    int reg_bit10_mode;
-    int reg_enable_3ch;
-    int reg_only_1ch;
-    int reg_words_lim;
-    int reg_burst_lim;
-    int reg_rgb_mode;
-    int reg_hconv_mode;
-    int reg_vconv_mode;
-    u16 reg_hsizem1;
-    u16 reg_vsizem1;
-    u16 reg_start_x;
-    u16 reg_start_y;
-    u16 reg_end_x;
-    u16 reg_end_y;
-    int reg_pingpong_en;
-    u16 reg_canvas_strb_luma;
-    u16 reg_canvas_strb_chroma;
-    u16 reg_canvas_strb_r;
-    u32 reg_canvas_baddr_luma;
-    u32 reg_canvas_baddr_chroma;
-    u32 reg_canvas_baddr_r;
-    u32 reg_canvas_baddr_luma_other;
-    u32 reg_canvas_baddr_chroma_other;
-    u32 reg_canvas_baddr_r_other;
-} ISP_MIF_t;
-
-static const u8 f2v_420_in_pos_luma[F2V_TYPE_MAX] = {0, 2, 0, 2, 0, 0, 0, 2, 0};
-//static const u8 f2v_420_in_pos_chroma[F2V_TYPE_MAX] = {1, 5, 1, 5, 2, 2, 1, 5, 2};
-static const u8 f2v_420_out_pos[F2V_TYPE_MAX] = {0, 2, 2, 0, 0, 2, 0, 0, 0};
-
-static int rgb2yuvpre[3] = {0, 0, 0};
-static int rgb2yuvpos[3] = {64, 512, 512}; //BT601_fullrange
-static int rgb2yuvpos_invert[3] = {512,  512, 64};
-static int yuv2rgbpre[3] = {-64, -512, -512};
-static int yuv2rgbpos[3] = {0, 0, 0};
-//static int rgb2ycbcr[15] = {230,594,52,-125,-323,448,448,-412,-36,0,0,0,0,0,0};
-static int rgb2ycbcr[15] = {263,516,100,-152,-298,450,450,-377,-73,0,0,0,0,0,0}; //BT601_fullrange
-static int rgb2ycbcr_invert[15] = {-125, -323, 448, 448,-412,-36, 230, 594, 52, 0,0,0,0,0,0};
-static int ycbcr2rgb[15] = {1197,0,1726,1197,-193,-669,1197,2202,0,0,0,0,0,0,0};
-static ISP_MIF_t isp_frame = {
-    0, // int  reg_rev_x
-    0, // int  reg_rev_y
-    1, // int  reg_little_endian
-    0, // int  reg_bit10_mode
-    0, // int  reg_enable_3ch
-    0, // int  reg_only_1ch
-    4, // int  reg_words_lim
-    3, // int  reg_burst_lim
-    1, // int  reg_rgb_mode
-    2, // int  reg_hconv_mode
-    2, // int  reg_vconv_mode
-    1279, // int  reg_hsizem1
-    719, // int  reg_vsizem1
-    0, // int  reg_start_x
-    0, // int  reg_start_y
-    1279, // int  reg_end_x
-    719, // int  reg_end_y
-    1, // pingpong en
-    0x780, // int16_t reg_canvas_strb_luma
-    0x780, // int16_t reg_canvas_strb_chroma
-    0x780, // int16_t reg_canvas_strb_r
-    0x4000000, // int32_t reg_canvas_baddr_luma
-    0x5000000, // int32_t reg_canvas_baddr_chroma
-    0x6000000, // int32_t reg_canvas_baddr_r
-    0x7000000, // int32_t reg_canvas_baddr_luma_other
-    0x8000000, // int32_t reg_canvas_baddr_chroma_other
-    0x9000000 // int32_t reg_canvas_baddr_r_other
-};
-
-static u32 start_delay_th = 2;
-static u32 start_delay_cnt;
-static u8 ch_mode = 0; // 0: normal, 1: force 1 ch, 3: force 3 ch;
-static u32 last_end_frame = 0;
-extern u32 sc1_isr_count;
-u32 sc2_isr_count;
-static struct am_sc2 *g_sc;
+struct am_sc_context am2_ctx[CAM_CTX_NUM];
+struct am_sc *g_sc2;
 
 static void f2v_get_vertical_phase(
     u32 zoom_ratio,
@@ -319,7 +84,7 @@ static inline void update_wr_reg_bits(
     unsigned int val)
 {
     unsigned int tmp, orig;
-    void __iomem *base = g_sc->base_addr;
+    void __iomem *base = g_sc2->base_addr;
 
     if (base !=  NULL) {
         orig = readl(base + reg);
@@ -340,7 +105,7 @@ static inline void sc_wr_reg_bits(
 static inline void sc_reg_wr(
     int addr, uint32_t val)
 {
-    void __iomem *base = g_sc->base_addr;
+    void __iomem *base = g_sc2->base_addr;
 
     if (base != NULL) {
         base = base + addr;
@@ -353,7 +118,7 @@ static inline void sc_reg_wr(
 static inline void sc_reg_rd(
     int addr, uint32_t *val)
 {
-    void __iomem *base = g_sc->base_addr;
+    void __iomem *base = g_sc2->base_addr;
 
     if (base != NULL && val) {
         base = base + addr;
@@ -365,7 +130,7 @@ static inline void sc_reg_rd(
 
 static inline uint32_t sc_get_reg(int addr)
 {
-    void __iomem *base = g_sc->base_addr;
+    void __iomem *base = g_sc2->base_addr;
     uint32_t val = 0;
 
     if (base != NULL) {
@@ -423,7 +188,7 @@ static void isp_sc_setting(
         vsc_double_line_mode = 1;
     }
 
-    if (stop_flag) {
+    if (g_sc2->stop_flag) {
         //write vert filter coefs
         sc_reg_wr(ISP_SC_COEF_IDX, 0x0000);
         for (i = 0; i < 33; i++) {
@@ -493,8 +258,7 @@ static void isp_sc_setting(
     sc_reg_wr(ISP_VSC_REGION4_ENDP, dst_h - 1);
 
     sc_reg_wr(ISP_VSC_START_PHASE_STEP, vert_phase_step);
-
-    if (stop_flag) {
+    if (g_sc2->stop_flag) {
         sc_reg_wr(ISP_VSC_REGION0_PHASE_SLOPE, 0);
         sc_reg_wr(ISP_VSC_REGION1_PHASE_SLOPE, 0);
         sc_reg_wr(ISP_VSC_REGION3_PHASE_SLOPE, 0);
@@ -518,8 +282,7 @@ static void isp_sc_setting(
     sc_reg_wr(ISP_HSC_REGION4_ENDP, dst_w - 1);
 
     sc_reg_wr(ISP_HSC_START_PHASE_STEP, horz_phase_step);
-
-    if (stop_flag) {
+    if (g_sc2->stop_flag) {
         sc_reg_wr(ISP_HSC_REGION0_PHASE_SLOPE, 0);
         sc_reg_wr(ISP_HSC_REGION1_PHASE_SLOPE, 0);
         sc_reg_wr(ISP_HSC_REGION3_PHASE_SLOPE, 0);
@@ -543,7 +306,7 @@ static void isp_sc_setting(
         (vert_bank_length << 0));  // vert scaler bank length
 }
 
-static void isp_mtx_setting(s32 mode)
+static void isp_mtx_setting(u8 ch_mode, s32 mode)
 {
     s32 mat_conv_en = 0;
     s32 i, pre_offset[3] ={0, 0, 0}, post_offset[3]= {0, 0, 0};
@@ -551,7 +314,7 @@ static void isp_mtx_setting(s32 mode)
     bool invert = false;
 
     if ((ch_mode == 0) && (mode == 1)
-        && (isp_frame.reg_rgb_mode == 1))
+        && (g_sc2->isp_frame.reg_rgb_mode == 1))
         invert = true;
 
     if (mode == 1) {
@@ -603,22 +366,8 @@ static void isp_mtx_setting(s32 mode)
         mat_conv_en);
 }
 
-static void isp_mif_setting(ISP_MIF_t *wr_mif)
+static void isp_mif_setting(u8 swap_uv, ISP_MIF_t *wr_mif)
 {
-    u8 swap_uv = 0;
-    if (g_sc->info.in_fmt == RGB24) {
-        if (g_sc->info.out_fmt == NV12_YUV) {
-            swap_uv = 1;
-        } else if (g_sc->info.out_fmt == NV12_YVU) {
-            swap_uv = 0;
-        }
-    } else if (g_sc->info.in_fmt == AYUV) {
-        if ((g_sc->info.out_fmt == NV12_YUV) ||
-            (g_sc->info.out_fmt == NV12_YVU)) {
-           swap_uv = 1;
-        }
-    }
-
     sc_wr_reg_bits(ISP_SCWR_MIF_CTRL0,
         ((1 << 0) |
         (0 << 1) |
@@ -655,23 +404,25 @@ static void isp_mif_setting(ISP_MIF_t *wr_mif)
     sc_reg_wr(ISP_SCWR_MIF_CTRL5,
         wr_mif->reg_end_x |
         (wr_mif->reg_end_y << 16));
-    sc_reg_wr(ISP_SCWR_MIF_CTRL6,
-        (wr_mif->reg_canvas_strb_luma & 0xffff) |
-        (wr_mif->reg_canvas_strb_chroma << 16));
-    sc_reg_wr(ISP_SCWR_MIF_CTRL7,
-        wr_mif->reg_canvas_strb_r);
-    sc_reg_wr(ISP_SCWR_MIF_CTRL11,
-        wr_mif->reg_canvas_baddr_luma_other);
-    sc_reg_wr(ISP_SCWR_MIF_CTRL12,
-        wr_mif->reg_canvas_baddr_chroma_other);
-    sc_reg_wr(ISP_SCWR_MIF_CTRL13,
-        wr_mif->reg_canvas_baddr_r_other);
-    sc_reg_wr(ISP_SCWR_MIF_CTRL8,
-        wr_mif->reg_canvas_baddr_luma);
-    sc_reg_wr(ISP_SCWR_MIF_CTRL9,
-        wr_mif->reg_canvas_baddr_chroma);
-    sc_reg_wr(ISP_SCWR_MIF_CTRL10,
-        wr_mif->reg_canvas_baddr_r);
+    if (g_sc2->stop_flag) {
+        sc_reg_wr(ISP_SCWR_MIF_CTRL6,
+            (wr_mif->reg_canvas_strb_luma & 0xffff) |
+            (wr_mif->reg_canvas_strb_chroma << 16));
+        sc_reg_wr(ISP_SCWR_MIF_CTRL7,
+            wr_mif->reg_canvas_strb_r);
+        sc_reg_wr(ISP_SCWR_MIF_CTRL11,
+            wr_mif->reg_canvas_baddr_luma_other);
+        sc_reg_wr(ISP_SCWR_MIF_CTRL12,
+            wr_mif->reg_canvas_baddr_chroma_other);
+        sc_reg_wr(ISP_SCWR_MIF_CTRL13,
+            wr_mif->reg_canvas_baddr_r_other);
+        sc_reg_wr(ISP_SCWR_MIF_CTRL8,
+            wr_mif->reg_canvas_baddr_luma);
+        sc_reg_wr(ISP_SCWR_MIF_CTRL9,
+            wr_mif->reg_canvas_baddr_chroma);
+        sc_reg_wr(ISP_SCWR_MIF_CTRL10,
+            wr_mif->reg_canvas_baddr_r);
+    }
 }
 
 static void isp_mif_addr(ISP_MIF_t *wr_mif)
@@ -711,6 +462,8 @@ static void enable_isp_scale_new (
     int    mux_sel,
     int    sc_en,
     int    mtx_mode,     //1:rgb->yuv,2:yuv->rgb,0:bypass
+    int    swap_uv,
+    int    ch_mode,
     /*uint32_t    baddr,*/
     ISP_MIF_t *wr_mif
 ){
@@ -729,7 +482,7 @@ static void enable_isp_scale_new (
     wr_mif->reg_start_y = 0;
     wr_mif->reg_end_x  = sco_w-1;
     wr_mif->reg_end_y  = sco_h-1;
-    if ( stop_flag ) isp_mif_setting(wr_mif);
+    if ( g_sc2->stop_flag || g_sc2->refresh ) isp_mif_setting(swap_uv, wr_mif);
 
     sc_reg_wr(ISP_SCWR_GCLK_CTRL, (src_w<<16));
     if (clip_mode) {
@@ -738,7 +491,7 @@ static void enable_isp_scale_new (
     } else
         sc_reg_wr(ISP_SCWR_CLIP_CTRL1, 0x7FFF0000);
 
-    if ( stop_flag ) {
+    if ( g_sc2->stop_flag || g_sc2->refresh ) {
         if (dbg_mode) {
             sc_reg_wr(ISP_SCWR_TOP_GEN, (1<<9) | dbg_mode);
             sc_reg_wr(ISP_SCWR_MIF_CTRL14, 0x70010101);
@@ -751,86 +504,89 @@ static void enable_isp_scale_new (
     else
         sc_reg_wr(ISP_SC_MISC, 0x18404);
 
-    if ( stop_flag ) {
+    if ( g_sc2->stop_flag ) {
         sc_reg_rd(ISP_SCWR_TOP_CTRL, &reg_data);
-        sc_reg_wr(ISP_SCWR_TOP_CTRL,(reg_data & 0xff0bfffc) |
-                                    ((mux_sel & 0x7)<<20) |
-                                    (ir_source << 18));
+        sc_reg_wr(ISP_SCWR_TOP_CTRL,(reg_data & 0xff0bffff) |
+                             ((mux_sel & 0x7)<<20) |
+                             (ir_source << 18));
 
-        sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x4020000);
-
-        isp_mtx_setting(mtx_mode);
+        sc_reg_wr(ISP_SCWR_SYNC_DELAY, 0x0000100); //bit26~27 == 0, write done, bit26~27 == 2, vsync
     }
+
+    isp_mtx_setting(ch_mode, mtx_mode);
 
     sc_reg_wr(ISP_SCWR_SC_CTRL1, ((clip_w & 0xfff) << 16) | (clip_h & 0xfff));
 
-    if (initial_en && stop_flag) {
+    if (initial_en && g_sc2->stop_flag) {
         sc_reg_rd(ISP_SCWR_TOP_DBG0, &val);
         if (val & (1 << 6))
-            last_end_frame = 1;
+            g_sc2->last_end_frame = 0;
         else
-            last_end_frame = 0;
+            g_sc2->last_end_frame = 1;
 
         sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 19, 1);
-        if ( dbg_mode != 2 ) sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 5, 13, 3);
     }
 
-    if (!clip_mode)
-        pr_info(" finished isp scale setting \n");
+    if ( mux_sel != 4  && wr_mif->reg_rgb_mode != 0 )
+        sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 5, 13, 3);
+    else
+        sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 13, 3);
+
+    if (g_sc2->refresh == false) pr_info(" finished isp scale setting \n");
 }
 
-static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
+static void init_sc_mif_setting(int ctx_id, ISP_MIF_t *mif_frame)
 {
     u32 plane_size, frame_size;
-    unsigned long flags;
     tframe_t *buf = NULL;
     int retval;
 
     if (!mif_frame)
         return;
 
-    spin_lock_irqsave( &g_sc->sc_lock, flags );
-    if (kfifo_len(&g_sc->sc_fifo_in) > 0) {
-        retval = kfifo_out(&g_sc->sc_fifo_in, &buf, sizeof(tframe_t*));
-        if (retval == sizeof(tframe_t*)) {
-            pre_frame[0] = buf;
+    if (g_sc2->stop_flag) {
+        if (kfifo_len(&am2_ctx[ctx_id].sc_fifo_in) > 0) {
+            retval = kfifo_out(&am2_ctx[ctx_id].sc_fifo_in, &buf, sizeof(tframe_t*));
+            if (retval == sizeof(tframe_t*)) {
+                g_sc2->multi_camera.cam_id[0] = ctx_id;
+                g_sc2->multi_camera.pre_frame[0] = buf;
+            } else {
+                pr_info("%d, fifo out failed.\n", __LINE__);
+            }
         } else {
-            pr_info("%d, fifo out failed.\n", __LINE__);
+            pr_info("%d, sc fifo is empty .\n", __LINE__);
         }
-    } else {
-        pr_info("%d, sc fifo is empty .\n", __LINE__);
     }
-    spin_unlock_irqrestore( &g_sc->sc_lock, flags );
 
-    if (g_sc->info.out_fmt == NV12_GREY) {
-        ch_mode = 1;
+    if (am2_ctx[ctx_id].info.out_fmt == NV12_GREY) {
+        am2_ctx[ctx_id].ch_mode = 1;
     } else {
-        ch_mode = 0;
+        am2_ctx[ctx_id].ch_mode = 0;
     }
 
     memset(mif_frame, 0, sizeof(ISP_MIF_t));
-    plane_size = g_sc->info.out_w * g_sc->info.out_h;
+    plane_size = am2_ctx[ctx_id].info.out_w * am2_ctx[ctx_id].info.out_h;
     mif_frame->reg_little_endian = 1;
-    if ((g_sc->info.in_fmt == RGB24) ||
-        (g_sc->info.in_fmt == AYUV)) {
-        if ((g_sc->info.out_fmt == RGB24) ||
-            (g_sc->info.out_fmt == AYUV)) {
+    if ((am2_ctx[ctx_id].info.in_fmt == RGB24) ||
+        (am2_ctx[ctx_id].info.in_fmt == AYUV)) {
+        if ((am2_ctx[ctx_id].info.out_fmt == RGB24) ||
+            (am2_ctx[ctx_id].info.out_fmt == AYUV)) {
             mif_frame->reg_rgb_mode = 1;
-        } else if (g_sc->info.out_fmt == NV12_YUV) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == NV12_YUV) {
             mif_frame->reg_rgb_mode = 2;
-        } else if (g_sc->info.out_fmt == NV12_YVU) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == NV12_YVU) {
             mif_frame->reg_rgb_mode = 2;
-        } else if (g_sc->info.out_fmt == UYVY) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == UYVY) {
             mif_frame->reg_rgb_mode = 0;
-        } else if (g_sc->info.out_fmt == NV12_GREY) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == NV12_GREY) {
             mif_frame->reg_rgb_mode = 2;
-        } else if (g_sc->info.out_fmt == RAW16) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == RAW16) {
             mif_frame->reg_rgb_mode = 0;
-        } else if (g_sc->info.out_fmt == RAW_YUY2)
+        } else if (am2_ctx[ctx_id].info.out_fmt == RAW_YUY2)
             mif_frame->reg_rgb_mode = 0;
-    } else if ((g_sc->info.in_fmt == NV12_YUV) ||
-            (g_sc->info.in_fmt == NV12_GREY)) {
-        if (g_sc->info.out_fmt == NV12_GREY) {
+    } else if ((am2_ctx[ctx_id].info.in_fmt == NV12_YUV) ||
+            (am2_ctx[ctx_id].info.in_fmt == NV12_GREY)) {
+        if (am2_ctx[ctx_id].info.out_fmt == NV12_GREY) {
             mif_frame->reg_rgb_mode = 2;
         }
     }
@@ -840,34 +596,34 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
     mif_frame->reg_burst_lim = 3;
     mif_frame->reg_hconv_mode = 2;
     mif_frame->reg_vconv_mode = 0;
-    mif_frame->reg_pingpong_en = 1;
+    mif_frame->reg_pingpong_en = 0;
     mif_frame->reg_start_x = 0;
     mif_frame->reg_start_y = 0;
-    mif_frame->reg_end_x = g_sc->info.out_w -1;
-    mif_frame->reg_end_y = g_sc->info.out_h - 1;
-    mif_frame->reg_hsizem1 = g_sc->info.out_w - 1;
-    mif_frame->reg_vsizem1 = g_sc->info.out_h - 1;
-    if (ch_mode == 1) {
+    mif_frame->reg_end_x = am2_ctx[ctx_id].info.out_w -1;
+    mif_frame->reg_end_y = am2_ctx[ctx_id].info.out_h - 1;
+    mif_frame->reg_hsizem1 = am2_ctx[ctx_id].info.out_w - 1;
+    mif_frame->reg_vsizem1 = am2_ctx[ctx_id].info.out_h - 1;
+    if (am2_ctx[ctx_id].ch_mode == 1) {
         mif_frame->reg_only_1ch = 1;
         mif_frame->reg_enable_3ch = 0;
         frame_size = plane_size;
         mif_frame->reg_canvas_strb_luma =
-            g_sc->info.out_w;
+            am2_ctx[ctx_id].info.out_w;
         mif_frame->reg_canvas_strb_chroma = 0;
         mif_frame->reg_canvas_strb_r = 0;
         mif_frame->reg_hconv_mode = 2;
         mif_frame->reg_vconv_mode = 2;
         mif_frame->reg_rgb_mode = 2;
-    } else if (ch_mode == 3) {
+    } else if (am2_ctx[ctx_id].ch_mode == 3) {
         mif_frame->reg_only_1ch = 0;
         mif_frame->reg_enable_3ch = 1;
         frame_size = plane_size * 3;
         mif_frame->reg_canvas_strb_luma =
-            g_sc->info.out_w;
+            am2_ctx[ctx_id].info.out_w;
         mif_frame->reg_canvas_strb_chroma =
-            g_sc->info.out_w;
+            am2_ctx[ctx_id].info.out_w;
         mif_frame->reg_canvas_strb_r =
-            g_sc->info.out_w;
+            am2_ctx[ctx_id].info.out_w;
         mif_frame->reg_hconv_mode = 2;
         mif_frame->reg_vconv_mode = 2;
         mif_frame->reg_rgb_mode = 2;
@@ -877,30 +633,34 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
         if (mif_frame->reg_rgb_mode == 0) {
             frame_size = plane_size * 2;
             mif_frame->reg_canvas_strb_luma =
-                g_sc->info.out_w * 2;
+                am2_ctx[ctx_id].info.out_w * 2;
             mif_frame->reg_canvas_strb_chroma = 0;
             mif_frame->reg_canvas_strb_r = 0;
         } else if (mif_frame->reg_rgb_mode == 1) {
             frame_size = plane_size * 3;
             mif_frame->reg_canvas_strb_luma =
-                g_sc->info.out_w * 3;
+                am2_ctx[ctx_id].info.out_w * 3;
             mif_frame->reg_canvas_strb_chroma = 0;
             mif_frame->reg_canvas_strb_r = 0;
         } else if (mif_frame->reg_rgb_mode == 2) {
             frame_size = plane_size * 3 / 2;
             mif_frame->reg_canvas_strb_luma =
-                g_sc->info.out_w;
+                am2_ctx[ctx_id].info.out_w;
             mif_frame->reg_canvas_strb_chroma =
-                g_sc->info.out_w;
+                am2_ctx[ctx_id].info.out_w;
             mif_frame->reg_canvas_strb_r = 0;
         } else {
             frame_size = plane_size * 3;
             mif_frame->reg_canvas_strb_luma =
-                g_sc->info.out_w * 3;
+                am2_ctx[ctx_id].info.out_w * 3;
             mif_frame->reg_canvas_strb_chroma = 0;
             mif_frame->reg_canvas_strb_r = 0;
         }
     }
+
+    if (buf == NULL)
+        return;
+
     mif_frame->reg_canvas_baddr_luma =
         buf->primary.address;
     mif_frame->reg_canvas_baddr_luma_other =
@@ -927,8 +687,8 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
     }
 
     pr_info("init_sc_mif_setting: %dx%d -> %dx%d, %x-%x-%x-%x-%x-%x, stride: %x-%x-%x\n",
-        g_sc->info.src_w, g_sc->info.src_h,
-        g_sc->info.out_w, g_sc->info.out_h,
+        am2_ctx[ctx_id].info.src_w, am2_ctx[ctx_id].info.src_h,
+        am2_ctx[ctx_id].info.out_w, am2_ctx[ctx_id].info.out_h,
         mif_frame->reg_canvas_baddr_luma,
         mif_frame->reg_canvas_baddr_chroma,
         mif_frame->reg_canvas_baddr_r,
@@ -940,79 +700,22 @@ static void init_sc_mif_setting(ISP_MIF_t *mif_frame)
         mif_frame->reg_canvas_strb_r);
 }
 
-static int write_to_file(char *buf, int size)
-{
-    int ret = 0;
-    struct file *fp = NULL;
-    mm_segment_t old_fs;
-    loff_t pos = 0;
-    int nwrite = 0;
-
-    /* change to KERNEL_DS address limit */
-    old_fs = get_fs();
-    set_fs(KERNEL_DS);
-
-    /* open file to write */
-    fp = filp_open("/media/sc_img.raw", O_WRONLY|O_CREAT, 0640);
-    if (!fp) {
-       printk("%s: open file error\n", __FUNCTION__);
-       ret = -1;
-       goto exit;
-    }
-
-    /* Write buf to file */
-    nwrite=vfs_write(fp, buf, size, &pos);
-
-    if (fp) {
-        filp_close(fp, NULL);
-    }
-exit:
-    set_fs(old_fs);
-    return ret;
-}
-
-static ssize_t sc2_frame_read(struct device *dev,
-    struct device_attribute *attr, char *buf)
-{
-    char buf1[50];
-
-    pr_info("sc-read.\n");
-    //buf = (char *)sc_cma_mem;
-    write_to_file(buf, g_sc->info.out_w * g_sc->info.out_h * 3);
-    return sprintf(buf1,"buffer_id:%d", buffer_id);
-}
-
-static ssize_t sc2_frame_write(struct device *dev,
-    struct device_attribute *attr, char const *buf, size_t size)
-{
-    unsigned long write_flag = 0;
-    int retval = 0;
-
-    retval = kstrtoul(buf, 10, &write_flag);
-
-    if (retval) {
-        pr_err("Error to count strtoul\n");
-        return retval;
-    }
-    return size;
-}
-static DEVICE_ATTR(sc2_frame, S_IRUGO | S_IWUSR, sc2_frame_read, sc2_frame_write);
-
 #ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
 static void sc_do_tasklet( unsigned long data )
 {
     tframe_t *f_buff;
+    u8 ctx_id = ((struct sc_tasklet_t *)data)->ctx_id;
     metadata_t metadata;
     memset(&metadata, 0, sizeof(metadata_t));
-
-    while (kfifo_out(&sc_tasklet.sc_fifo_out, &f_buff, sizeof(tframe_t*))) {
-        metadata.width = g_sc->info.out_w;
-        metadata.height = g_sc->info.out_h;
-        metadata.frame_id = frame_id;
-        metadata.frame_number = frame_id;
-        metadata.line_size = (((3 * g_sc->info.out_w) + 127) & (~127));
-        frame_id++;
-        g_sc->callback(g_sc->ctx, f_buff, &metadata );
+    //pr_err("do tasklet: %d\n", ctx_id);
+    while (kfifo_out(&am2_ctx[ctx_id].sc_fifo_out, &f_buff, sizeof(tframe_t*))) {
+        metadata.width = am2_ctx[ctx_id].info.out_w;
+        metadata.height = am2_ctx[ctx_id].info.out_h;
+        metadata.frame_id = am2_ctx[ctx_id].frame_id;
+        metadata.frame_number = am2_ctx[ctx_id].frame_id;
+        metadata.line_size = (((3 * am2_ctx[ctx_id].info.out_w) + 127) & (~127));
+        am2_ctx[ctx_id].callback(am2_ctx[ctx_id].ctx, f_buff, &metadata );
+        am2_ctx[ctx_id].frame_id++;
     }
 }
 #endif
@@ -1020,49 +723,54 @@ static void sc_do_tasklet( unsigned long data )
 static void sc_config_next_buffer(tframe_t* f_buf, int ping)
 {
     if (ping) {
-        isp_frame.reg_canvas_baddr_luma = f_buf->primary.address;
-        isp_frame.reg_canvas_baddr_chroma = f_buf->secondary.address;
-        isp_frame.reg_canvas_baddr_r = f_buf->secondary.address;
+        g_sc2->isp_frame.reg_canvas_baddr_luma = f_buf->primary.address;
+        g_sc2->isp_frame.reg_canvas_baddr_chroma = f_buf->secondary.address;
+        g_sc2->isp_frame.reg_canvas_baddr_r = f_buf->secondary.address;
     } else {
-        isp_frame.reg_canvas_baddr_luma_other = f_buf->primary.address;
-        isp_frame.reg_canvas_baddr_chroma_other = f_buf->secondary.address;
-        isp_frame.reg_canvas_baddr_r_other = f_buf->secondary.address;
+        g_sc2->isp_frame.reg_canvas_baddr_luma_other = f_buf->primary.address;
+        g_sc2->isp_frame.reg_canvas_baddr_chroma_other = f_buf->secondary.address;
+        g_sc2->isp_frame.reg_canvas_baddr_r_other = f_buf->secondary.address;
     }
-
-    isp_mif_addr(&isp_frame);
+    isp_mif_addr(&g_sc2->isp_frame);
 }
 
 static void am_sc_swap_buf(int check_last, u32 flag_ready)
 {
-    last_end_frame = flag_ready;
+    u32 frame_delay = FRAME_DELAY_QUEUE - 1;
+    g_sc2->last_end_frame = flag_ready;
 
-    if (pre_frame[frame_delay - 1] && pre_frame[frame_delay - 2]) {
-        tframe_t* temp_frame = pre_frame[frame_delay - 1];
-        pre_frame[frame_delay - 1] = pre_frame[frame_delay - 2];
-        pre_frame[frame_delay - 2] = temp_frame;
+    if (g_sc2->isp_frame.reg_pingpong_en) {
+        if (g_sc2->no_ready_th || (check_last == 0)) {
+            if (g_sc2->multi_camera.pre_frame[frame_delay - 1] && g_sc2->multi_camera.pre_frame[frame_delay - 2]) {
+                tframe_t* temp_frame = g_sc2->multi_camera.pre_frame[frame_delay - 1];
+                int cam_id = g_sc2->multi_camera.cam_id[frame_delay - 1];
+                g_sc2->multi_camera.pre_frame[frame_delay - 1] = g_sc2->multi_camera.pre_frame[frame_delay - 2];
+                g_sc2->multi_camera.pre_frame[frame_delay - 2] = temp_frame;
+                g_sc2->multi_camera.cam_id[frame_delay - 1] = g_sc2->multi_camera.cam_id[frame_delay - 2];
+                g_sc2->multi_camera.cam_id[frame_delay - 2] = cam_id;
+            }
+        }
     }
 
     if (check_last) {
-        if (pre_frame[frame_delay]) {
-            kfifo_in(&g_sc->sc_fifo_in, &pre_frame[frame_delay], sizeof(tframe_t*));
-            pre_frame[frame_delay] = NULL;
+        if (g_sc2->multi_camera.pre_frame[frame_delay]) {
+            kfifo_in(&am2_ctx[g_sc2->multi_camera.cam_id[frame_delay]].sc_fifo_in, &g_sc2->multi_camera.pre_frame[frame_delay], sizeof(tframe_t*));
+            g_sc2->multi_camera.pre_frame[frame_delay] = NULL;
         }
     }
 }
 
 static irqreturn_t isp_sc_isr(int irq, void *data)
 {
-    if (start_delay_cnt < start_delay_th) {
-        start_delay_cnt++;
+    if (g_sc2->start_delay_cnt < START_DELAY_THR) {
+        g_sc2->start_delay_cnt++;
     } else {
         /* maybe need drop one more frame */
-        if (start_delay_cnt == start_delay_th) {
-            sc1_isr_count = 0;
-            sc2_isr_count = 0;
+        if (g_sc2->start_delay_cnt == START_DELAY_THR) {
             pr_info("wrmif start: %x, %x, %x\n", sc_get_reg(ISP_SCWR_TOP_DBG1), sc_get_reg(ISP_SCWR_TOP_DBG2), sc_get_reg(ISP_SCWR_TOP_CTRL));
             sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
             sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 0, 1);
-            start_delay_cnt++;
+            g_sc2->start_delay_cnt++;
         } else {
             u32 flag = 0;
             u32 flag_ready = 0;
@@ -1070,64 +778,75 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
             unsigned long flags;
             int retval;
 
-            sc2_isr_count++;
-
             sc_reg_rd(ISP_SCWR_TOP_DBG0, &flag);
 
             flag_ready = (flag & (1 << 6)) ? 1 : 0;
-            if (flag_ready == last_end_frame) {
-                pr_info("%d, sc last fifo no ready.\n", __LINE__);
+            if (flag_ready == g_sc2->last_end_frame) {
+                pr_info("%d, sc last fifo no ready %d.\n", __LINE__, g_sc2->cam_id_current);
                 am_sc_swap_buf(1, flag_ready);
+                g_sc2->no_ready_th ++;
+                g_sc2->working = 0;
                 return IRQ_HANDLED;
-            }
+            } else
+                g_sc2->no_ready_th = 0;
 
-            if (g_sc->crop_refresh_flag) {
-                am_sc2_hw_init(0, g_sc->crop_refresh_flag);
-                g_sc->crop_refresh_flag = 0;
+            if (g_sc2->isp_frame.reg_pingpong_en == 0)
+                flag = 0;
 
-            }
-
-            uint32_t d_fps = g_sc->info.c_fps - g_sc->info.t_fps;
-            if ((g_sc->info.c_fps > g_sc->info.t_fps) &&
-                (sc1_isr_count * d_fps *1000L / g_sc->info.c_fps/1000L) != ((sc1_isr_count - 1) * d_fps * 1000L / g_sc->info.c_fps/1000L) ) {
-                am_sc_swap_buf(0, flag_ready);
-                return IRQ_HANDLED;
-            }
-
-            spin_lock_irqsave( &g_sc->sc_lock, flags );
-            if (kfifo_len(&g_sc->sc_fifo_in) > 0) {
-                retval = kfifo_out(&g_sc->sc_fifo_in, &f_buf, sizeof(tframe_t*));
+            spin_lock_irqsave( &g_sc2->sc_lock, flags );
+            if (kfifo_len(&am2_ctx[g_sc2->cam_id_next].sc_fifo_in) > 0) {
+                retval = kfifo_out(&am2_ctx[g_sc2->cam_id_next].sc_fifo_in, &f_buf, sizeof(tframe_t*));
                 if (retval != sizeof(tframe_t*))
-                    pr_info("%d, fifo out failed.\n", __LINE__);
+                    pr_info("%d, fifo out failed %d.\n", __LINE__, g_sc2->cam_id_next);
             } else {
-                //pr_info("%d, sc fifo is empty.\n", __LINE__);
-                frame_id++;
-                am_sc_swap_buf(0, flag_ready);
-                spin_unlock_irqrestore( &g_sc->sc_lock, flags );
-                return IRQ_HANDLED;
+                //also output stream into camera dummy fifo. it can keep correct cam seq
+                if (am2_ctx[g_sc2->cam_id_next].temp_buf)
+                    f_buf = am2_ctx[g_sc2->cam_id_next].temp_buf;
+                else if (am2_ctx[g_sc2->cam_id_next_next].temp_buf)
+                    f_buf = am2_ctx[g_sc2->cam_id_next_next].temp_buf;
+                else if (am2_ctx[g_sc2->cam_id_current].temp_buf)
+                    f_buf = am2_ctx[g_sc2->cam_id_current].temp_buf;
+                else if (am2_ctx[g_sc2->cam_id_last].temp_buf)
+                    f_buf = am2_ctx[g_sc2->cam_id_last].temp_buf;
             }
-            spin_unlock_irqrestore( &g_sc->sc_lock, flags );
+            spin_unlock_irqrestore( &g_sc2->sc_lock, flags );
 
-            sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
+            if (g_sc2->refresh && am2_ctx[g_sc2->cam_id_next].temp_buf) {
+                am_sc2_hw_init(g_sc2->cam_id_next, 0, g_sc2->refresh);
+                g_sc2->refresh = 0;
+            }
 
-            if (pre_frame[frame_delay]) {
+            if (f_buf)
+                sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
+
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 28, 1);
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 28, 1);
+
+            if (g_sc2->multi_camera.pre_frame[FRAME_DELAY_QUEUE-1]) {
 #ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-                if (!kfifo_is_full(&sc_tasklet.sc_fifo_out)) {
-                    kfifo_in(&sc_tasklet.sc_fifo_out, &(pre_frame[frame_delay]), sizeof(tframe_t*));
+                if (!kfifo_is_full(&am2_ctx[g_sc2->multi_camera.cam_id[FRAME_DELAY_QUEUE-1]].sc_fifo_out)) {
+                    kfifo_in(&am2_ctx[g_sc2->multi_camera.cam_id[FRAME_DELAY_QUEUE-1]].sc_fifo_out, &(g_sc2->multi_camera.pre_frame[FRAME_DELAY_QUEUE-1]), sizeof(tframe_t*));
                 }
-                tasklet_schedule(&sc_tasklet.tasklet_obj);
+                g_sc2->sc_tasklet.ctx_id = g_sc2->multi_camera.cam_id[FRAME_DELAY_QUEUE-1];
+                tasklet_schedule(&g_sc2->sc_tasklet.tasklet_obj);
 #endif
             } else {
                 pr_info("%d, sc fifo is empty.\n", __LINE__);
             }
 
-            pre_frame[2] = pre_frame[1];
-            pre_frame[1] = pre_frame[0];
-            pre_frame[0] = f_buf;
-            last_end_frame = flag_ready;
-            buffer_id ^= 1;
+            for (flag = 0; flag < FRAME_DELAY_QUEUE - 1; flag ++) {
+                g_sc2->multi_camera.pre_frame[flag + 1] = g_sc2->multi_camera.pre_frame[flag];
+                g_sc2->multi_camera.cam_id[flag + 1] = g_sc2->multi_camera.cam_id[flag];
+            }
+            g_sc2->multi_camera.pre_frame[0] = f_buf;
+            g_sc2->multi_camera.cam_id[0] = g_sc2->cam_id_next;
+            g_sc2->last_end_frame = flag_ready;
+            //reserve dummy buffer
+            if (f_buf == am2_ctx[g_sc2->cam_id_next].temp_buf)
+                g_sc2->multi_camera.pre_frame[0] = NULL;
         }
     }
+    g_sc2->working = 0;
     return IRQ_HANDLED;
 }
 
@@ -1136,7 +855,7 @@ int am_sc2_parse_dt(struct device_node *node, int port)
     int rtn = -1;
     int irq = -1;
     struct resource rs;
-    struct am_sc2 *t_sc = NULL;
+    struct am_sc *t_sc = NULL;
 
     if (node == NULL) {
         pr_err("%s: Error input param\n", __func__);
@@ -1151,7 +870,7 @@ int am_sc2_parse_dt(struct device_node *node, int port)
 
     t_sc = kzalloc(sizeof(*t_sc), GFP_KERNEL);
     if (t_sc == NULL) {
-        pr_err("%s: Failed to alloc isp-sc2\n", __func__);
+        pr_err("%s: Failed to alloc isp-sc3\n", __func__);
         return -1;
     }
 
@@ -1159,7 +878,7 @@ int am_sc2_parse_dt(struct device_node *node, int port)
 
     rtn = of_address_to_resource(node, port, &rs);
     if (rtn != 0) {
-        pr_err("%s:Error get isp-sc2 reg resource\n", __func__);
+        pr_err("%s:Error get isp-sc3 reg resource\n", __func__);
         goto reg_error;
     }
 
@@ -1181,30 +900,40 @@ int am_sc2_parse_dt(struct device_node *node, int port)
 
     t_sc->p_dev = of_find_device_by_node(node);
 
-    device_create_file(&(t_sc->p_dev->dev), &dev_attr_sc2_frame);
+    memcpy((void *)&t_sc->isp_frame, (void *)&isp_frame, sizeof(ISP_MIF_t));
     t_sc->port = port;
-    g_sc = t_sc;
+    t_sc->stop_flag = true;
+    t_sc->user = 0;
+    t_sc->working = 0;
+    t_sc->no_ready_th = 0;
+    t_sc->refresh = 0;
+    t_sc->cam_id_last = 0;
+    t_sc->cam_id_current = 0;
+    t_sc->cam_id_next = 0;
+    t_sc->cam_id_next_next = 0;
 
-    g_sc->crop_refresh_flag = 0;
+    g_sc2 = t_sc;
 
-    spin_lock_init(&g_sc->sc_lock);
+    spin_lock_init(&g_sc2->sc_lock);
 
-    if (!kfifo_initialized(&g_sc->sc_fifo_in)) {
-        rtn = kfifo_alloc(&g_sc->sc_fifo_in, PAGE_SIZE, GFP_KERNEL);
-        if (rtn) {
-            pr_info("alloc sc fifo failed.\n");
-            return rtn;
+    int i = 0;
+    for (i = 0; i < CAM_CTX_NUM; i ++) {
+        if (!kfifo_initialized(&am2_ctx[i].sc_fifo_in)) {
+            rtn = kfifo_alloc(&am2_ctx[i].sc_fifo_in, PAGE_SIZE, GFP_KERNEL);
+            if (rtn) {
+                pr_info("alloc sc fifo failed.\n");
+                return rtn;
+            }
+        }
+
+        if (!kfifo_initialized(&am2_ctx[i].sc_fifo_out)) {
+            rtn = kfifo_alloc(&am2_ctx[i].sc_fifo_out, PAGE_SIZE, GFP_KERNEL);
+            if (rtn) {
+                pr_info("alloc sc_tasklet fifo failed.\n");
+                return rtn;
+            }
         }
     }
-#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-    if (!kfifo_initialized(&sc_tasklet.sc_fifo_out)) {
-        rtn = kfifo_alloc(&sc_tasklet.sc_fifo_out, PAGE_SIZE, GFP_KERNEL);
-        if (rtn) {
-            pr_info("alloc sc_tasklet fifo failed.\n");
-            return rtn;
-        }
-    }
-#endif
 
     return 0;
 irq_error:
@@ -1219,290 +948,292 @@ reg_error:
 
 void am_sc2_deinit_parse_dt(void)
 {
-    if (g_sc == NULL) {
-        pr_err("Error g_sc is NULL\n");
+    if (g_sc2 == NULL) {
+        pr_err("Error g_sc2 is NULL\n");
         return;
     }
-    kfifo_free(&g_sc->sc_fifo_in);
-#ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-    // kill tasklet
-    kfifo_free(&sc_tasklet.sc_fifo_out);
-#endif
 
-    if (g_sc->p_dev != NULL)
-        device_remove_file(&(g_sc->p_dev->dev), &dev_attr_sc2_frame);
-
-    if (g_sc->base_addr != NULL) {
-        iounmap(g_sc->base_addr);
-        g_sc->base_addr = NULL;
+    int i = 0;
+    for (i = 0; i < CAM_CTX_NUM; i ++) {
+        kfifo_free(&am2_ctx[i].sc_fifo_in);
+        kfifo_free(&am2_ctx[i].sc_fifo_out);
     }
 
-    kfree(g_sc);
-    g_sc = NULL;
+    if (g_sc2->base_addr != NULL) {
+        iounmap(g_sc2->base_addr);
+        g_sc2->base_addr = NULL;
+    }
+
+    kfree(g_sc2);
+    g_sc2 = NULL;
 }
 
-void am_sc2_api_dma_buffer(tframe_t * data, unsigned int index)
+void am_sc2_api_dma_buffer(int ctx_id, tframe_t * data, unsigned int index)
 {
     unsigned long flags;
-    if (temp_buf == NULL) return;
-    spin_lock_irqsave(&g_sc->sc_lock, flags);
-    tframe_t *buf = temp_buf + index;
+
+    if (am2_ctx[ctx_id].temp_buf == NULL) return;
+    spin_lock_irqsave(&g_sc2->sc_lock, flags);
+    tframe_t *buf = am2_ctx[ctx_id].temp_buf + index;
     memcpy(buf, data, sizeof(tframe_t));
-    if (!kfifo_is_full(&g_sc->sc_fifo_in)) {
-        kfifo_in(&g_sc->sc_fifo_in, &buf, sizeof(tframe_t*));
+    if (index == 0) {
+        pr_info("ctx %d reserve dummy fifo.\n", ctx_id);
+        spin_unlock_irqrestore(&g_sc2->sc_lock, flags);
+        return;
+    }
+
+    if (!kfifo_is_full(&am2_ctx[ctx_id].sc_fifo_in)) {
+        kfifo_in(&am2_ctx[ctx_id].sc_fifo_in, &buf, sizeof(tframe_t*));
     } else {
         pr_info("sc fifo is full .\n");
     }
-    spin_unlock_irqrestore(&g_sc->sc_lock, flags);
-
+    //pr_err("sc dma buffer:%d, %d, %x\n", ctx_id, index, buf->primary.address);
+    spin_unlock_irqrestore(&g_sc2->sc_lock, flags);
 }
 
-uint32_t am_sc2_get_width(void)
+uint32_t am_sc2_get_width(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
-    return g_sc->info.out_w;
+    return am2_ctx[ctx_id].info.out_w;
 }
 
-void am_sc2_set_width(uint32_t src_w, uint32_t out_w)
+void am_sc2_set_width(int ctx_id, uint32_t src_w, uint32_t out_w)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    if (g_sc->info.src_w == 0)
-        g_sc->info.src_w = src_w;
-    g_sc->info.out_w = out_w;
+    if (am2_ctx[ctx_id].info.src_w == 0)
+        am2_ctx[ctx_id].info.src_w = src_w;
+    am2_ctx[ctx_id].info.out_w = out_w;
 }
 
-void am_sc2_set_fps(uint32_t c_fps, uint32_t t_fps)
+uint32_t am_sc2_get_startx(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
-        return;
-    }
-    g_sc->info.c_fps = c_fps;
-    g_sc->info.t_fps = t_fps == 0 ? g_sc->info.t_fps : t_fps;;
-}
-
-uint32_t am_sc2_get_fps(void)
-{
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return 0;
     }
-    return g_sc->info.t_fps;
+    return am2_ctx[ctx_id].info.startx;
 }
 
-uint32_t am_sc2_get_startx(void)
+uint32_t am_sc2_get_starty(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return 0;
     }
-    return g_sc->info.startx;
+    return am2_ctx[ctx_id].info.starty;
 }
 
-uint32_t am_sc2_get_starty(void)
+void am_sc2_set_fps(int ctx_id, uint32_t c_fps, uint32_t t_fps)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
+        return;
+    }
+}
+
+uint32_t am_sc2_get_fps(int ctx_id)
+{
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return 0;
     }
-    return g_sc->info.starty;
+    return am2_ctx[ctx_id].info.t_fps;
 }
 
-void am_sc2_set_startx(uint32_t startx)
+void am_sc2_set_startx(int ctx_id, uint32_t startx)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.startx = startx;
+    am2_ctx[ctx_id].info.startx = startx;
 }
 
-void am_sc2_set_starty(uint32_t starty)
+void am_sc2_set_starty(int ctx_id, uint32_t starty)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.starty = starty;
+    am2_ctx[ctx_id].info.starty = starty;
 }
 
-uint32_t am_sc2_get_crop_width(void)
+uint32_t am_sc2_get_crop_width(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return 0;
     }
-    return g_sc->info.c_width;
+    return am2_ctx[ctx_id].info.c_width;
 }
 
-uint32_t am_sc2_get_crop_height(void)
+uint32_t am_sc2_get_crop_height(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return 0;
     }
-    return g_sc->info.c_height;
+    return am2_ctx[ctx_id].info.c_height;
 }
 
-void am_sc2_set_crop_width(uint32_t c_width)
+void am_sc2_set_crop_width(int ctx_id, uint32_t c_width)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.c_width = c_width;
+    am2_ctx[ctx_id].info.c_width = c_width;
 }
 
-void am_sc2_set_crop_height(uint32_t c_height)
+void am_sc2_set_crop_height(int ctx_id, uint32_t c_height)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.c_height = c_height;
+    am2_ctx[ctx_id].info.c_height = c_height;
 }
 
-void am_sc2_set_crop_enable()
+void am_sc2_set_crop_enable(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->crop_refresh_flag = 1;
-
+    g_sc2->refresh = 1;
 }
-void am_sc2_set_src_width(uint32_t src_w)
+
+void am_sc2_set_src_width(int ctx_id, uint32_t src_w)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.src_w = src_w;
+    am2_ctx[ctx_id].info.src_w = src_w;
 }
 
-void am_sc2_set_src_height(uint32_t src_h)
+void am_sc2_set_src_height(int ctx_id, uint32_t src_h)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.src_h = src_h;
+    am2_ctx[ctx_id].info.src_h = src_h;
 }
 
-uint32_t am_sc2_get_height(void)
+uint32_t am_sc2_get_height(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
-    return g_sc->info.out_h;
+    return am2_ctx[ctx_id].info.out_h;
 }
 
-uint32_t am_sc2_get_output_format(void)
+uint32_t am_sc2_get_output_format(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
-    return g_sc->info.out_fmt;
+    return am2_ctx[ctx_id].info.out_fmt;
 }
 
 
-void am_sc2_set_height(uint32_t src_h, uint32_t out_h)
+void am_sc2_set_height(int ctx_id, uint32_t src_h, uint32_t out_h)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    if (g_sc->info.src_h == 0)
-        g_sc->info.src_h = src_h;
-    g_sc->info.out_h = out_h;
+    if (am2_ctx[ctx_id].info.src_h == 0)
+        am2_ctx[ctx_id].info.src_h = src_h;
+    am2_ctx[ctx_id].info.out_h = out_h;
 }
 
-void am_sc2_set_input_format(uint32_t value)
+void am_sc2_set_input_format(int ctx_id, uint32_t value)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.in_fmt = value;
+    am2_ctx[ctx_id].info.in_fmt = RGB24;
 }
 
-void am_sc2_set_output_format(uint32_t value)
+void am_sc2_set_output_format(int ctx_id, uint32_t value)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->info.out_fmt = value;
+    am2_ctx[ctx_id].info.out_fmt = value;
 }
 
-void am_sc2_set_buf_num(uint32_t num)
+void am_sc2_set_buf_num(int ctx_id, uint32_t num)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return;
     }
-    g_sc->req_buf_num = num;
+    am2_ctx[ctx_id].req_buf_num = num;
 }
 
 int am_sc2_set_callback(acamera_context_ptr_t p_ctx, buffer_callback_t sc2_callback)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
-    g_sc->callback = sc2_callback;
-    g_sc->ctx = p_ctx;
+    am2_ctx[p_ctx->fsm_mgr.ctx_id].callback = sc2_callback;
+    am2_ctx[p_ctx->fsm_mgr.ctx_id].ctx = p_ctx;
     return 0;
 }
 
-int am_sc2_system_init(void)
+int am_sc2_system_init(int ctx_id)
 {
-    int ret = 0;
+    int ret = 0, i = 0;
 
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
 
-    if (g_sc->req_buf_num == 0)
+    if (am2_ctx[ctx_id].req_buf_num == 0)
         return 0;
 
-    start_delay_cnt = 0;
-    buffer_id = 0;
-
-    pre_frame[0] = NULL;
-    pre_frame[1] = NULL;
-    pre_frame[2] = NULL;
-
-    if (!temp_buf) {
-        temp_buf = (tframe_t*)kmalloc( sizeof(tframe_t) * (g_sc->req_buf_num), GFP_KERNEL | __GFP_NOFAIL);
+    if (!am2_ctx[ctx_id].temp_buf) {
+        am2_ctx[ctx_id].temp_buf = (tframe_t*)kmalloc( sizeof(tframe_t) * (am2_ctx[ctx_id].req_buf_num), GFP_KERNEL | __GFP_NOFAIL);
     }
 
-    frame_id = 0;
+    if (g_sc2->stop_flag == false) return 0;
+
+    for (i = 0; i < FRAME_DELAY_QUEUE; i ++) {
+        g_sc2->multi_camera.pre_frame[i] = NULL;
+        g_sc2->multi_camera.cam_id[i] = 0;
+    }
+    g_sc2->start_delay_cnt = 0;
 
     return ret;
 }
 
-int am_sc2_hw_init(int is_print, int clip_mode)
+int am_sc2_hw_init(int ctx_id, int is_print, int clip_mode)
 {
     uint32_t flag = 0;
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
-    if (g_sc->req_buf_num == 0)
+    if (am2_ctx[ctx_id].req_buf_num == 0)
         return 0;
 
-    if ((stop_flag == false) && !clip_mode) {
-        pr_info("wrmif no stop\n");
+    if ((g_sc2->stop_flag == false) && !clip_mode) {
+        pr_info("wrmif no stop %d\n", ctx_id);
         return 0;
     }
 
@@ -1531,170 +1262,269 @@ int am_sc2_hw_init(int is_print, int clip_mode)
     int mtx_mode = 0;
     int dbg_mode = 0;
     int mux_sel = 0;
-    if ( stop_flag ) init_sc_mif_setting(&isp_frame);
-    buffer_id = 0;
-    if (g_sc->info.in_fmt == RGB24) {
-        if (g_sc->info.out_fmt == RGB24) {
+    unsigned long flags;
+    spin_lock_irqsave( &g_sc2->sc_lock, flags );
+    if ( g_sc2->stop_flag || g_sc2->refresh ) init_sc_mif_setting(ctx_id, &g_sc2->isp_frame);
+    if (am2_ctx[ctx_id].info.in_fmt == RGB24) {
+        if (am2_ctx[ctx_id].info.out_fmt == RGB24) {
             mtx_mode = 0;
-        } else if ((g_sc->info.out_fmt == NV12_YUV) ||
-                (g_sc->info.out_fmt == NV12_YVU) ||
-                (g_sc->info.out_fmt == UYVY) ||
-                (g_sc->info.out_fmt == AYUV)) {
+        } else if ((am2_ctx[ctx_id].info.out_fmt == NV12_YUV) ||
+                (am2_ctx[ctx_id].info.out_fmt == NV12_YVU) ||
+                (am2_ctx[ctx_id].info.out_fmt == UYVY) ||
+                (am2_ctx[ctx_id].info.out_fmt == AYUV)) {
             mtx_mode = 1;
-        } else if (g_sc->info.out_fmt == NV12_GREY) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == NV12_GREY) {
             mtx_mode = 1;
-        } else if (g_sc->info.out_fmt == RAW16) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == RAW16) {
             mtx_mode = 0;
             dbg_mode = 2;
             mux_sel = 4;
-        } else if (g_sc->info.out_fmt == RAW_YUY2) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == RAW_YUY2) {
             mtx_mode = 0;
             dbg_mode = 0;
-            mux_sel = 4;
         }
-    } else if (g_sc->info.in_fmt == AYUV) {
-        if ((g_sc->info.out_fmt == NV12_YUV) ||
-            (g_sc->info.out_fmt == NV12_YVU) ||
-            (g_sc->info.out_fmt == UYVY) ||
-            (g_sc->info.out_fmt == AYUV)) {
+    } else if (am2_ctx[ctx_id].info.in_fmt == AYUV) {
+        if ((am2_ctx[ctx_id].info.out_fmt == NV12_YUV) ||
+            (am2_ctx[ctx_id].info.out_fmt == NV12_YVU) ||
+            (am2_ctx[ctx_id].info.out_fmt == UYVY) ||
+            (am2_ctx[ctx_id].info.out_fmt == AYUV)) {
             mtx_mode = 0;
-        } else if (g_sc->info.out_fmt == RGB24) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == RGB24) {
             mtx_mode = 2;
-        } else if (g_sc->info.out_fmt == NV12_GREY) {
+        } else if (am2_ctx[ctx_id].info.out_fmt == NV12_GREY) {
             mtx_mode = 0;
         }
-    } else if ((g_sc->info.in_fmt == NV12_YUV) ||
-            (g_sc->info.in_fmt == NV12_GREY)) {
-        if (g_sc->info.out_fmt == NV12_GREY) {
+    } else if ((am2_ctx[ctx_id].info.in_fmt == NV12_YUV) ||
+            (am2_ctx[ctx_id].info.in_fmt == NV12_GREY)) {
+        if (am2_ctx[ctx_id].info.out_fmt == NV12_GREY) {
             mtx_mode = 0;
         }
     } else {
         pr_err("unSupported format");
     }
 
-    if ( g_sc->info.c_width == 0 )
-        g_sc->info.c_width = g_sc->info.src_w;
+    if ( am2_ctx[ctx_id].info.c_width == 0 )
+        am2_ctx[ctx_id].info.c_width = am2_ctx[ctx_id].info.src_w;
 
-    if ( g_sc->info.c_height == 0 )
-        g_sc->info.c_height = g_sc->info.src_h;
+    if ( am2_ctx[ctx_id].info.c_height == 0 )
+        am2_ctx[ctx_id].info.c_height = am2_ctx[ctx_id].info.src_h;
 
-    if ( ( g_sc->info.c_width != g_sc->info.src_w ) || ( g_sc->info.c_height != g_sc->info.src_h ) )
-        g_sc->info.clip_sc_mode |= CLIP_MODE;
+    if ( ( am2_ctx[ctx_id].info.c_width != am2_ctx[ctx_id].info.src_w ) || ( am2_ctx[ctx_id].info.c_height != am2_ctx[ctx_id].info.src_h ) )
+        am2_ctx[ctx_id].info.clip_sc_mode |= CLIP_MODE;
     else
-        g_sc->info.clip_sc_mode &= ~CLIP_MODE;
+        am2_ctx[ctx_id].info.clip_sc_mode &= ~CLIP_MODE;
 
     if ( !clip_mode )
-        g_sc->info.clip_sc_mode &= ~CLIP_MODE;
+        am2_ctx[ctx_id].info.clip_sc_mode &= ~CLIP_MODE;
 
-    if ( g_sc->port < 3 ) {
-        if ( ( g_sc->info.c_width != g_sc->info.out_w ) || ( g_sc->info.c_height != g_sc->info.out_h ) )
-            g_sc->info.clip_sc_mode |= SC_MODE;
+    if ( g_sc2->port < 3 ) {
+        if ( ( am2_ctx[ctx_id].info.c_width != am2_ctx[ctx_id].info.out_w ) || ( am2_ctx[ctx_id].info.c_height != am2_ctx[ctx_id].info.out_h ) )
+            am2_ctx[ctx_id].info.clip_sc_mode |= SC_MODE;
     }
 
-    if ( is_print ) pr_info("src_w = %d, src_h = %d, out_w = %d, out_h = %d, crop_w = %d, crop_h = %d, clip = %d, in_fmt:%d, out_fmt:%d\n",
-            g_sc->info.src_w, g_sc->info.src_h, g_sc->info.out_w, g_sc->info.out_h, g_sc->info.c_width,
-            g_sc->info.c_height, g_sc->info.clip_sc_mode, g_sc->info.in_fmt, g_sc->info.out_fmt);
+    if ( is_print ) pr_info("ctx_id-%d, src_w = %d, src_h = %d, out_w = %d, out_h = %d, crop_w = %d, crop_h = %d, clip = %d, in_fmt:%d, out_fmt:%d\n",
+            ctx_id, am2_ctx[ctx_id].info.src_w, am2_ctx[ctx_id].info.src_h, am2_ctx[ctx_id].info.out_w, am2_ctx[ctx_id].info.out_h, am2_ctx[ctx_id].info.c_width,
+            am2_ctx[ctx_id].info.c_height, am2_ctx[ctx_id].info.clip_sc_mode, am2_ctx[ctx_id].info.in_fmt, am2_ctx[ctx_id].info.out_fmt);
 
-    enable_isp_scale_new(1, 0, dbg_mode, g_sc->info.clip_sc_mode & CLIP_MODE, g_sc->info.startx,
-        g_sc->info.startx + g_sc->info.c_width - 1, g_sc->info.starty,  g_sc->info.starty + g_sc->info.c_height - 1,
-        g_sc->info.src_w, g_sc->info.src_h, g_sc->info.out_w, g_sc->info.out_h, mux_sel, g_sc->info.clip_sc_mode & SC_MODE, mtx_mode,
-        &isp_frame);
+    u8 swap_uv = 0;
+    if (am2_ctx[ctx_id].info.in_fmt == RGB24) {
+        if (am2_ctx[ctx_id].info.out_fmt == NV12_YUV) {
+            swap_uv = 1;
+        } else if (am2_ctx[ctx_id].info.out_fmt == NV12_YVU) {
+            swap_uv = 0;
+        }
+    } else if (am2_ctx[ctx_id].info.in_fmt == AYUV) {
+        if ((am2_ctx[ctx_id].info.out_fmt == NV12_YUV) ||
+            (am2_ctx[ctx_id].info.out_fmt == NV12_YVU)) {
+           swap_uv = 1;
+        }
+    }
+
+    enable_isp_scale_new(1, 0, dbg_mode, am2_ctx[ctx_id].info.clip_sc_mode & CLIP_MODE, am2_ctx[ctx_id].info.startx,
+        am2_ctx[ctx_id].info.startx + am2_ctx[ctx_id].info.c_width - 1, am2_ctx[ctx_id].info.starty,  am2_ctx[ctx_id].info.starty + am2_ctx[ctx_id].info.c_height - 1,
+        am2_ctx[ctx_id].info.src_w, am2_ctx[ctx_id].info.src_h, am2_ctx[ctx_id].info.out_w, am2_ctx[ctx_id].info.out_h, mux_sel, am2_ctx[ctx_id].info.clip_sc_mode & SC_MODE, mtx_mode,
+        swap_uv, am2_ctx[ctx_id].ch_mode, &g_sc2->isp_frame);
 
     sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 25, 1);
-
+    spin_unlock_irqrestore( &g_sc2->sc_lock, flags );
     return 0;
 }
 
-int am_sc2_start(void)
+int am_sc2_start(int ctx_id)
 {
     int ret = 0;
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
-    if (stop_flag == false) return 0;
+
+    g_sc2->user ++;
+    if (g_sc2->stop_flag == false) return 0;
 #ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-    tasklet_init( &sc_tasklet.tasklet_obj, sc_do_tasklet, (unsigned long)&sc_tasklet );
+    tasklet_init( &g_sc2->sc_tasklet.tasklet_obj, sc_do_tasklet, (unsigned long)&g_sc2->sc_tasklet );
 #endif
-    ret = request_irq(g_sc->irq, isp_sc_isr, IRQF_SHARED | IRQF_TRIGGER_RISING,
-        "isp-sc2-irq", (void *)g_sc);
-    pr_info("%s irq = %d, ret = %d\n",__func__,g_sc->irq, ret);
+    ret = request_irq(g_sc2->irq, isp_sc_isr, IRQF_SHARED | IRQF_TRIGGER_RISING,
+        "isp-sc2-irq", (void *)g_sc2);
+    pr_info("%s irq = %d, ret = %d\n", __func__,g_sc2->irq, ret);
 
     /* switch int to sync reset for start and delay frame */
     sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 3, 1);
-    stop_flag = false;
-    frame_id = 0;
+    g_sc2->stop_flag = false;
 
     return 0;
 }
 
-int am_sc2_reset(void)
+int am_sc2_reset(int ctx_id)
 {
     return 0;
 }
 
-int am_sc2_stop(void)
+int am_sc2_stop(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    int i = 0;
+    unsigned long flags = 0;
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
 
-    if (!stop_flag) {
-        stop_flag = true;
-        start_delay_cnt = 0;
+    if (g_sc2->user) g_sc2->user --;
+
+    if (!g_sc2->stop_flag && !g_sc2->user) {
+        g_sc2->stop_flag = true;
+        g_sc2->start_delay_cnt = 0;
         sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 0, 1);
         sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 3, 1);
         mdelay(66);
         pr_info("wrmif stop: %x, %x\n", sc_get_reg(ISP_SCWR_TOP_DBG1), sc_get_reg(ISP_SCWR_TOP_DBG2));
 
-        pre_frame[0] = NULL;
-        pre_frame[1] = NULL;
-        pre_frame[2] = NULL;
-
-        if (temp_buf != NULL) {
-            kfree(temp_buf);
-            temp_buf = NULL;
+        for (i = 0; i < FRAME_DELAY_QUEUE; i ++) {
+            g_sc2->multi_camera.pre_frame[i] = NULL;
+            g_sc2->multi_camera.cam_id[i] = 0;
         }
-        free_irq(g_sc->irq, (void *)g_sc);
+
+        free_irq(g_sc2->irq, (void *)g_sc2);
 #ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
-        tasklet_kill( &sc_tasklet.tasklet_obj );
-        kfifo_reset(&sc_tasklet.sc_fifo_out);
+        tasklet_kill( &g_sc2->sc_tasklet.tasklet_obj );
 #endif
-        kfifo_reset(&g_sc->sc_fifo_in);
-        frame_id = 0;
-
-        g_sc->info.startx = 0;
-        g_sc->info.starty = 0;
-        g_sc->info.c_width = 0;
-        g_sc->info.c_height = 0;
-        g_sc->info.src_w = 0;
-        g_sc->info.src_h = 0;
-        g_sc->info.clip_sc_mode = 0;
-
     }
+
+    spin_lock_irqsave( &g_sc2->sc_lock, flags );
+    if (am2_ctx[ctx_id].temp_buf != NULL) {
+        kfree(am2_ctx[ctx_id].temp_buf);
+        am2_ctx[ctx_id].temp_buf = NULL;
+    }
+
+    kfifo_reset(&am2_ctx[ctx_id].sc_fifo_out);
+    kfifo_reset(&am2_ctx[ctx_id].sc_fifo_in);
+    am2_ctx[ctx_id].frame_id = 0;
+
+    am2_ctx[ctx_id].info.startx = 0;
+    am2_ctx[ctx_id].info.starty = 0;
+    am2_ctx[ctx_id].info.c_width = 0;
+    am2_ctx[ctx_id].info.c_height = 0;
+    am2_ctx[ctx_id].info.src_w = 0;
+    am2_ctx[ctx_id].info.src_h = 0;
+    am2_ctx[ctx_id].info.clip_sc_mode = 0;
+    spin_unlock_irqrestore( &g_sc2->sc_lock, flags );
 
     return 0;
 }
 
-int am_sc2_system_deinit(void)
+int am_sc2_system_deinit(int ctx_id)
 {
-    if (!g_sc) {
-        pr_info("%d, g_sc is NULL.\n", __LINE__);
+    if (!g_sc2) {
+        pr_info("%d, g_sc2 is NULL.\n", __LINE__);
         return -1;
     }
 
-    iounmap(g_sc->base_addr);
-    g_sc->base_addr = NULL;
+    iounmap(g_sc2->base_addr);
+    g_sc2->base_addr = NULL;
 
-    kfree(g_sc);
-    g_sc = NULL;
+    kfree(g_sc2);
+    g_sc2 = NULL;
     return 0;
 }
 
-
-int am_sc2_hw_deinit(void)
+int am_sc2_hw_deinit(int ctx_id)
 {
     return 0;
 }
 
+void am_sc2_hw_enable(void)
+{
+    sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
+    sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 0, 1);
+}
+
+void am_sc2_hw_disable(void)
+{
+    sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 1, 1);
+    sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 0, 1);
+}
+
+void am_sc2_set_workstatus(uint32_t status)
+{
+    int i = 0, ret = 0;
+    uint32_t c_width = am2_ctx[0].info.c_width;
+    uint32_t c_height = am2_ctx[0].info.c_height;
+    uint32_t src_w = am2_ctx[0].info.src_w;
+    uint32_t src_h = am2_ctx[0].info.src_h;
+    uint32_t out_w = am2_ctx[0].info.out_w;
+    uint32_t out_h = am2_ctx[0].info.out_h;
+    uint32_t out_fmt = am2_ctx[0].info.out_fmt;
+
+    if (g_sc2->stop_flag) return;
+
+    g_sc2->cam_id_last = system_get_last_api_context();
+    g_sc2->cam_id_current = system_get_current_api_context();
+    g_sc2->cam_id_next = system_get_next_api_context();
+    g_sc2->cam_id_next_next = system_get_next_next_api_context();
+
+    g_sc2->working = status;
+    if (g_sc2->user > 1) {
+        for (i = 0; i < CAM_CTX_NUM - 1; i ++) {
+            if (c_width != am2_ctx[i + 1].info.c_width) {
+                ret = -1;
+                break;
+            } else if (c_height != am2_ctx[i + 1].info.c_height) {
+                ret = -1;
+                break;
+            } else if (src_w != am2_ctx[i + 1].info.src_w) {
+                ret = -1;
+                break;
+            } else if (src_h != am2_ctx[i + 1].info.src_h) {
+                ret = -1;
+                break;
+            } else if (out_w != am2_ctx[i + 1].info.out_w) {
+                ret = -1;
+                break;
+            } else if (out_h != am2_ctx[i + 1].info.out_h) {
+                ret = -1;
+                break;
+            } else if (out_fmt != am2_ctx[i + 1].info.out_fmt) {
+                ret = -1;
+                break;
+            }
+        }
+    } else {
+        if ((g_sc2->cam_id_current != g_sc2->cam_id_next) || (g_sc2->cam_id_current != g_sc2->cam_id_next_next))
+            g_sc2->refresh = 1;
+    }
+
+    if (ret != 0)
+        g_sc2->refresh = 1;
+}
+
+uint32_t am_sc2_get_workstatus(void)
+{
+    return g_sc2->working;
+}
+
+void am_sc2_set_camid(uint32_t status)
+{
+    g_sc2->cam_id_last = system_get_last_api_context();
+    g_sc2->cam_id_current = system_get_current_api_context();
+    g_sc2->cam_id_next = system_get_next_api_context();
+    g_sc2->cam_id_next_next = system_get_next_next_api_context();
+}

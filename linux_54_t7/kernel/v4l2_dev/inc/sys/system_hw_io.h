@@ -34,6 +34,8 @@
  */
 uint32_t system_hw_read_32( uintptr_t addr );
 
+uint32_t system_hw_read_adap( uintptr_t addr );
+void system_hw_write_adap( uintptr_t addr, uint32_t data );
 
 /**
  *   Read 16 bit word from isp memory
@@ -96,5 +98,9 @@ void system_hw_write_16( uintptr_t addr, uint16_t data );
  */
 void system_hw_write_8( uintptr_t addr, uint8_t data );
 
+int32_t system_get_last_api_context( void );
+int32_t system_get_current_api_context( void );
+int32_t system_get_next_api_context( void );
+int32_t system_get_next_next_api_context( void );
 
 #endif /* __system_hw_io_H__ */

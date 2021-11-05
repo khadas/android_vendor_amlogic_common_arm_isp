@@ -529,8 +529,6 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     p_ctx->vmax_adjust = p_ctx->vmax;
     p_ctx->vmax_fps = p_ctx->s_fps;
 
-    sensor_set_iface(&param->modes_table[mode], p_ctx->win_offset);
-
     LOG( LOG_CRIT, "Mode %d, Setting num: %d, RES:%dx%d\n", mode, setting_num,
                 (int)param->active.width, (int)param->active.height );
 }
@@ -576,7 +574,7 @@ static void start_streaming( void *ctx )
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     sensor_param_t *param = &p_ctx->param;
-    sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset);
+    sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
     acamera_sbus_write_u8(p_sbus, 0x0100, 0x01);
 
@@ -665,7 +663,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.sbus.mask = SBUS_MASK_ADDR_16BITS |
            SBUS_MASK_SAMPLE_8BITS |SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = I2C_CONTROL_MASK;
-    sensor_ctx.sbus.bus = 1;//get_next_sensor_bus_address();
+    sensor_ctx.sbus.bus = 0;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init(&sensor_ctx.sbus, sbus_i2c);
 
@@ -761,6 +759,7 @@ int sensor_detect_ov08a10( void* sbp)
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
     reset_am_disable(sensor_bp);
+    gp_pl_am_disable(sensor_bp, "mclk_0");
     return ret;
 }
 //*************************************************************************************

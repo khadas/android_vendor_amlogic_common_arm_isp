@@ -65,10 +65,15 @@ module_param(ds_port, int, 0664);
 
 extern void system_isp_proc_create( struct device *dev );
 extern void system_isp_proc_remove( struct device *dev );
+uint32_t global_isp_clk_rate = 500000000;
 
 #define LOG_CONTEXT "[ ACamera ]"
 #define ISP_V4L2_MODULE_NAME "isp-v4l2"
 
+unsigned int g_firmware_context_number = 1;
+unsigned int dcam = 1;
+module_param(dcam, uint, 0664);
+MODULE_PARM_DESC(dcam, "\n camera number\n");
 #define P_PWRCTRL_FOCRST0       (0xfe00c030)
 
 #define P_PWRCTRL_PWR_OFF0      (0xfe00c010)
@@ -108,8 +113,7 @@ struct device_info {
 };
 
 extern uint32_t seamless;
-extern uint8_t *isp_kaddr;
-extern resource_size_t isp_paddr;
+extern temper_addr isp_temper_paddr[FIRMWARE_CONTEXT_NUMBER];
 
 extern void system_interrupts_set_irq( int irq_num, int flags );
 extern void system_interrupts_init(void);
@@ -481,7 +485,7 @@ static ssize_t dump_frame_write(
         }
     } else if (!strcmp(parm[0], "fr")) {
         if (parm[1] != NULL)
-            write_to_file(parm[1], phys_to_virt(isp_paddr) + buff_offset, buff_size);
+            write_to_file(parm[1], phys_to_virt(isp_temper_paddr[0].isp_paddr) + buff_offset, buff_size);
     } else
         pr_info("unsupprt cmd!\n");
 
@@ -618,6 +622,17 @@ uint32_t read_reg(unsigned long addr)
     return ret;
 
 }
+
+int aml_cmpr_bypass(void) {
+    uint32_t data = 0;
+    data = read_reg(MIPI_TOP_ADAPT_DE_CTRL0);
+    write_reg(data | 1<<7 | 1<<3, MIPI_TOP_ADAPT_DE_CTRL0);  //adapt_de_bypass
+
+    data = read_reg(MIPI_TOP_TNR_DE_CTRL0);
+    write_reg(data | 1 << 0, MIPI_TOP_TNR_DE_CTRL0);       //tnr_de_bypass
+    return 0;
+}
+
 #if 0
 static struct isp_ctrl_s default_poweron_ctrl[] = {
 	/* power up ge2d */
@@ -789,14 +804,14 @@ int32_t isp_clk_enable(void)
         pr_err("Invalid clk level %d !\n", dev_info.clk_level);
         break;
     }
-    //isp_clk_rate = 500000000;
-    isp_clk_rate = 666666666;
+    isp_clk_rate = 286000000;
+    global_isp_clk_rate = isp_clk_rate;
     uint32_t isp_mipi_rate = 200000000;
     clk_set_rate(dev_info.clk_isp_0, isp_clk_rate);
     clk_set_rate(dev_info.clk_mipi_0, isp_mipi_rate);
     LOG(LOG_CRIT, "get clk isp:%ld, mipi:%ld\n", clk_get_rate(dev_info.clk_isp_0), clk_get_rate(dev_info.clk_mipi_0));
 
-	rc = clk_prepare_enable(dev_info.clk_isp_0);
+    rc = clk_prepare_enable(dev_info.clk_isp_0);
     if (rc != 0) {
         LOG(LOG_CRIT, "Failed to enable isp clk");
         return rc;
@@ -1017,6 +1032,8 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
         goto free_res;
     }
 
+    g_firmware_context_number = dcam;
+    LOG(LOG_CRIT, "cam num:%d", g_firmware_context_number);
     int idx;
 
     LOG( LOG_ERR, "--------------------------------" );
@@ -1044,6 +1061,7 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
     device_create_file(&pdev->dev, &dev_attr_isp_clk);
     system_dbg_create(&pdev->dev);
     system_isp_proc_create(&pdev->dev);
+    aml_cmpr_bypass();
     LOG( LOG_ERR, "Init finished. async register notifier result %d. Waiting for subdevices", rc );
 
 #ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND

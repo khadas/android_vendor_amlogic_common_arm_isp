@@ -516,7 +516,16 @@
 #define COMMAND_GET                                       0x00000001
 #define API_VERSION                                       0x00000064
 
+#define NOTIFY_GET_QUEUE_STATUS                           0x00000001
+#define NOTIFY_GET_ISP_CLKRATE                            0x00000002
+#define NOTIFY_SET_SC01_EN                                0x00000003
+#define NOTIFY_SET_SC23_EN                                0x00000004
+#define NOTIFY_GET_SC03_STATUS                            0x00000005
+#define NOTIFY_SET_SC03_STATUS                            0x00000006
+#define NOTIFY_UPDATE_SC03_CAMID                          0x00000007
 
+#define SCMIF_IDLE                                        0x00000000
+#define SCMIF_BUSY                                        0x000000AA
 // ------------------------------------------------------------------------------ //
 //		SET/GET FUNCTION
 // ------------------------------------------------------------------------------ //

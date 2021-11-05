@@ -84,9 +84,10 @@ uint32_t sensor_boot_init( sensor_fsm_ptr_t p_fsm )
     ACAMERA_FSM2CTX_PTR( p_fsm )
         ->settings.sensor_init( &p_fsm->sensor_ctx, &p_fsm->ctrl );
 
+
 #if USER_MODULE
     uint32_t idx = 0;
-    //sensor_param_t *param = (sensor_param_t *)p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+    sensor_param_t *param = (sensor_param_t *)p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
     struct sensor_info ksensor_info;
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_KSENSOR_INFO, NULL, 0, &ksensor_info, sizeof( ksensor_info ) );
 
@@ -191,8 +192,7 @@ void sensor_configure_buffers( sensor_fsm_ptr_t p_fsm )
         LOG( LOG_ERR, "No output buffers for temper block provided in settings. Temper is disabled" );
     }
 
-    if ( temper3_4k == 0 )
-    {
+    if ( temper3_4k == 0 ) {
         const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
         if ( param->modes_table[p_fsm->preset_mode].resolution.width > 1920 &&  param->modes_table[p_fsm->preset_mode].resolution.height > 1080 )
         {

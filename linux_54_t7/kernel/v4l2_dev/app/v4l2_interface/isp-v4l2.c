@@ -49,18 +49,18 @@
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
 static isp_v4l2_dev_t *g_isp_v4l2_dev;
-void *isp_kaddr = NULL;
-resource_size_t isp_paddr = 0;
 #define SIZE_1M (1024 * 1024UL)
 #define DEFAULT_TEMPER_BUFFER_SIZE    16
-#define DEFAULT_TEMPER_LINE_OFFSET    3840*3
+#define DEFAULT_TEMPER_LINE_OFFSET    1920*3
 #define DEFAULT_TEMPER_FRAME_NUM      1
-#define DEFAULT_TEMPER_FRAME_SIZE     3840*2160*6
+#define DEFAULT_TEMPER_FRAME_SIZE     1920*1080*3
 #define ENFORCE_TEMPER3_DISABLE       0
 #define ENFORCE_TEMPER3_ENABLE        3
-unsigned int temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
-unsigned int temper_frame_num = DEFAULT_TEMPER_FRAME_NUM;
-unsigned int temper_frame_size = DEFAULT_TEMPER_FRAME_SIZE;
+temper_addr isp_temper_paddr[FIRMWARE_CONTEXT_NUMBER];
+unsigned int temper_line_offset[FIRMWARE_CONTEXT_NUMBER];
+unsigned int temper_frame_num[FIRMWARE_CONTEXT_NUMBER];
+unsigned int temper_frame_size[FIRMWARE_CONTEXT_NUMBER];
+unsigned int temper_buf_size[FIRMWARE_CONTEXT_NUMBER];
 unsigned int temper3 = 1;
 module_param(temper3, uint, 0664);
 MODULE_PARM_DESC(temper3, "\n temper3 enable\n");
@@ -551,6 +551,7 @@ static int isp_v4l2_s_input( struct file *file, void *fh, unsigned int input )
 static int isp_v4l2_reqbufs( struct file *file, void *priv,
                              struct v4l2_requestbuffers *p )
 {
+    isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
     int rc = 0;
 
@@ -564,26 +565,26 @@ static int isp_v4l2_reqbufs( struct file *file, void *priv,
 
 #if ISP_HAS_SC0
     if (sp->stream_id == V4L2_STREAM_TYPE_SC0) {
-        am_sc_set_buf_num(p->count);
-        am_sc_system_init();
+        am_sc_set_buf_num(dev->ctx_id, p->count);
+        am_sc_system_init(dev->ctx_id);
     }
 #endif
 #if ISP_HAS_SC1
     if (sp->stream_id == V4L2_STREAM_TYPE_SC1) {
-        am_sc1_set_buf_num(p->count);
-        am_sc1_system_init();
+        am_sc1_set_buf_num(dev->ctx_id, p->count);
+        am_sc1_system_init(dev->ctx_id);
     }
 #endif
 #if ISP_HAS_SC2
     if (sp->stream_id == V4L2_STREAM_TYPE_SC2) {
-        am_sc2_set_buf_num(p->count);
-        am_sc2_system_init();
+        am_sc2_set_buf_num(dev->ctx_id, p->count);
+        am_sc2_system_init(dev->ctx_id);
     }
 #endif
 #if ISP_HAS_SC3
     if (sp->stream_id == V4L2_STREAM_TYPE_CROP) {
-        am_sc3_set_buf_num(p->count);
-        am_sc3_system_init();
+        am_sc3_set_buf_num(dev->ctx_id, p->count);
+        am_sc3_system_init(dev->ctx_id);
     }
 #endif
 
@@ -821,7 +822,7 @@ static const struct v4l2_ioctl_ops isp_v4l2_ioctl_ops = {
  #endif
 };
 
-static int isp_cma_alloc(struct platform_device *pdev, unsigned long size)
+static int isp_cma_alloc(uint32_t ctx_id, struct platform_device *pdev, unsigned long size)
 {
     struct page *cma_pages = NULL;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
@@ -832,12 +833,14 @@ static int isp_cma_alloc(struct platform_device *pdev, unsigned long size)
             &(pdev->dev), size >> PAGE_SHIFT, 0);
 #endif
     if (cma_pages) {
-        isp_paddr = page_to_phys(cma_pages);
+        isp_temper_paddr[ctx_id].isp_paddr = page_to_phys(cma_pages);
     } else {
         LOG(LOG_ERR, "Failed alloc cma pages.\n");
         return -1;
     }
-    isp_kaddr = (void *)cma_pages;
+    isp_temper_paddr[ctx_id].isp_kaddr = (void *)cma_pages;
+
+    LOG( LOG_INFO, "isp_cma_mem : %p, paddr:0x%x\n", isp_temper_paddr[ctx_id].isp_kaddr, isp_temper_paddr[ctx_id].isp_paddr);
 
     return 0;
 }
@@ -861,6 +864,30 @@ static void isp_cma_free(struct platform_device *pdev, void *kaddr, unsigned lon
     }
 }
 
+void isp_v4l2_subdev_notify(struct v4l2_subdev*sd, uint notification, void *arg)
+{
+    if ( notification == NOTIFY_GET_QUEUE_STATUS )
+        *(int *)arg = fw_intf_isp_get_queue_status();
+    else if ( notification == NOTIFY_GET_ISP_CLKRATE )
+        *(unsigned int *)arg = global_isp_clk_rate;
+    else if ( notification == NOTIFY_GET_SC03_STATUS ) {
+        *(unsigned int *)arg = am_sc3_get_workstatus();
+        *(unsigned int *)arg += am_sc_get_workstatus();
+        *(unsigned int *)arg += am_sc1_get_workstatus();
+        *(unsigned int *)arg += am_sc2_get_workstatus();
+    } else if ( notification == NOTIFY_SET_SC03_STATUS ) {
+        am_sc3_set_workstatus(*(unsigned int *)arg);
+        am_sc_set_workstatus(*(unsigned int *)arg);
+        am_sc1_set_workstatus(*(unsigned int *)arg);
+        am_sc2_set_workstatus(*(unsigned int *)arg);
+    } else if ( notification == NOTIFY_UPDATE_SC03_CAMID ) {
+        am_sc3_set_camid(*(unsigned int *)arg);
+        am_sc_set_camid(*(unsigned int *)arg);
+        am_sc1_set_camid(*(unsigned int *)arg);
+        am_sc2_set_camid(*(unsigned int *)arg);
+    } else
+        *(unsigned int *)arg = global_isp_clk_rate;
+}
 static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
 {
     isp_v4l2_dev_t *dev;
@@ -881,11 +908,13 @@ static int isp_v4l2_init_dev( uint32_t ctx_id, struct v4l2_device *v4l2_dev )
     memset( dev, 0x0, sizeof( isp_v4l2_dev_t ) );
 
     /* register v4l2_device */
+    v4l2_dev->notify = isp_v4l2_subdev_notify;
 
     dev->v4l2_dev = v4l2_dev;
     dev->ctx_id = ctx_id;
 
     /* init v4l2 controls */
+    dev->isp_v4l2_ctrl.ctx_id = ctx_id;
     dev->isp_v4l2_ctrl.v4l2_dev = dev->v4l2_dev;
     dev->isp_v4l2_ctrl.video_dev = &dev->video_dev;
     rc = isp_v4l2_ctrl_init( ctx_id, &dev->isp_v4l2_ctrl );
@@ -971,6 +1000,80 @@ static void isp_v4l2_destroy_dev( int ctx_id )
     }
 }
 
+int isp_v4l2_temper_alloc( struct v4l2_device *v4l2_dev, struct platform_device *pdev )
+{
+    char property[32];
+    int rc = 0;
+    int i = 0;
+
+    for ( i = 0; i < g_firmware_context_number; i ++ ) {
+        memset(property, 0, 32);
+        if (i == 0)
+            sprintf(property, "temper-frame-num");
+        else
+            sprintf(property, "temper-frame-num%d", i);
+        rc = of_property_read_u32(pdev->dev.of_node, property, &temper_frame_num[i]);
+        if ( rc != 0 ) {
+            LOG(LOG_ERR, "failed to get temper-frame-num from dts, use default value\n");
+            temper_frame_num[i] = DEFAULT_TEMPER_FRAME_NUM * temper3;
+        } else {
+            if ( temper3 == ENFORCE_TEMPER3_DISABLE )
+                temper_frame_num[i] = DEFAULT_TEMPER_FRAME_NUM;
+            else if ( temper3 == ENFORCE_TEMPER3_ENABLE )
+                temper_frame_num[i] = DEFAULT_TEMPER_FRAME_NUM * 2;
+        }
+
+        memset(property, 0, 32);
+        if (i == 0)
+            sprintf(property, "temper-frame-size");
+        else
+            sprintf(property, "temper-frame-size%d", i);
+        rc = of_property_read_u32(pdev->dev.of_node, property, &temper_frame_size[i]);
+        if ( rc != 0 ) {
+            LOG(LOG_ERR, "failed to get temper-frame-size from dts, use default value\n");
+            temper_frame_size[i] = DEFAULT_TEMPER_FRAME_SIZE;
+        }
+
+        memset(property, 0, 32);
+        if (i == 0)
+            sprintf(property, "temper-line-offset");
+        else
+            sprintf(property, "temper-line-offset%d", i);
+        rc = of_property_read_u32(pdev->dev.of_node, "temper-line-offset", &temper_line_offset[i]);
+        if (rc != 0) {
+            LOG(LOG_ERR, "failed to get temper-line-offset from dts, use default value\n");
+            temper_line_offset[i] = DEFAULT_TEMPER_LINE_OFFSET;
+        }
+
+        memset(property, 0, 32);
+        if (i == 0)
+            sprintf(property, "temper-buf-size");
+        else
+            sprintf(property, "temper-buf-size%d", i);
+        rc = of_property_read_u32(pdev->dev.of_node, property, &temper_buf_size[i]);
+        if ( rc != 0 ) {
+            LOG(LOG_ERR, "failed to get temper-buf-size from dts, use default value\n");
+            temper_buf_size[i] = DEFAULT_TEMPER_BUFFER_SIZE;
+        }
+
+        if ( temper_buf_size[i] < (( temper_frame_num[i] * temper_frame_size[i]) / SIZE_1M) )
+            temper_buf_size[i] = (temper_frame_num[i] * temper_frame_size[i]) / SIZE_1M;
+
+#if ISP_HAS_CMPR
+        temper_buf_size[i] = temper_buf_size[i] * 2;
+#endif
+
+#if ( ISP_HAS_FLICKER || ISP_HAS_MD )
+        temper_buf_size[i] += 4;
+#endif
+
+        if (temper_buf_size[i])
+            rc = isp_cma_alloc(i, pdev, temper_buf_size[i] * SIZE_1M);
+    }
+
+    return rc;
+}
+
 /* ----------------------------------------------------------------
  * V4L2 external interface for probe
  */
@@ -978,7 +1081,6 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
 {
     uint32_t ctx_id;
     uint32_t ret_value;
-    unsigned int temper_buf_size;
     int rc = 0;
 
     if ( v4l2_dev == NULL ) {
@@ -986,95 +1088,56 @@ int isp_v4l2_create_instance( struct v4l2_device *v4l2_dev, struct platform_devi
         return -EINVAL;
     }
 
-    rc = of_property_read_u32(pdev->dev.of_node, "temper-frame-num",
-                               &temper_frame_num);
-    if ( rc != 0 ) {
-        temper_frame_num = DEFAULT_TEMPER_FRAME_NUM * temper3;
-    }
-    else
-    {
-        if ( temper3 == ENFORCE_TEMPER3_DISABLE )
-            temper_frame_num = DEFAULT_TEMPER_FRAME_NUM;
-        else if ( temper3 == ENFORCE_TEMPER3_ENABLE )
-            temper_frame_num = DEFAULT_TEMPER_FRAME_NUM * 2;
-    }
-
-    rc = of_property_read_u32(pdev->dev.of_node, "temper-frame-size",
-                               &temper_frame_size);
-    if ( rc != 0 ) {
-        temper_frame_size = DEFAULT_TEMPER_FRAME_SIZE;
-    }
-
-    rc = of_property_read_u32(pdev->dev.of_node, "temper-buf-size",
-                               &temper_buf_size);
-    if ( rc != 0 ) {
-        LOG(LOG_ERR, "failed to get temper-buf-size from dts, use default value\n");
-        temper_buf_size = DEFAULT_TEMPER_BUFFER_SIZE;
-    }
-
-    if ( temper_buf_size < (( temper_frame_num * temper_frame_size) / SIZE_1M) )
-        temper_buf_size = (temper_frame_num * temper_frame_size) / SIZE_1M;
-
-#if ISP_HAS_CMPR
-    temper_buf_size = temper_buf_size * 2;
-#endif
-
-#if ( ISP_HAS_FLICKER || ISP_HAS_MD )
-    rc = isp_cma_alloc(pdev, (temper_buf_size + 4) * SIZE_1M);
-#else
-    rc = isp_cma_alloc(pdev, (temper_buf_size) * SIZE_1M);
-#endif
-    if (rc < 0)
-        return rc;
-
-    rc = of_property_read_u32(pdev->dev.of_node, "temper-line-offset", &temper_line_offset);
-    if (rc != 0) {
-        LOG(LOG_ERR, "failed to get temper_line_offset from dts, use default value\n");
-        temper_line_offset = DEFAULT_TEMPER_LINE_OFFSET;
-    }
+    /* alloc isp tnr buffer */
+    isp_v4l2_temper_alloc(v4l2_dev, pdev);
 
     /* initialize isp */
     rc = fw_intf_isp_init(hw_isp_addr);
     if ( rc < 0 )
         goto free_cma;
 
+
     /* initialize stream related resources to prepare for streaming.
      * It should be called after sensor initialized.
      */
-    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+    for ( ctx_id = 0; ctx_id < g_firmware_context_number; ctx_id++ ) {
         rc = isp_v4l2_stream_init_static_resources( pdev, ctx_id );
         if ( rc < 0 )
             goto deinit_fw_intf;
     }
 
-
     /* check sensor devices */
-    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+    for ( ctx_id = 0; ctx_id < g_firmware_context_number; ctx_id++ ) {
         rc = acamera_command(ctx_id, TSENSOR, SENSOR_HWID, 0, COMMAND_GET, &ret_value);
         if ( rc ) {
             LOG( LOG_CRIT, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
             rc = 0;
-            goto deinit_fw_intf;
+            if (ctx_id == 0)
+                goto deinit_fw_intf;
+            else {
+                g_firmware_context_number = ctx_id;
+                break;
+            }
         }
     }
 
     /* initialize v4l2 layer devices */
-    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+    for ( ctx_id = 0; ctx_id < g_firmware_context_number; ctx_id++ ) {
         rc = isp_v4l2_init_dev( ctx_id, v4l2_dev );
         if ( rc ) {
             LOG( LOG_ERR, "isp_v4l2_init ctx_id: %d failed.", ctx_id );
             goto unreg_dev;
         }
         g_isp_v4l2_devs[ctx_id]->pdev = &pdev->dev;
+        g_isp_v4l2_devs[ctx_id]->temper_buf_size = temper_buf_size[ctx_id];
     }
 
     g_isp_v4l2_dev = g_isp_v4l2_devs[0];
-    g_isp_v4l2_dev->temper_buf_size = temper_buf_size;
 
     return 0;
 
 unreg_dev:
-    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+    for ( ctx_id = 0; ctx_id < g_firmware_context_number; ctx_id++ ) {
         isp_v4l2_destroy_dev( ctx_id );
     }
 
@@ -1082,7 +1145,10 @@ deinit_fw_intf:
     fw_intf_isp_deinit();
 
 free_cma:
-    isp_cma_free(pdev, isp_kaddr, temper_buf_size * SIZE_1M);
+    for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
+        if (temper_buf_size[ctx_id])
+            isp_cma_free(pdev, isp_temper_paddr[ctx_id].isp_kaddr, temper_buf_size[ctx_id] * SIZE_1M);
+    }
 
     return rc;
 }
@@ -1095,12 +1161,13 @@ void isp_v4l2_destroy_instance( struct platform_device *pdev )
         fw_intf_isp_deinit();
         isp_v4l2_stream_deinit_static_resources(pdev);
 
-        isp_cma_free(pdev, isp_kaddr,
-             (g_isp_v4l2_dev->temper_buf_size + 2) * SIZE_1M);
-
         for ( ctx_id = 0; ctx_id < FIRMWARE_CONTEXT_NUMBER; ctx_id++ ) {
-            isp_v4l2_destroy_dev( ctx_id );
+            if (g_isp_v4l2_dev->temper_buf_size)
+                isp_cma_free(pdev, isp_temper_paddr[ctx_id].isp_kaddr, temper_buf_size[ctx_id] * SIZE_1M);
         }
+
+        for ( ctx_id = 0; ctx_id < g_firmware_context_number; ctx_id++ )
+            isp_v4l2_destroy_dev( ctx_id );
     }
 }
 
@@ -1115,7 +1182,7 @@ int isp_v4l2_find_stream( isp_v4l2_stream_t **ppstream,
 
     *ppstream = NULL;
 
-    if ( g_isp_v4l2_dev == NULL ) {
+    if ( g_isp_v4l2_devs[ctx_number] == NULL ) {
         return -EBUSY;
     }
 
@@ -1124,7 +1191,7 @@ int isp_v4l2_find_stream( isp_v4l2_stream_t **ppstream,
     }
 
     stream_id = g_isp_v4l2_devs[ctx_number]->stream_id_index[stream_type];
-    if ( stream_id < 0 || stream_id >= V4L2_STREAM_TYPE_MAX || g_isp_v4l2_dev->pstreams[stream_id] == NULL ) {
+    if ( stream_id < 0 || stream_id >= V4L2_STREAM_TYPE_MAX || g_isp_v4l2_devs[ctx_number]->pstreams[stream_id] == NULL ) {
         return -EBUSY;
     }
 

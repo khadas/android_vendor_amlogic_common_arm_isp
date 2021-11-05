@@ -31,70 +31,70 @@
 extern struct am_mipi *g_mipi;
 
 /*
- *	=======================MIPI PHY INTERFACE====================
+ *    =======================MIPI PHY INTERFACE====================
  */
 static inline void mipi_phy2_reg_wr(int addr, uint32_t val)
 {
-	void __iomem *reg_addr = g_mipi->csi2_phy2 + addr;
+    void __iomem *reg_addr = g_mipi->csi2_phy2 + addr;
 
-	__raw_writel(val, reg_addr);
+    __raw_writel(val, reg_addr);
 }
 
 static inline void mipi_phy2_reg_rd(int addr, uint32_t *val)
 {
-	uint32_t data = 0;
-	void __iomem *reg_addr = g_mipi->csi2_phy2 + addr;
+    uint32_t data = 0;
+    void __iomem *reg_addr = g_mipi->csi2_phy2 + addr;
 
-	data = __raw_readl(reg_addr);
+    data = __raw_readl(reg_addr);
 
-	*val = data;
+    *val = data;
 }
 
 uint32_t mipi_phy2_reg_rd_ext(int addr)
 {
-	uint32_t data = 0;
-	void __iomem *reg_addr = g_mipi->csi2_phy2 + addr;
+    uint32_t data = 0;
+    void __iomem *reg_addr = g_mipi->csi2_phy2 + addr;
 
-	data = __raw_readl(reg_addr);
+    data = __raw_readl(reg_addr);
 
-	return data;
+    return data;
 }
 
 static inline void mipi_aphy_reg_wr(int addr, uint32_t val)
 {
-	void __iomem *reg_addr = g_mipi->aphy + addr;
+    void __iomem *reg_addr = g_mipi->aphy + addr;
 
-	__raw_writel(val, reg_addr);
+    __raw_writel(val, reg_addr);
 }
 
 /*
- *	=======================MIPI HOST INTERFACE====================
+ *    =======================MIPI HOST INTERFACE====================
  */
 static inline void mipi_host_reg_wr(int addr, uint32_t val)
 {
-	void __iomem *reg_addr = g_mipi->csi2_host + addr;
+    void __iomem *reg_addr = g_mipi->csi2_host + addr;
 
-	__raw_writel(val, reg_addr);
+    __raw_writel(val, reg_addr);
 }
 
 static inline void mipi_host_reg_rd(int addr, uint32_t *val)
 {
-	uint32_t data = 0;
-	void __iomem *reg_addr = g_mipi->csi2_host + addr;
+    uint32_t data = 0;
+    void __iomem *reg_addr = g_mipi->csi2_host + addr;
 
-	data = __raw_readl(reg_addr);
+    data = __raw_readl(reg_addr);
 
-	*val = data;
+    *val = data;
 }
 
 uint32_t mipi_csi2_host_reg_rd_ext(int addr)
 {
-	uint32_t data = 0;
-	void __iomem *reg_addr = g_mipi->csi2_host + addr;
+    uint32_t data = 0;
+    void __iomem *reg_addr = g_mipi->csi2_host + addr;
 
-	data = __raw_readl(reg_addr);
+    data = __raw_readl(reg_addr);
 
-	return data;
+    return data;
 }
 
 static int am_mipi_aphy1_init(void *info)
@@ -114,13 +114,13 @@ static int am_mipi_aphy1_init(void *info)
     settle = settle/cycle_time;
 
     //aphy
-    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL0, 0x3f425c00);
-    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL1, 0x333a0000);
-	mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL4, 0x3f425c00);
-    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL5, 0x333a0000);
+    ///mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL0, 0x3f425c00);
+    //mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL1, 0x333a0000);
+    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL4, 0x3f425c00);
+    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL5, 0x33a0000);
 
-	mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL2, 0x3800000);
-    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL6, 0x3800000);
+    //mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL2, 0x3800000);
+    //mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL6, 0x3800000);
     //mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL3, 0x301);
     pr_err("init aphy 1 success.");
 
@@ -130,7 +130,7 @@ static int am_mipi_aphy1_init(void *info)
     mipi_phy2_reg_wr(MIPI_PHY_TCLK_SETTLE, 0x1f);
     mipi_phy2_reg_wr(MIPI_PHY_THS_EXIT ,0x08);   // hs exit = 160 ns --(x>100ns)
     mipi_phy2_reg_wr(MIPI_PHY_THS_SKIP ,0xa);   // hs skip = 55 ns --(40ns<x<55ns+4*UI)
-    mipi_phy2_reg_wr(MIPI_PHY_THS_SETTLE ,12);   //85ns ~145ns. 8
+    mipi_phy2_reg_wr(MIPI_PHY_THS_SETTLE ,settle);   //85ns ~145ns. 8
     mipi_phy2_reg_wr(MIPI_PHY_TINIT ,0x4e20);  // >100us
     mipi_phy2_reg_wr(MIPI_PHY_TMBIAS ,0x100);
     mipi_phy2_reg_wr(MIPI_PHY_TULPS_C ,0x1000);
@@ -141,90 +141,90 @@ static int am_mipi_aphy1_init(void *info)
     mipi_phy2_reg_wr(MIPI_PHY_TWD_HS ,0x400000);
     mipi_phy2_reg_wr(MIPI_PHY_DATA_LANE_CTRL , 0x0);
     mipi_phy2_reg_wr(MIPI_PHY_DATA_LANE_CTRL1 , 0x3 | (0x1f << 2 ) | (0x3 << 7));      // enable data lanes pipe line and hs sync bit err.
-    mipi_phy2_reg_wr(MIPI_PHY_MUX_CTRL0 , 0x00000177);      //config input mux
-    mipi_phy2_reg_wr(MIPI_PHY_MUX_CTRL1 , 0x00000177);
+    mipi_phy2_reg_wr(MIPI_PHY_MUX_CTRL0 , 0x00000123);      //config input mux
+    mipi_phy2_reg_wr(MIPI_PHY_MUX_CTRL1 , 0x00000123);
 
 
     mipi_phy2_reg_wr(MIPI_PHY_CTRL, 0);          //  (0 << 9) | (((~chan) & 0xf ) << 5) | 0 << 4 | ((~chan) & 0xf) );
 
-	pr_err("init dphy success.");
-	return 0;
+    pr_err("init dphy success.");
+    return 0;
 }
 
 static void am_mipi_phy2_reset(void)
 {
-	uint32_t data32;
-	data32 = 0x1f; //disable lanes digital clock
-	data32 |= 0x1 << 31; //soft reset bit
-	mipi_phy2_reg_wr(MIPI_PHY_CTRL, data32);
+    uint32_t data32;
+    data32 = 0x1f; //disable lanes digital clock
+    data32 |= 0x1 << 31; //soft reset bit
+    mipi_phy2_reg_wr(MIPI_PHY_CTRL, data32);
 }
 
 static int am_mipi_host_init(void *info)
 {
-	struct am_mipi_info *m_info = NULL;
+    struct am_mipi_info *m_info = NULL;
 
-	if (info == NULL) {
-		pr_err("%s:Error input param\n", __func__);
-		return -1;
-	}
+    if (info == NULL) {
+        pr_err("%s:Error input param\n", __func__);
+        return -1;
+    }
 
-	m_info = info;
+    m_info = info;
 
-	mipi_host_reg_rd(CSI2_HOST_VERSION, &m_info->csi_version);
-	pr_info("%s:csi host version 0x%x\n", __func__, m_info->csi_version);
+    mipi_host_reg_rd(CSI2_HOST_VERSION, &m_info->csi_version);
+    pr_info("%s:csi host version 0x%x\n", __func__, m_info->csi_version);
 
-	mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
-	mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0xffffffff); // release csi2 reset
-	mipi_host_reg_wr(CSI2_HOST_DPHY_RSTZ, 0xffffffff); // release DPHY reset
-	mipi_host_reg_wr(CSI2_HOST_N_LANES, (m_info->lanes - 1) & 3);  //set lanes
-	mipi_host_reg_wr(CSI2_HOST_PHY_SHUTDOWNZ, 0xffffffff); // enable power
+    mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
+    mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0xffffffff); // release csi2 reset
+    mipi_host_reg_wr(CSI2_HOST_DPHY_RSTZ, 0xffffffff); // release DPHY reset
+    mipi_host_reg_wr(CSI2_HOST_N_LANES, (m_info->lanes - 1) & 3);  //set lanes
+    mipi_host_reg_wr(CSI2_HOST_PHY_SHUTDOWNZ, 0xffffffff); // enable power
 
-	return 0;
+    return 0;
 }
 
 static void am_mipi_host_reset(void)
 {
-	mipi_host_reg_wr(CSI2_HOST_PHY_SHUTDOWNZ, 0); // enable power
-	mipi_host_reg_wr(CSI2_HOST_DPHY_RSTZ, 0); // release DPHY reset
-	mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
+    mipi_host_reg_wr(CSI2_HOST_PHY_SHUTDOWNZ, 0); // enable power
+    mipi_host_reg_wr(CSI2_HOST_DPHY_RSTZ, 0); // release DPHY reset
+    mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
 }
 
 /*
- *	=======================MIPI MODULE INTERFACE====================
+ *    =======================MIPI MODULE INTERFACE====================
  */
 int am_mipi2_init(void *info)
 {
-	int rtn = -1;
+    int rtn = -1;
 
-	if (info == NULL) {
-		pr_err("%s:Error input param\n", __func__);
-		return -1;
-	}
+    if (info == NULL) {
+        pr_err("%s:Error input param\n", __func__);
+        return -1;
+    }
 
-	am_mipi2_deinit();
+    am_mipi2_deinit();
 
-	rtn = am_mipi_aphy1_init(info);
-	if (rtn != 0) {
-		pr_err("%s:Error mipi phy init\n", __func__);
-		return -1;
-	}
+    rtn = am_mipi_aphy1_init(info);
+    if (rtn != 0) {
+        pr_err("%s:Error mipi phy init\n", __func__);
+        return -1;
+    }
 
-	rtn = am_mipi_host_init(info);
-	if (rtn != 0) {
-		pr_err("%s:Error mipi host init\n", __func__);
-		return -1;
-	}
+    rtn = am_mipi_host_init(info);
+    if (rtn != 0) {
+        pr_err("%s:Error mipi host init\n", __func__);
+        return -1;
+    }
 
-	pr_info("%s:Success mipi init\n", __func__);
+    pr_info("%s:Success mipi init\n", __func__);
 
-	return 0;
+    return 0;
 }
 
 void am_mipi2_deinit(void)
 {
-	am_mipi_phy2_reset();
-	am_mipi_host_reset();
+    am_mipi_phy2_reset();
+    am_mipi_host_reset();
 
-	pr_info("%s:Success mipi deinit\n", __func__);
+    pr_info("%s:Success mipi deinit\n", __func__);
 }
 

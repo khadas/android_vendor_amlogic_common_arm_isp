@@ -49,11 +49,10 @@
 // according to the customer needs.
 #include "runtime_initialization_settings.h"
 
-extern uint8_t *isp_kaddr;
-extern resource_size_t isp_paddr;
-extern unsigned int temper_line_offset;
-extern unsigned int temper_frame_num;
-extern unsigned int temper_frame_size;
+extern temper_addr isp_temper_paddr[FIRMWARE_CONTEXT_NUMBER];
+extern unsigned int temper_line_offset[FIRMWARE_CONTEXT_NUMBER];
+extern unsigned int temper_frame_num[FIRMWARE_CONTEXT_NUMBER];
+extern unsigned int temper_frame_size[FIRMWARE_CONTEXT_NUMBER];
 resource_size_t paddr_flicker = 0;
 resource_size_t paddr_md = 0;
 
@@ -125,45 +124,42 @@ void isp_update_setting(void)
     resource_size_t paddr = 0;
     int i = 0,j = 0;
 
-    if (isp_paddr == 0 || isp_kaddr == NULL) {
-        pr_err("%s: Error input isp cma addr\n", __func__);
-        return;
-    }
-
-    paddr = isp_paddr;
+    for (j = 0; j < g_firmware_context_number; j++) {
+        if (isp_temper_paddr[j].isp_paddr) {
+#if ( ISP_HAS_FLICKER || ISP_HAS_MD )
 #if ISP_HAS_CMPR
-    if (temper_frame_num == 1)
-        paddr_flicker = paddr + temper_frame_size * 2;
-    else
-        paddr_flicker = paddr + temper_frame_size * 4;
+            if (temper_frame_num[j] == 1)
+                paddr_flicker = paddr + temper_frame_size[j] * 2;
+            else
+                paddr_flicker = paddr + temper_frame_size[j] * 4;
 #else
-    if (temper_frame_num == 1)
-        paddr_flicker = paddr + temper_frame_size * 1;
-    else
-        paddr_flicker = paddr + temper_frame_size * 2;
+            if (temper_frame_num[j] == 1)
+                paddr_flicker = paddr + temper_frame_size[j] * 1;
+            else
+                paddr_flicker = paddr + temper_frame_size[j] * 2;
 #endif
-    paddr_flicker = (paddr_flicker + 4095) & (~4095);
+            paddr_flicker = (paddr_flicker + 4095) & (~4095);
+            paddr_md = (paddr_flicker + 1024*1024 + 4095) & (~4095);
+#endif
+        }
 
-#if ISP_HAS_MD
-    paddr_md = (paddr_flicker + 1024*1024 + 4095) & (~4095);
-#endif
-    for (j = 0; j < FIRMWARE_CONTEXT_NUMBER; j++) {
+        paddr = isp_temper_paddr[j].isp_paddr;
+
         aframe = settings[j].temper_frames;
         fr_num = settings[j].temper_frames_number;
 
         for (i = 0; i < fr_num; i++) {
             aframe[i].address = paddr;
-            aframe[i].size = temper_frame_size;
+            aframe[i].size = temper_frame_size[j];
 #if ISP_HAS_CMPR
-            paddr = aframe[i].address + temper_frame_size * 2;
+            paddr = aframe[i].address + temper_frame_size[j] * 2;
 #else
-            paddr = aframe[i].address + temper_frame_size;
+            paddr = aframe[i].address + temper_frame_size[j];
 #endif
-            aframe[i].line_offset = temper_line_offset;
+            aframe[i].line_offset = temper_line_offset[j];
         }
 
-        settings[j].temper_frames_number = temper_frame_num;
-
+        settings[j].temper_frames_number = temper_frame_num[j];
     }
 }
 
@@ -172,9 +168,11 @@ int isp_fw_init( uint32_t hw_isp_addr )
     int result = 0;
     uint32_t i;
 
+    LOG( LOG_INFO, "fw_init start" );
+
     isp_update_setting();
 
-    for ( i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++ ) {
+    for ( i = 0; i < g_firmware_context_number; i++ ) {
         settings[i].hw_isp_addr = hw_isp_addr;
     }
 
@@ -184,7 +182,7 @@ int isp_fw_init( uint32_t hw_isp_addr )
     // the structure acamera_settings must be filled properly.
     // the total number of initialized context must not exceed FIRMWARE_CONTEXT_NUMBER
     // all contexts are numerated from 0 till ctx_number - 1
-    result = acamera_init( settings, FIRMWARE_CONTEXT_NUMBER );
+    result = acamera_init( settings, g_firmware_context_number );
 
     if ( result == 0 ) {
         //application_command(TGENERAL, ACTIVE_CONTEXT, 0, COMMAND_GET, &prev_ctx_num);

@@ -263,7 +263,6 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         sensor_hw_init( p_fsm );
         sensor_configure_buffers( p_fsm );
         sensor_sw_init( p_fsm );
-        //sensor_isp_algorithm( p_fsm );
         ctx_ptr->irq_flag--;
         break;
 
@@ -357,6 +356,17 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         int32_t ir_cut_state = *(uint32_t *)input;
         p_fsm->ctrl.ir_cut_set( p_fsm->sensor_ctx, ir_cut_state);
 
+        break;
+    }
+    case FSM_PARAM_SET_SENSOR_DCAM_MODE: {
+        if ( !input || input_size != sizeof( uint32_t ) ) {
+            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
+            rc = -1;
+            break;
+        }
+        int32_t mode = *(uint32_t *)input;
+        pr_err("isp set dcam mode:%d", mode);
+        p_fsm->ctrl.dcam_mode( p_fsm->sensor_ctx, mode);
         break;
     }
     case FSM_PARAM_SET_SENSOR_MODE_SWITCH: {

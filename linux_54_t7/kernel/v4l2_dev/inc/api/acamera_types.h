@@ -76,4 +76,9 @@ typedef struct LookupTable {
     uint16_t width;
 } LookupTable;
 
+typedef struct _temper_addr {
+	resource_size_t isp_paddr;
+    void * isp_kaddr;
+} temper_addr;
+
 #endif /* __ACAMERA__TYPES_H__ */

@@ -26,9 +26,6 @@
 #include <linux/i2c.h>
 #include "acamera_firmware_config.h"
 
-#define DDR_BUF_SIZE 4
-#define DOL_BUF_SIZE 6
-
 //#define MIPI_CSI2_ADPT_FT0_BASE_ADDR       0xFE3B0000
 //#define MIPI_CSI2_ADPT_FT1_BASE_ADDR       0xFE3B0400
 //#define MIPI_CSI2_ADPT_FT2_BASE_ADDR       0xFE3B0800
@@ -179,7 +176,7 @@
 
 /*----------differnent with c2-------------*/
 #define CSI2_DDR_LOOP_LINES_PIX      0x5c
-#define MIPI_OTHER_CNTL0             0x100
+#define MIPI_OTHER_CNTL0             0x60 << 2
 #define MIPI_ADAPT_IRQ_MASK0         0x180
 #define MIPI_ADAPT_IRQ_PENDING0      0x184
 /*-----------------------------------------*/
@@ -828,132 +825,182 @@ typedef struct {
 } sMIPI2CMPR_Param;
 
 typedef enum {
-	FRONTEND0_IO,
-	FRONTEND1_IO,
-	FRONTEND2_IO,
-	FRONTEND3_IO,
-	RD_IO,
-	PIXEL_IO,
-	ALIGN_IO,
-	MISC_IO,
-	CMPR_CNTL_IO,
-	CMPR_IO
+    FRONTEND0_IO,
+    FRONTEND1_IO,
+    FRONTEND2_IO,
+    FRONTEND3_IO,
+    RD_IO,
+    PIXEL_IO,
+    ALIGN_IO,
+    MISC_IO,
+    CMPR_CNTL_IO,
+    CMPR_IO
 } adap_io_type_t;
 
+#define CAM_LAST                   18
+#define CAM_CURRENT                26
+#define CAM_NEXT                   28
+#define CAM_NEXT_NEXT              30
+
+#define FRONT0_WR_DONE 30
+#define FRONT2_WR_DONE 10
+#define READ0_RD_DONE 21
+#define READ1_RD_DONE 15
+#define CAMERA_NUM        2
+#define DDR_BUF_SIZE      5
+#define CAMERA_QUEUE_NUM  10
+#define DOL_BUF_SIZE      6
+
 typedef enum {
-	DDR_MODE,
-	DIR_MODE,
-	DOL_MODE,
+    FRAME_READY,
+    FRAME_NOREADY,
+} frame_status_t;
+
+typedef enum {
+    DDR_MODE,
+    DIR_MODE,
+    DCAM_MODE,
+    DOL_MODE,
 } adap_mode_t;
 
 typedef enum {
-	PATH0,
-	PATH1,
+    CAM_DIS,
+    CAM_EN,
+    DUAL_CAM_EN,
+} cam_mode_t;
+
+typedef enum {
+    ADAP0_PATH,
+    ADAP1_PATH,
+    ADAP2_PATH,
+    ADAP3_PATH,
+} adap_chan_t;
+
+typedef enum {
+    CAM0_ACT,
+    CAM1_ACT,
+} cam_num_t;
+
+typedef enum {
+    PATH0,
+    PATH1,
+    PATH2,
+    PATH3,
 } adap_path_t;
 
 typedef struct {
-	uint32_t width;
-	uint32_t height;
+    uint32_t width;
+    uint32_t height;
 } adap_img_t;
 
 typedef enum {
-	AM_RAW6 = 1,
-	AM_RAW7,
-	AM_RAW8,
-	AM_RAW10,
-	AM_RAW12,
-	AM_RAW14,
+    AM_RAW6 = 1,
+    AM_RAW7,
+    AM_RAW8,
+    AM_RAW10,
+    AM_RAW12,
+    AM_RAW14,
 } img_fmt_t;
 
 typedef enum {
-	DOL_NON = 0,
-	DOL_VC,
-	DOL_LINEINFO,
-	DOL_YUV,
+    DOL_NON = 0,
+    DOL_VC,
+    DOL_LINEINFO,
+    DOL_YUV,
 } dol_type_t;
 
 typedef enum {
-	FTE_DONE = 0,
-	FTE0_DONE,
-	FTE1_DONE,
+    FTE_DONE = 0,
+    FTE0_DONE,
+    FTE1_DONE,
 } dol_state_t;
 
 typedef struct exp_offset {
-	int long_offset;
-	int short_offset;
-	int offset_x;
-	int offset_y;
+    int long_offset;
+    int short_offset;
+    int offset_x;
+    int offset_y;
 } exp_offset_t;
 
 struct am_adap {
-	struct device_node *of_node;
-	struct platform_device *p_dev;
-	struct resource reg;
-	void __iomem *base_addr;
-	int f_end_irq;
-	int f_fifo;
-	int rd_irq;
-	unsigned int adap_buf_size;
+    struct device_node *of_node;
+    struct platform_device *p_dev;
+    struct resource reg;
+    void __iomem *base_addr;
+    int f_end_irq;
+    int rd_irq;
+    unsigned int adap_buf_size;
+    int f_fifo;
+    int f_adap;
+
+    uint32_t write_frame_ptr;
+    uint32_t read_frame_ptr;
+
+    int frame_state;
+    struct task_struct *kadap_stream;
+    wait_queue_head_t frame_wq;
+    spinlock_t reg_lock;
 };
 
 struct am_adap_info {
-	adap_path_t path;
-	adap_mode_t mode;
-	adap_img_t img;
-	int fmt;
-	dol_type_t type;
-	exp_offset_t offset;
+    adap_path_t path;
+    adap_mode_t mode;
+    adap_img_t img;
+    int fmt;
+    dol_type_t type;
+    exp_offset_t offset;
+    uint32_t align_width;
 };
 
 struct adaptfe_param {
-	int fe_sel;
-	int fe_work_mode;
-	int fe_mem_x_start;
-	int fe_mem_x_end;
-	int fe_mem_y_start;
-	int fe_mem_y_end;
-	int fe_isp_x_start;
-	int fe_isp_x_end;
-	int fe_isp_y_start;
-	int fe_isp_y_end;
-	int fe_mem_ping_addr;
-	int fe_mem_pong_addr;
-	int fe_mem_other_addr;
-	int fe_mem_line_stride;
-	int fe_mem_line_minbyte;
-	int fe_int_mask;	
+    int fe_sel;
+    int fe_work_mode;
+    int fe_mem_x_start;
+    int fe_mem_x_end;
+    int fe_mem_y_start;
+    int fe_mem_y_end;
+    int fe_isp_x_start;
+    int fe_isp_x_end;
+    int fe_isp_y_start;
+    int fe_isp_y_end;
+    int fe_mem_ping_addr;
+    int fe_mem_pong_addr;
+    int fe_mem_other_addr;
+    int fe_mem_line_stride;
+    int fe_mem_line_minbyte;
+    int fe_int_mask;
 };
 
 struct adaptrd_param {
-	int rd_work_mode;
-	int rd_mem_ping_addr;
-	int rd_mem_pong_addr;
-	int rd_mem_line_stride;
-	int rd_mem_line_size;
-	int rd_mem_line_number;
+    int rd_work_mode;
+    int rd_mem_ping_addr;
+    int rd_mem_pong_addr;
+    int rd_mem_line_stride;
+    int rd_mem_line_size;
+    int rd_mem_line_number;
 };
 
 struct adaptpixel_param {
     int pixel_work_mode;
-	int pixel_data_type;
-	int pixel_isp_x_start;
-	int pixel_isp_x_end;
-	int pixel_line_size;
-	int pixel_pixel_number;
-	int pixel_en_0;
-	int pixel_en_1;
+    int pixel_data_type;
+    int pixel_isp_x_start;
+    int pixel_isp_x_end;
+    int pixel_line_size;
+    int pixel_pixel_number;
+    int pixel_en_0;
+    int pixel_en_1;
 };
 
 struct adaptalig_param {
     int alig_work_mode;
-	int alig_hsize;
-	int alig_vsize;
+    int alig_hsize;
+    int alig_vsize;
 };
 
 //------------
 void inline adap_wr_bit(unsigned int adr,
-	    adap_io_type_t io_type, unsigned int val,
-		unsigned int start, unsigned int len);
+        adap_io_type_t io_type, unsigned int val,
+        unsigned int start, unsigned int len);
 void inline adap_write(int addr, adap_io_type_t io_type, uint32_t val);
 void inline adap_read(int addr, adap_io_type_t io_type, uint32_t *val);
 
@@ -969,13 +1016,16 @@ int aml_adap_decmpr_init(int adapt_cmpr_en, int w, int h, int fmt);
 
 int am_adap_parse_dt(struct device_node *node);
 void am_adap_deinit_parse_dt(void);
-int am_adap_init(int idx);
-int am_adap_start(int idx);
-int am_adap_reset(int idx);
-int am_adap_deinit(int idx);
+int am_adap_init(uint8_t channel);
+int am_adap_start(uint8_t channel, uint8_t dcam);
+int am_adap_reset(uint8_t channel);
+int am_adap_deinit(uint8_t channel);
 void am_adap_set_info(struct am_adap_info *info);
 int get_fte1_flag(void);
-int am_adap_get_depth(void);
+int am_adap_get_depth(uint8_t channel);
+extern int32_t system_timer_usleep( uint32_t usec );
+extern int camera_notify( uint notification, void *arg);
+
 void adap_read_ext(int addr, adap_io_type_t io_type, uint32_t *val);
 void adapt_set_virtcam(void);
 int bypass_init(void);

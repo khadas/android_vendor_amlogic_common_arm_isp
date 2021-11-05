@@ -369,7 +369,7 @@ static void isp_frame_buff_queue(void *stream, isp_v4l2_buffer_t *buf, unsigned 
            LOG( LOG_ERR, "isp vb to tframe is error.");
            return;
         }
-        am_sc_api_dma_buffer(&f_buff, index);
+        am_sc_api_dma_buffer(pstream->ctx_id, &f_buff, index);
     }
 #endif
 
@@ -380,7 +380,7 @@ static void isp_frame_buff_queue(void *stream, isp_v4l2_buffer_t *buf, unsigned 
            LOG( LOG_ERR, "isp vb to tframe is error.");
            return;
         }
-        am_sc1_api_dma_buffer(&f_buff, index);
+        am_sc1_api_dma_buffer(pstream->ctx_id, &f_buff, index);
     }
 #endif
 #if ISP_HAS_SC2
@@ -390,7 +390,7 @@ static void isp_frame_buff_queue(void *stream, isp_v4l2_buffer_t *buf, unsigned 
            LOG( LOG_ERR, "isp vb to tframe is error.");
            return;
         }
-        am_sc2_api_dma_buffer(&f_buff, index);
+        am_sc2_api_dma_buffer(pstream->ctx_id, &f_buff, index);
     }
 #endif
 #if ISP_HAS_SC3
@@ -400,7 +400,7 @@ static void isp_frame_buff_queue(void *stream, isp_v4l2_buffer_t *buf, unsigned 
            LOG( LOG_ERR, "isp vb to tframe is error.");
            return;
         }
-        am_sc3_api_dma_buffer(&f_buff, index);
+        am_sc3_api_dma_buffer(pstream->ctx_id, &f_buff, index);
     }
 #endif
 

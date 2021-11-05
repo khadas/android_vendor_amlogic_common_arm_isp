@@ -432,6 +432,7 @@
 #define SCALER_FPS                                        0x000000C9
 #define FLICKER_STATS_ID                                  0x000000CA
 #define ISP_IS_CAPTURING                                  0x000000CB
+#define SENSOR_DCAM                                       0x000000CC
 
 
 // ------------------------------------------------------------------------------ //
@@ -541,6 +542,16 @@
 #define COMMAND_GET                                       0x00000001
 #define API_VERSION                                       0x00000064
 
+#define NOTIFY_GET_QUEUE_STATUS                           0x00000001
+#define NOTIFY_GET_ISP_CLKRATE                            0x00000002
+#define NOTIFY_SET_SC01_EN                                0x00000003
+#define NOTIFY_SET_SC23_EN                                0x00000004
+#define NOTIFY_GET_SC03_STATUS                            0x00000005
+#define NOTIFY_SET_SC03_STATUS                            0x00000006
+#define NOTIFY_UPDATE_SC03_CAMID                          0x00000007
+
+#define SCMIF_IDLE                                        0x00000000
+#define SCMIF_BUSY                                        0x000000AA
 
 // ------------------------------------------------------------------------------ //
 //        SET/GET FUNCTION
@@ -558,5 +569,6 @@ uint8_t acamera_api_dma_buffer( uint32_t ctx_id, uint8_t type, void* data, uint3
 void acamera_api_dma_buff_queue_reset(uint32_t ctx_id, uint8_t type);
 uint8_t acamera_api_set_fps(uint32_t ctx_id, uint8_t type, uint32_t c_fps, uint32_t t_fps);
 void acamera_api_dma_buff_get_next(uint32_t ctx_id, uint8_t type);
+int32_t acamera_api_get_queue_status( void );
 
 #endif//_ACAMERA_COMMAND_API_H_

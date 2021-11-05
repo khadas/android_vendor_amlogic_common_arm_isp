@@ -281,6 +281,7 @@ typedef struct _sensor_control_t {
      *   This function get/sets the sensor framerate by vmax.
      *
      */
+	void ( *dcam_mode )( void *ctx, int32_t mode );
     uint32_t ( *vmax_fps )( void *ctx, uint32_t framerate );
 
     uint32_t ( *power_on )( void *ctx );

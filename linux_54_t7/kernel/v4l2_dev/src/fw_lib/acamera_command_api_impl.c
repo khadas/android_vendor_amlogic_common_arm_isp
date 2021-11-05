@@ -262,17 +262,14 @@ uint8_t sensor_streaming( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
         if ( ( value == OFF ) && is_streaming ) {
             uint32_t streaming = 0;
             instance->isp_seamless = 0;
-#if 0
-            aml_flicker_stop();
-#endif
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_STREAMING, &streaming, sizeof( streaming ) );
-#if 0
-            am_md_deinit();
-#endif
-            isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            if (instance->p_ctx->p_gfw->isp_user)
+                instance->p_ctx->p_gfw->isp_user --;
+            if ( instance->p_ctx->p_gfw->isp_user == 0 )
+                isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
         } else if ( ( value == ON ) && !is_streaming ) {
             uint32_t streaming = 1;
-
+            acamera_isp_multi_ctx_config_done_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1);
             if (instance->isp_seamless) {
                 if (acamera_isp_input_port_mode_status_read( 0 ) == ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START) {
                     streaming = 2;
@@ -281,18 +278,22 @@ uint8_t sensor_streaming( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
 
             acamera_fsm_mgr_set_param(instance, FSM_PARAM_SET_AUTOCAP_HW_RESET, NULL, 0 );
 
-            acamera_reset_ping_pong_port();
-            acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+            if (instance->p_ctx->p_gfw->isp_user == 0) {
+                acamera_reset_ping_pong_port();
+                acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
 
-            acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
-            acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
+                acamera_api_dma_buff_get_next(instance->ctx_id, dma_fr);
+                acamera_update_cur_settings_to_isp(ISP_CONFIG_PONG);
 
-            acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
-            acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 );
+                acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR );
+                acamera_isp_isp_global_mcu_override_config_select_write( 0, 1 );
+            }
 
             isp_safe_start( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
+            instance->p_ctx->p_gfw->isp_user ++;
 
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_STREAMING, &streaming, sizeof( streaming ) );
+            acamera_isp_isp_global_mcu_multi_ctx_mode(0, 1);
         } else {
             result = NOT_SUPPORTED;
             LOG(LOG_CRIT, "sensor already streamon.");
@@ -336,11 +337,7 @@ uint8_t sensor_preset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dire
         if ( value < param->modes_num ) {
             acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_PRESET_MODE, &value, sizeof( value ) );
 
-            if (instance->isp_seamless) {
-                if (acamera_isp_input_port_mode_status_read( 0 ) != ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_START)
-                    isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
-            }
-            else
+            if (instance->p_ctx->p_gfw->isp_user == 0)
                 isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
 
             acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
@@ -785,6 +782,21 @@ uint8_t sensor_hw_id( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direc
     return result;
 }
 
+#endif
+
+#ifdef SENSOR_DCAM
+uint8_t sensor_dcam_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    uint32_t result = SUCCESS;
+    uint32_t mode = value;
+    if ( direction == COMMAND_GET ) {
+       result = NOT_SUPPORTED;
+    } else {
+        acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_DCAM_MODE, &mode, sizeof( mode ) );
+    }
+
+    return result;
+}
 #endif
 
 #ifdef SENSOR_POWER_ON
@@ -4596,10 +4608,10 @@ uint8_t fr_format_base_plane( acamera_fsm_mgr_t *instance, uint32_t value, uint8
         result = SUCCESS;
     } else if ( direction == COMMAND_SET ) {
         uint8_t base, base_uv = DMA_FORMAT_DISABLE;
-        am_sc_set_input_format(value);
-        am_sc1_set_input_format(value);
-        am_sc2_set_input_format(value);
-        am_sc3_set_input_format(value);
+        am_sc_set_input_format(instance->ctx_id, value);
+        am_sc1_set_input_format(instance->ctx_id, value);
+        am_sc2_set_input_format(instance->ctx_id, value);
+        am_sc3_set_input_format(instance->ctx_id, value);
         switch ( value ) {
         case DMA_DISABLE:
             base = DMA_FORMAT_DISABLE;
@@ -4947,24 +4959,24 @@ uint8_t scaler_startx(acamera_fsm_mgr_t *instance, uint32_t value,
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
         if ( instance->dma_type == dma_sc0 )
-            *ret_value = am_sc_get_startx();
+            *ret_value = am_sc_get_startx(instance->ctx_id);
         else if ( instance->dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_startx();
+            *ret_value = am_sc1_get_startx(instance->ctx_id);
         else if ( instance->dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_startx();
+            *ret_value = am_sc2_get_startx(instance->ctx_id);
         else if ( instance->dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_startx();
+            *ret_value = am_sc3_get_startx(instance->ctx_id);
         else
-            *ret_value = am_sc_get_startx();
+            *ret_value = am_sc_get_startx(instance->ctx_id);
     } else if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_startx(startx);
+            am_sc_set_startx(instance->ctx_id, startx);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_startx(startx);
+            am_sc1_set_startx(instance->ctx_id, startx);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_startx(startx);
+            am_sc2_set_startx(instance->ctx_id, startx);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_startx(startx);
+            am_sc3_set_startx(instance->ctx_id, startx);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -4981,24 +4993,24 @@ uint8_t scaler_starty(acamera_fsm_mgr_t *instance, uint32_t value,
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
         if ( instance->dma_type == dma_sc0 )
-            *ret_value = am_sc_get_starty();
+            *ret_value = am_sc_get_starty(instance->ctx_id);
         else if ( instance->dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_starty();
+            *ret_value = am_sc1_get_starty(instance->ctx_id);
         else if ( instance->dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_starty();
+            *ret_value = am_sc2_get_starty(instance->ctx_id);
         else if ( instance->dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_starty();
+            *ret_value = am_sc3_get_starty(instance->ctx_id);
         else
-            *ret_value = am_sc_get_starty();
+            *ret_value = am_sc_get_starty(instance->ctx_id);
     } else if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_starty(starty);
+            am_sc_set_starty(instance->ctx_id, starty);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_starty(starty);
+            am_sc1_set_starty(instance->ctx_id, starty);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_starty(starty);
+            am_sc2_set_starty(instance->ctx_id, starty);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_starty(starty);
+            am_sc3_set_starty(instance->ctx_id, starty);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5016,24 +5028,24 @@ uint8_t scaler_crop_width(acamera_fsm_mgr_t *instance, uint32_t value,
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
         if ( instance->dma_type == dma_sc0 )
-            *ret_value = am_sc_get_crop_width();
+            *ret_value = am_sc_get_crop_width(instance->ctx_id);
         else if ( instance->dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_crop_width();
+            *ret_value = am_sc1_get_crop_width(instance->ctx_id);
         else if ( instance->dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_crop_width();
+            *ret_value = am_sc2_get_crop_width(instance->ctx_id);
         else if ( instance->dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_crop_width();
+            *ret_value = am_sc3_get_crop_width(instance->ctx_id);
         else
-            *ret_value = am_sc_get_crop_width();
+            *ret_value = am_sc_get_crop_width(instance->ctx_id);
     } else if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_crop_width(crop_w);
+            am_sc_set_crop_width(instance->ctx_id, crop_w);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_crop_width(crop_w);
+            am_sc1_set_crop_width(instance->ctx_id, crop_w);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_crop_width(crop_w);
+            am_sc2_set_crop_width(instance->ctx_id, crop_w);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_crop_width(crop_w);
+            am_sc3_set_crop_width(instance->ctx_id, crop_w);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5051,24 +5063,24 @@ uint8_t scaler_crop_height(acamera_fsm_mgr_t *instance, uint32_t value,
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
         if ( instance->dma_type == dma_sc0 )
-            *ret_value = am_sc_get_crop_height();
+            *ret_value = am_sc_get_crop_height(instance->ctx_id);
         else if ( instance->dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_crop_height();
+            *ret_value = am_sc1_get_crop_height(instance->ctx_id);
         else if ( instance->dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_crop_height();
+            *ret_value = am_sc2_get_crop_height(instance->ctx_id);
         else if ( instance->dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_crop_height();
+            *ret_value = am_sc3_get_crop_height(instance->ctx_id);
         else
-            *ret_value = am_sc_get_crop_height();
+            *ret_value = am_sc_get_crop_height(instance->ctx_id);
     } else if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_crop_height(crop_h);
+            am_sc_set_crop_height(instance->ctx_id, crop_h);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_crop_height(crop_h);
+            am_sc1_set_crop_height(instance->ctx_id, crop_h);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_crop_height(crop_h);
+            am_sc2_set_crop_height(instance->ctx_id, crop_h);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_crop_height(crop_h);
+            am_sc3_set_crop_height(instance->ctx_id, crop_h);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5092,13 +5104,13 @@ uint8_t scaler_crop_enable(acamera_fsm_mgr_t *instance, uint32_t value,
         }
 
         if ( dma_type == dma_sc0 )
-            am_sc_set_crop_enable();
+            am_sc_set_crop_enable(instance->ctx_id);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_crop_enable();
+            am_sc1_set_crop_enable(instance->ctx_id);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_crop_enable();
+            am_sc2_set_crop_enable(instance->ctx_id);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_crop_enable();
+            am_sc3_set_crop_enable(instance->ctx_id);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5115,24 +5127,24 @@ uint8_t scaler_width(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direct
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
         if ( dma_type == dma_sc0 )
-            *ret_value = am_sc_get_width();
+            *ret_value = am_sc_get_width(instance->ctx_id);
         else if ( dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_width();
+            *ret_value = am_sc1_get_width(instance->ctx_id);
         else if ( dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_width();
+            *ret_value = am_sc2_get_width(instance->ctx_id);
         else if ( dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_width();
+            *ret_value = am_sc3_get_width(instance->ctx_id);
     } else if (direction == COMMAND_SET) {
         //first get fr width as amloigc scaler src width
         uint32_t width_cur = acamera_isp_top_active_width_read(instance->isp_base);
         if ( dma_type == dma_sc0 )
-            am_sc_set_width(width_cur, width);
+            am_sc_set_width(instance->ctx_id, width_cur, width);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_width(width_cur, width);
+            am_sc1_set_width(instance->ctx_id, width_cur, width);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_width(width_cur, width);
+            am_sc2_set_width(instance->ctx_id, width_cur, width);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_width(width_cur, width);
+            am_sc3_set_width(instance->ctx_id, width_cur, width);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5149,24 +5161,24 @@ uint8_t scaler_height(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direc
     *ret_value = 0;
     if ( direction == COMMAND_GET ) {
         if ( dma_type == dma_sc0 )
-            *ret_value = am_sc_get_height();
+            *ret_value = am_sc_get_height(instance->ctx_id);
         else if ( dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_height();
+            *ret_value = am_sc1_get_height(instance->ctx_id);
         else if ( dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_height();
+            *ret_value = am_sc2_get_height(instance->ctx_id);
         else if ( dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_height();
+            *ret_value = am_sc3_get_height(instance->ctx_id);
     } else if (direction == COMMAND_SET) {
         //first get fr width as amloigc scaler src height
         uint32_t height_cur = acamera_isp_top_active_height_read(instance->isp_base);
         if ( dma_type == dma_sc0 )
-            am_sc_set_height(height_cur, height);
+            am_sc_set_height(instance->ctx_id, height_cur, height);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_height(height_cur, height);
+            am_sc1_set_height(instance->ctx_id, height_cur, height);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_height(height_cur, height);
+            am_sc2_set_height(instance->ctx_id, height_cur, height);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_height(height_cur, height);
+            am_sc3_set_height(instance->ctx_id, height_cur, height);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5186,13 +5198,13 @@ uint8_t scaler_src_width(acamera_fsm_mgr_t *instance, uint32_t value,
 
     } else if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_src_width(src_width);
+            am_sc_set_src_width(instance->ctx_id, src_width);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_src_width(src_width);
+            am_sc1_set_src_width(instance->ctx_id, src_width);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_src_width(src_width);
+            am_sc2_set_src_width(instance->ctx_id, src_width);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_src_width(src_width);
+            am_sc3_set_src_width(instance->ctx_id, src_width);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5211,13 +5223,13 @@ uint8_t scaler_src_height(acamera_fsm_mgr_t *instance, uint32_t value,
 
     } else if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_src_height(src_height);
+            am_sc_set_src_height(instance->ctx_id, src_height);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_src_height(src_height);
+            am_sc1_set_src_height(instance->ctx_id, src_height);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_src_height(src_height);
+            am_sc2_set_src_height(instance->ctx_id, src_height);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_src_height(src_height);
+            am_sc3_set_src_height(instance->ctx_id, src_height);
     } else {
         result = NOT_SUPPORTED;
     }
@@ -5235,50 +5247,52 @@ uint8_t scaler_output_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t
     *ret_value = 0;
     if (direction == COMMAND_SET) {
         if ( dma_type == dma_sc0 )
-            am_sc_set_output_format(mode);
+            am_sc_set_output_format(instance->ctx_id, mode);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_output_format(mode);
+            am_sc1_set_output_format(instance->ctx_id, mode);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_output_format(mode);
+            am_sc2_set_output_format(instance->ctx_id, mode);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_output_format(mode);
+            am_sc3_set_output_format(instance->ctx_id, mode);
+        if (mode == RAW_YUY2)
+            acamera_isp_top_isp_processing_fr_bypass_mode_write(ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base, 1);
     } else {
         result = NOT_SUPPORTED;
     }
     return result;
 }
 
-void scaler_streaming_on(uint32_t value)
+void scaler_streaming_on(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
 {
     uint32_t dma_type = (value >> 16) & 0xFFFF;
 
      if ( dma_type == dma_sc0 ) {
-         am_sc_hw_init(1, 0);
-         am_sc_start();
+         am_sc_hw_init(instance->ctx_id, 1, 0);
+         am_sc_start(instance->ctx_id);
      } else if ( dma_type == dma_sc1 ) {
-         am_sc1_hw_init(1, 0);
-         am_sc1_start();
+         am_sc1_hw_init(instance->ctx_id, 1, 0);
+         am_sc1_start(instance->ctx_id);
      } else if ( dma_type == dma_sc2 ) {
-         am_sc2_hw_init(1, 0);
-         am_sc2_start();
+         am_sc2_hw_init(instance->ctx_id, 1, 0);
+         am_sc2_start(instance->ctx_id);
      } else if ( dma_type == dma_sc3 ) {
-         am_sc3_hw_init(1, 0);
-         am_sc3_start();
+         am_sc3_hw_init(instance->ctx_id, 1, 0);
+         am_sc3_start(instance->ctx_id);
      }
 }
 
-void scaler_streaming_off(uint32_t value)
+void scaler_streaming_off(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
 {
     uint32_t dma_type = (value >> 16) & 0xFFFF;
 
     if ( dma_type == dma_sc0 )
-        am_sc_stop();
+        am_sc_stop(instance->ctx_id);
     else if ( dma_type == dma_sc1 )
-        am_sc1_stop();
+        am_sc1_stop(instance->ctx_id);
     else if ( dma_type == dma_sc2 )
-        am_sc2_stop();
+        am_sc2_stop(instance->ctx_id);
     else if ( dma_type == dma_sc3 )
-        am_sc3_stop();
+        am_sc3_stop(instance->ctx_id);
 }
 
 uint8_t scaler_fps(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value)
@@ -5298,24 +5312,24 @@ uint8_t scaler_fps(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t directio
         acamera_fsm_mgr_get_param( instance, FSM_PARAM_GET_SENSOR_VMAX_FPS, NULL, 0, &cur_fps, sizeof( uint32_t ) );
 
         if ( dma_type == dma_sc0 )
-            am_sc_set_fps(cur_fps, fps);
+            am_sc_set_fps(instance->ctx_id, cur_fps, fps);
         else if ( dma_type == dma_sc1 )
-            am_sc1_set_fps(cur_fps, fps);
+            am_sc1_set_fps(instance->ctx_id, cur_fps, fps);
         else if ( dma_type == dma_sc2 )
-            am_sc2_set_fps(cur_fps, fps);
+            am_sc2_set_fps(instance->ctx_id, cur_fps, fps);
         else if ( dma_type == dma_sc3 )
-            am_sc3_set_fps(cur_fps, fps);
+            am_sc3_set_fps(instance->ctx_id, cur_fps, fps);
     } else {
         if ( instance->dma_type == dma_sc0 )
-            *ret_value = am_sc_get_fps();
+            *ret_value = am_sc_get_fps(instance->ctx_id);
         else if ( instance->dma_type == dma_sc1 )
-            *ret_value = am_sc1_get_fps();
+            *ret_value = am_sc1_get_fps(instance->ctx_id);
         else if ( instance->dma_type == dma_sc2 )
-            *ret_value = am_sc2_get_fps();
+            *ret_value = am_sc2_get_fps(instance->ctx_id);
         else if ( instance->dma_type == dma_sc3 )
-            *ret_value = am_sc3_get_fps();
+            *ret_value = am_sc3_get_fps(instance->ctx_id);
         else
-            *ret_value = am_sc1_get_fps();
+            *ret_value = am_sc1_get_fps(instance->ctx_id);
     }
     return result;
 }

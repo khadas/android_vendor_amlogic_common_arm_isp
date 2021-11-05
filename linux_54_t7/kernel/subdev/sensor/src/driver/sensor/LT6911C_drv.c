@@ -45,7 +45,7 @@
 #include "sensor_bsp_common.h"
 #include "LT6911C_seq.h"
 
-#define SENSOR_CHIP_ID 0x05A0
+#define SENSOR_CHIP_ID 0x0500
 
 #define AGAIN_PRECISION 7
 #define NEED_CONFIG_BSP 1   //config bsp by sensor driver owner
@@ -191,8 +191,6 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     p_ctx->vmax_adjust = p_ctx->vmax;
     p_ctx->vmax_fps = p_ctx->s_fps;
 
-    sensor_set_iface(&param->modes_table[mode], p_ctx->win_offset);
-
     LOG( LOG_CRIT, "Mode %d, Setting num: %d, RES:%dx%d\n", mode, setting_num,
                 (int)param->active.width, (int)param->active.height );
 }
@@ -234,7 +232,7 @@ static void start_streaming( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
     sensor_param_t *param = &p_ctx->param;
-    sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset);
+    sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
 }
 
@@ -302,7 +300,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.sbus.mask = SBUS_MASK_ADDR_8BITS |
            SBUS_MASK_SAMPLE_8BITS |SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = 0;
-    sensor_ctx.sbus.bus = 1;
+    sensor_ctx.sbus.bus = 0;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init(&sensor_ctx.sbus, sbus_i2c);
 

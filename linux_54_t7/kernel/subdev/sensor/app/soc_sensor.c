@@ -21,6 +21,7 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <media/v4l2-subdev.h>
+#include <media/v4l2-device.h>
 #include <media/v4l2-async.h>
 #include <linux/clk.h>
 #include "acamera_logger.h"
@@ -61,42 +62,49 @@ struct SensorConversion {
     char *res;
 };
 
-struct SensorConversion ConversionTable[] = {
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DETECT_FUNCTIONS_OS08A10, "os08a10", 3840,2160, "8MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DETECT_FUNCTIONS_IMX290, "imx290", 1920,1080, "2MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX335, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX335, SENSOR_DETECT_FUNCTIONS_IMX335, "imx335", 2560,1440, "5MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX415, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX415, SENSOR_DETECT_FUNCTIONS_IMX415, "imx415", 3840,2160, "8MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX227, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX227, SENSOR_DETECT_FUNCTIONS_IMX227, "imx227", 2200,2720, "6MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DETECT_FUNCTIONS_IMX307, "imx307", 1920,1080, "2MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX224, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX224, SENSOR_DETECT_FUNCTIONS_IMX224, "imx224", 1280,960, "1.2MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_OV13858, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV13858, SENSOR_DETECT_FUNCTIONS_OV13858, "ov13858", 4096,3136, "13MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_SC2232H, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC2232H, SENSOR_DETECT_FUNCTIONS_SC2232H, "sc2232h", 1920,1080, "2MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_SC4238, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC4238, SENSOR_DETECT_FUNCTIONS_SC4238, "sc4238", 2688,1520, "4MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_SC2335, SENSOR_DEINIT_SUBDEV_FUNCTIONS_SC2335, SENSOR_DETECT_FUNCTIONS_SC2335, "sc2335", 1920,1080, "2MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX334, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX334, SENSOR_DETECT_FUNCTIONS_IMX334, "imx334", 3840,2160, "8MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5675, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5675, SENSOR_DETECT_FUNCTIONS_OV5675, "ov5675", 2592,1944, "5MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640, SENSOR_DETECT_FUNCTIONS_OV5640, "ov5640", 2560,1944, "5MP"},
-    {SENSOR_INIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DEINIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DETECT_FUNCTIONS_LT6911, "lt6911", 1920,1080, "2MP"},
+struct SensorConversion ConversionTable[][10] = {
+    {
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290, SENSOR_DETECT_FUNCTIONS_IMX290, "imx290", 1920,1080, "2MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX307, SENSOR_DETECT_FUNCTIONS_IMX307, "imx307", 1920,1080, "2MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640, SENSOR_DETECT_FUNCTIONS_OV5640, "ov5640", 2560,1944, "5MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5675, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5675, SENSOR_DETECT_FUNCTIONS_OV5675, "ov5675", 2592,1944, "5MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX335, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX335, SENSOR_DETECT_FUNCTIONS_IMX335, "imx335", 2560,1440, "5MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DETECT_FUNCTIONS_OS08A10, "os08a10", 3840,2160, "8MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DEINIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DETECT_FUNCTIONS_LT6911, "lt6911", 1920,1080, "2MP"},
+    },
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    {
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB, SENSOR_DETECT_FUNCTIONS_IMX290SUB, "imx290sub", 1920,1080, "2MP"},
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640SUB, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640SUB, SENSOR_DETECT_FUNCTIONS_OV5640SUB, "ov5640sub", 2560,1944, "5MP"},
+    }
+#endif
 };
 
 void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl, void* sbp ) =
 {
     SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290,
 #if FIRMWARE_CONTEXT_NUMBER == 2
-    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290
+    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB
 #endif
 };
 void ( *SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) =
 {
     SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290,
 #if FIRMWARE_CONTEXT_NUMBER == 2
-    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290
+    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB
+#endif
+};
+int ( *SOC_SENSOR_SENSOR_DETECT_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) =
+{
+    SENSOR_DETECT_FUNCTIONS_IMX290,
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    SENSOR_DETECT_FUNCTIONS_IMX290SUB
 #endif
 };
 
 static struct v4l2_subdev soc_sensor;
 sensor_bringup_t* sensor_bp = NULL;
-const char *sensor_name;
+const char *sensor_name[FIRMWARE_CONTEXT_NUMBER];
 
 typedef struct _subdev_camera_ctx {
     void *camera_context;
@@ -240,11 +248,11 @@ static ssize_t info_read(
 {
     switch (info_idx) {
         case SEN_RESOLUTION:
-            return sprintf(buf, "%s/%dx%d\n", ConversionTable[cur_idx].res, ConversionTable[cur_idx].w, ConversionTable[cur_idx].h);
+            return sprintf(buf, "%s/%dx%d\n", ConversionTable[0][cur_idx].res, ConversionTable[0][cur_idx].w, ConversionTable[0][cur_idx].h);
         case SEN_NAME:
-            return sprintf(buf, "%s\n", ConversionTable[cur_idx].sensor_name);
+            return sprintf(buf, "%s\n", ConversionTable[0][cur_idx].sensor_name);
         default:
-            return sprintf(buf, "%s/%dx%d\n", ConversionTable[cur_idx].res, ConversionTable[cur_idx].w, ConversionTable[cur_idx].h);
+            return sprintf(buf, "%s/%dx%d\n", ConversionTable[0][cur_idx].res, ConversionTable[0][cur_idx].w, ConversionTable[0][cur_idx].h);
     }
 }
 
@@ -280,10 +288,8 @@ static ssize_t info_write(
 
     if (!strcmp(parm[0], "resolution")) {
         info_idx = SEN_RESOLUTION;
-        //pr_info("%s/%dx%d\n", ConversionTable[cur_idx].res, ConversionTable[cur_idx].w, ConversionTable[cur_idx].h);
     } else if (!strcmp(parm[0], "name")) {
         info_idx = SEN_NAME;
-        //pr_info("%s\n", ConversionTable[cur_idx].sensor_name);
     } else
         pr_info("unsupprt cmd!\n");
 Err:
@@ -336,6 +342,12 @@ static int camera_reset( struct v4l2_subdev *sd, u32 val )
     return rc;
 }
 
+int camera_notify( uint notification, void *arg)
+{
+    v4l2_subdev_notify(&soc_sensor, notification,arg);
+
+    return 0;
+}
 
 static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
 {
@@ -514,9 +526,9 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
     } break;
     case SOC_SENSOR_GET_SENSOR_NAME: {
         memcpy(ARGS_TO_PTR( arg )
-            ->s_name.name, sensor_name, strlen(sensor_name));
+            ->s_name.name, sensor_name[ARGS_TO_PTR( arg )->ctx_num], strlen(sensor_name[ARGS_TO_PTR( arg )->ctx_num]));
         ARGS_TO_PTR( arg )
-            ->s_name.name_len = strlen(sensor_name);
+            ->s_name.name_len = strlen(sensor_name[ARGS_TO_PTR( arg )->ctx_num]);
     } break;
     case SOC_SENSOR_GET_CONTEXT_SEQ: {
         ARGS_TO_PTR( arg )
@@ -559,6 +571,10 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
     case SOC_SENSOR_POWER_OFF: {
         if ( ctx->camera_control.power_off )
             ctx->camera_control.power_off(ctx->camera_context);
+    } break;
+    case SOC_SENSOR_SET_DCAM_MODE: {
+        int32_t preset = ARGS_TO_PTR( arg )->args.general.val_in;
+        ctx->camera_control.dcam_mode(ctx->camera_context,preset);
     } break;
 
     default:
@@ -682,7 +698,7 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
     int rtn = 0;
-    int i;
+    int i,j;
     int prst_res = 0;
     struct device *dev = &pdev->dev;
     struct device_node *dev_np = dev->of_node;
@@ -699,53 +715,72 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
         LOG(LOG_ERR, "Failed to alloc mem\n");
         return -ENOMEM;
     }
-    rtn = of_property_read_string(dev->of_node, "sensor-name", &sensor_name);
 
+    rtn = of_property_read_string(dev->of_node, "sensor-name", &sensor_name[0]);
     if (rtn != 0) {
         pr_err("%s: failed to get sensor name\n", __func__);
     }
-    if (sensor)
-        sensor_name = sensor;
-    //sensor_name = "lt6911";
 
-    pr_err("config sensor %s driver.\n", sensor_name);
+#if FIRMWARE_CONTEXT_NUMBER == 2
+    rtn = of_property_read_string(dev->of_node, "sensor-name-sub", &sensor_name[1]);
+    if (rtn != 0) {
+        pr_err("%s: failed to get sensor name sub\n", __func__);
+        sensor_name[1] = "imx290sub";
+    }
+#endif
+    if (sensor)
+        sensor_name[0] = sensor;
+
+    pr_err("config sensor %s driver.\n", sensor_name[0]);
+    if (sensor_name[1])
+        pr_err("config sensor sub %s driver.\n", sensor_name[1]);
 
     ir_cut_get_named_gpio(dev_np);
     sensor_bp_init(sensor_bp, dev);
 
-    for (i = 0; i < NELEM(ConversionTable); ++i) {
-        if (strcmp(ConversionTable[i].sensor_name, sensor_name) == 0) {
-            SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER-1] = ConversionTable[i].sensor_init;
-            SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER-1] = ConversionTable[i].sensor_deinit;
-            prst_res = ConversionTable[i].w * ConversionTable[i].h;
-            sensor_idx = i;
-            break;
+    for (j = 0; j < FIRMWARE_CONTEXT_NUMBER; j++) {
+        for (i = 0; i < NELEM(ConversionTable[j]); ++i) {
+            if (ConversionTable[j][i].sensor_name && (strcmp(ConversionTable[j][i].sensor_name, sensor_name[j]) == 0)) {
+                SOC_SENSOR_SENSOR_ENTRY_ARR[j] = ConversionTable[j][i].sensor_init;
+                SOC_SENSOR_SENSOR_RESET_ARR[j] = ConversionTable[j][i].sensor_deinit;
+                SOC_SENSOR_SENSOR_DETECT_ARR[j] = ConversionTable[j][i].sensor_detect;
+                if (j == 0) {
+                    prst_res = ConversionTable[j][i].w * ConversionTable[j][i].h;
+                    sensor_idx = i;
+                }
+                break;
+            }
+        }
+
+        if (j == 0) {
+            if (i == NELEM(ConversionTable[j])) {
+                pr_err("Fatal error:cant find %s driver with dts config!\n", sensor_name[j]);
+                return -1;
+            }
         }
     }
-    if (i == NELEM(ConversionTable)) {
-        pr_err("Fatal error:cant find %s driver with dts config!\n", sensor_name);
-        return -1;
-    }
 
-    if (ConversionTable[i].sensor_detect(sensor_bp) != 0) {
-        for (i = 0; i < NELEM(ConversionTable); ++i) {
-            if (prst_res < ConversionTable[i].w * ConversionTable[i].h)
+    //only auto detect camera0
+    if (SOC_SENSOR_SENSOR_DETECT_ARR[0](sensor_bp) != 0) {
+        for (i = 0; i < NELEM(ConversionTable[0]); ++i) {
+            if (prst_res < ConversionTable[0][i].w * ConversionTable[0][i].h)
                 continue;
-            if (ConversionTable[i].sensor_detect(sensor_bp) == 0) {
-                SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER-1] = ConversionTable[i].sensor_init;
-                SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER-1] = ConversionTable[i].sensor_deinit;
-                sensor_name = ConversionTable[i].sensor_name;
+            if (ConversionTable[0][i].sensor_name && ConversionTable[0][i].sensor_detect(sensor_bp) == 0) {
+                SOC_SENSOR_SENSOR_ENTRY_ARR[0] = ConversionTable[0][i].sensor_init;
+                SOC_SENSOR_SENSOR_RESET_ARR[0] = ConversionTable[0][i].sensor_deinit;
+                sensor_name[0] = ConversionTable[0][i].sensor_name;
                 cur_idx = i;
                 break;
             }
         }
-        if ( i == NELEM(ConversionTable)) {
+        if ( i == NELEM(ConversionTable[0])) {
             LOG(LOG_CRIT, "find no matching sensor.");
             return -1;
         }
     } else {
         cur_idx = sensor_idx;
     }
+
     v4l2_subdev_init( &soc_sensor, &camera_ops );
 
     soc_sensor.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;

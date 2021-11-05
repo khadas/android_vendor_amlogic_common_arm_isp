@@ -43,6 +43,11 @@ int am_mipi_parse_dt(struct device_node *node)
 		return -1;
 	}
 
+	if (g_mipi) {
+		pr_err("%s:am mipi ready register\n", __func__);
+		return -1;
+	}
+
 	rtn = of_device_is_compatible(node, AM_MIPI_NAME);
 	if (rtn == 0) {
 		pr_err("%s:Error match compatible\n", __func__);
@@ -413,9 +418,9 @@ static void am_mipi_host_reset(void)
 	mipi_host_reg_wr(CSI2_HOST_DPHY_RSTZ, 0); // release DPHY reset
 	mipi_host_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
 
-	mipi_host1_reg_wr(CSI2_HOST_PHY_SHUTDOWNZ, 0); // enable power
-	mipi_host1_reg_wr(CSI2_HOST_DPHY_RSTZ, 0); // release DPHY reset
-	mipi_host1_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
+	//mipi_host1_reg_wr(CSI2_HOST_PHY_SHUTDOWNZ, 0); // enable power
+	//mipi_host1_reg_wr(CSI2_HOST_DPHY_RSTZ, 0); // release DPHY reset
+	//mipi_host1_reg_wr(CSI2_HOST_CSI2_RESETN, 0); // csi2 reset
 
 }
 
