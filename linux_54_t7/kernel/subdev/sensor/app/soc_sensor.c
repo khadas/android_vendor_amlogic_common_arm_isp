@@ -33,6 +33,11 @@
 #include "sensor_bsp_common.h"
 #include <linux/pm_runtime.h>
 
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+#include <linux/amlogic/pm.h>
+static struct early_suspend early_suspend;
+#endif
+
 static int isp_seq_num;
 static int sensor_idx;
 static int cur_idx;
@@ -625,6 +630,54 @@ int32_t mipi_power_down(struct device *dev)
     return ret;
 }
 
+int32_t mclk_on(struct device *dev)
+{
+    int ret;
+    struct clk *clk;
+    int clk_val;
+    clk = devm_clk_get(sensor_bp->dev, "mclk_0");
+    if (IS_ERR(clk)) {
+        pr_err("cannot get mclk_0 clk\n");
+        clk = NULL;
+        return -1;
+    }
+    ret = clk_prepare_enable(clk);
+    if (ret < 0)
+        pr_err(" clk_prepare_enable failed\n");
+    clk_val = clk_get_rate(clk);
+    pr_err("resume mclock %d MHZ\n",clk_val/1000000);
+
+    return ret;
+}
+
+int32_t mclk_down(struct device *dev)
+{
+    struct clk *clk;
+
+    clk = devm_clk_get(dev, "mclk_0");
+    if (IS_ERR(clk)) {
+        pr_err("cannot get mclk_0 clk\n");
+        clk = NULL;
+        return -1;
+    }
+    clk_disable_unprepare(clk);
+    devm_clk_put(dev, clk);
+
+    return 0;
+}
+
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+static void sensor_early_suspend(struct early_suspend *h)
+{
+    mclk_down((struct device *)h->param);
+}
+
+static void sensor_late_resume(struct early_suspend *h)
+{
+    mclk_on((struct device *)h->param);
+}
+#endif
+
 static int32_t soc_sensor_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
@@ -705,6 +758,14 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
     device_create_file(dev, &dev_attr_info);
     device_create_file(dev, &dev_attr_sreg);
 
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+    early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING;
+    early_suspend.suspend = sensor_early_suspend;
+    early_suspend.resume = sensor_late_resume;
+    early_suspend.param = dev;
+    register_early_suspend(&early_suspend);
+#endif
+
     LOG( LOG_CRIT, "register v4l2 sensor device. result %d, sd 0x%x sd->dev 0x%x", rc, &soc_sensor, soc_sensor.dev );
 
     return rc;
@@ -712,6 +773,10 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
 
 static int soc_sensor_remove( struct platform_device *pdev )
 {
+#ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
+    unregister_early_suspend(&early_suspend);
+#endif
+
     device_remove_file(&pdev->dev, &dev_attr_sreg);
     device_remove_file(&pdev->dev, &dev_attr_info);
 
