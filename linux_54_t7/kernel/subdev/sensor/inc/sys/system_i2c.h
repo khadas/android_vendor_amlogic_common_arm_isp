@@ -29,6 +29,7 @@
 
 #define ARM_I2C_SENSOR_NAME "arm, i2c-sensor"
 #define ARM_I2C_SENSOR_NAME_SUB "arm, i2c-sensor-sub"
+#define ARM_I2C_SENSOR_NAME_SSUB "arm, i2c-sensor-ssub"
 #define ARM_I2C_REG_ADDR_TYPE 2
 
 struct arm_i2c_sensor_ctrl {

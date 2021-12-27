@@ -78,4 +78,6 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t
 void sensor_iface_disable(void);
 void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
 void sensor_iface2_disable(void);
+void sensor_set_iface3(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
+void sensor_iface3_disable(void);
 

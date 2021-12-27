@@ -844,11 +844,12 @@ typedef enum {
 
 #define FRONT0_WR_DONE 30
 #define FRONT2_WR_DONE 10
+#define FRONT3_WR_DONE 16
 #define READ0_RD_DONE 21
 #define READ1_RD_DONE 15
-#define CAMERA_NUM        2
+#define CAMERA_NUM        3
 #define DDR_BUF_SIZE      5
-#define CAMERA_QUEUE_NUM  10
+#define CAMERA_QUEUE_NUM  15
 #define DOL_BUF_SIZE      6
 
 typedef enum {
@@ -867,6 +868,7 @@ typedef enum {
     CAM_DIS,
     CAM_EN,
     DUAL_CAM_EN,
+    TRIPLE_CAM_EN
 } cam_mode_t;
 
 typedef enum {
@@ -879,6 +881,7 @@ typedef enum {
 typedef enum {
     CAM0_ACT,
     CAM1_ACT,
+    CAM2_ACT,
 } cam_num_t;
 
 typedef enum {

@@ -38,6 +38,10 @@ extern void sensor_init_imx290sub( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_imx290sub( void *ctx );
 extern int sensor_detect_imx290sub( void* sbp);
 
+extern void sensor_init_imx290ssub( void** ctx, sensor_control_t*, void*) ;
+extern void sensor_deinit_imx290ssub( void *ctx );
+extern int sensor_detect_imx290ssub( void* sbp);
+
 extern void sensor_init_imx227( void** ctx, sensor_control_t*, void*) ;
 extern void sensor_deinit_imx227( void *ctx );
 extern int sensor_detect_imx227( void* sbp);
@@ -125,6 +129,10 @@ extern int sensor_detect_lt6911( void* sbp);
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB sensor_init_imx290sub
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB sensor_deinit_imx290sub
 #define SENSOR_DETECT_FUNCTIONS_IMX290SUB sensor_detect_imx290sub
+
+#define SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SSUB sensor_init_imx290ssub
+#define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SSUB sensor_deinit_imx290ssub
+#define SENSOR_DETECT_FUNCTIONS_IMX290SSUB sensor_detect_imx290ssub
 
 #define SENSOR_INIT_SUBDEV_FUNCTIONS_IMX227 sensor_init_imx227
 #define SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX227 sensor_deinit_imx227

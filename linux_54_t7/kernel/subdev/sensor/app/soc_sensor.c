@@ -72,10 +72,15 @@ struct SensorConversion ConversionTable[][10] = {
         {SENSOR_INIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OS08A10, SENSOR_DETECT_FUNCTIONS_OS08A10, "os08a10", 3840,2160, "8MP"},
         {SENSOR_INIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DEINIT_SUBDEV_FUNCTIONS_LT6911, SENSOR_DETECT_FUNCTIONS_LT6911, "lt6911", 1920,1080, "2MP"},
     },
-#if FIRMWARE_CONTEXT_NUMBER == 2
+#if FIRMWARE_CONTEXT_NUMBER >= 2
     {
         {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB, SENSOR_DETECT_FUNCTIONS_IMX290SUB, "imx290sub", 1920,1080, "2MP"},
         {SENSOR_INIT_SUBDEV_FUNCTIONS_OV5640SUB, SENSOR_DEINIT_SUBDEV_FUNCTIONS_OV5640SUB, SENSOR_DETECT_FUNCTIONS_OV5640SUB, "ov5640sub", 2560,1944, "5MP"},
+    },
+#endif
+#if FIRMWARE_CONTEXT_NUMBER == 3
+    {
+        {SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SSUB, SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SSUB, SENSOR_DETECT_FUNCTIONS_IMX290SSUB, "imx290ssub", 1920,1080, "2MP"},
     }
 #endif
 };
@@ -83,22 +88,31 @@ struct SensorConversion ConversionTable[][10] = {
 void ( *SOC_SENSOR_SENSOR_ENTRY_ARR[FIRMWARE_CONTEXT_NUMBER] )( void **ctx, sensor_control_t *ctrl, void* sbp ) =
 {
     SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290,
-#if FIRMWARE_CONTEXT_NUMBER == 2
-    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB
+#if FIRMWARE_CONTEXT_NUMBER >= 2
+    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SUB,
+#endif
+#if FIRMWARE_CONTEXT_NUMBER == 3
+    SENSOR_INIT_SUBDEV_FUNCTIONS_IMX290SSUB
 #endif
 };
 void ( *SOC_SENSOR_SENSOR_RESET_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) =
 {
     SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290,
-#if FIRMWARE_CONTEXT_NUMBER == 2
-    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB
+#if FIRMWARE_CONTEXT_NUMBER >= 2
+    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SUB,
+#endif
+#if FIRMWARE_CONTEXT_NUMBER == 3
+    SENSOR_DEINIT_SUBDEV_FUNCTIONS_IMX290SSUB
 #endif
 };
 int ( *SOC_SENSOR_SENSOR_DETECT_ARR[FIRMWARE_CONTEXT_NUMBER] )( void *ctx ) =
 {
     SENSOR_DETECT_FUNCTIONS_IMX290,
-#if FIRMWARE_CONTEXT_NUMBER == 2
-    SENSOR_DETECT_FUNCTIONS_IMX290SUB
+#if FIRMWARE_CONTEXT_NUMBER >= 2
+    SENSOR_DETECT_FUNCTIONS_IMX290SUB,
+#endif
+#if FIRMWARE_CONTEXT_NUMBER == 3
+    SENSOR_DETECT_FUNCTIONS_IMX290SSUB,
 #endif
 };
 
@@ -721,19 +735,29 @@ static int32_t soc_sensor_probe( struct platform_device *pdev )
         pr_err("%s: failed to get sensor name\n", __func__);
     }
 
-#if FIRMWARE_CONTEXT_NUMBER == 2
+    if (sensor)
+        sensor_name[0] = sensor;
+    pr_err("config sensor %s driver.\n", sensor_name[0]);
+
+#if FIRMWARE_CONTEXT_NUMBER >= 2
     rtn = of_property_read_string(dev->of_node, "sensor-name-sub", &sensor_name[1]);
     if (rtn != 0) {
         pr_err("%s: failed to get sensor name sub\n", __func__);
         sensor_name[1] = "imx290sub";
     }
-#endif
-    if (sensor)
-        sensor_name[0] = sensor;
-
-    pr_err("config sensor %s driver.\n", sensor_name[0]);
     if (sensor_name[1])
         pr_err("config sensor sub %s driver.\n", sensor_name[1]);
+#endif
+
+#if FIRMWARE_CONTEXT_NUMBER == 3
+    rtn = of_property_read_string(dev->of_node, "sensor-name-ssub", &sensor_name[2]);
+    if (rtn != 0) {
+        pr_err("%s: failed to get sensor name ssub\n", __func__);
+        sensor_name[2] = "imx290ssub";
+    }
+    if (sensor_name[2])
+        pr_err("config sensor ssub %s driver.\n", sensor_name[2]);
+#endif
 
     ir_cut_get_named_gpio(dev_np);
     sensor_bp_init(sensor_bp, dev);

@@ -831,18 +831,21 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
                 tasklet_schedule(&g_sc2->sc_tasklet.tasklet_obj);
 #endif
             } else {
-                pr_info("%d, sc fifo is empty.\n", __LINE__);
+                pr_info("%d, cam %d sc fifo is empty.\n", __LINE__, g_sc2->multi_camera.cam_id[FRAME_DELAY_QUEUE-1]);
             }
 
-            for (flag = 0; flag < FRAME_DELAY_QUEUE - 1; flag ++) {
-                g_sc2->multi_camera.pre_frame[flag + 1] = g_sc2->multi_camera.pre_frame[flag];
-                g_sc2->multi_camera.cam_id[flag + 1] = g_sc2->multi_camera.cam_id[flag];
+            for (flag = FRAME_DELAY_QUEUE - 1; flag > 0; flag --) {
+                g_sc2->multi_camera.pre_frame[flag] = g_sc2->multi_camera.pre_frame[flag - 1];
+                g_sc2->multi_camera.cam_id[flag] = g_sc2->multi_camera.cam_id[flag - 1];
             }
             g_sc2->multi_camera.pre_frame[0] = f_buf;
             g_sc2->multi_camera.cam_id[0] = g_sc2->cam_id_next;
             g_sc2->last_end_frame = flag_ready;
             //reserve dummy buffer
-            if (f_buf == am2_ctx[g_sc2->cam_id_next].temp_buf)
+            if (f_buf == am2_ctx[g_sc2->cam_id_last].temp_buf ||
+                f_buf == am2_ctx[g_sc2->cam_id_next].temp_buf ||
+                f_buf == am2_ctx[g_sc2->cam_id_current].temp_buf ||
+                f_buf == am2_ctx[g_sc2->cam_id_next_next].temp_buf)
                 g_sc2->multi_camera.pre_frame[0] = NULL;
         }
     }

@@ -56,7 +56,7 @@ static ssize_t adap_dbg_read(
 		x_start_isp:%x\t\t\t\tx_start_mem:%x\n  \
 		y_start_isp:%x\t\t\t\ty_start_mem:%x\n  \
 		lane0:%x\t\tlane1:%x\t\tlane2:%x\t\tlane3:%x\n",\
-		csi_err1, csi_err2, adapter_err & (3 << 27), \
+		csi_err1, csi_err2, adapter_err, \
 		x_start_isp, x_start_mem, \
 		y_start_isp, y_start_mem, \
 		phy_lan0, phy_lan1, phy_lan2, phy_lan3);
@@ -69,7 +69,7 @@ static ssize_t adap_dbg_read(
 	phy_lan2 = mipi_phy2_reg_rd_ext(MIPI_PHY_DATA_LANE2_STS);
 	phy_lan3 = mipi_phy2_reg_rd_ext(MIPI_PHY_DATA_LANE3_STS);
 
-	adap_read_ext(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, &adapter_err);
+	adap_read_ext(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, &adapter_err);
 	adap_read_ext(CSI2_X_START_END_ISP, FRONTEND2_IO, &x_start_isp);
 	adap_read_ext(CSI2_X_START_END_MEM, FRONTEND2_IO, &x_start_mem);
 	adap_read_ext(CSI2_Y_START_END_ISP, FRONTEND2_IO, &y_start_isp);
@@ -79,7 +79,30 @@ static ssize_t adap_dbg_read(
 		x_start_isp:%x\t\t\t\tx_start_mem:%x\n  \
 		y_start_isp:%x\t\t\t\ty_start_mem:%x\n  \
 		lane0:%x\t\tlane1:%x\t\tlane2:%x\t\tlane3:%x\n",\
-		csi_err1, csi_err2, adapter_err & (3 << 27), \
+		csi_err1, csi_err2, adapter_err, \
+		x_start_isp, x_start_mem, \
+		y_start_isp, y_start_mem, \
+		phy_lan0, phy_lan1, phy_lan2, phy_lan3);
+
+	ret += sprintf(buf+ret, "\n\n=============csi3:==============\n");
+	csi_err1 = mipi_csi3_host_reg_rd_ext(CSI2_HOST_ERR1);
+	csi_err2 = mipi_csi3_host_reg_rd_ext(CSI2_HOST_ERR2);
+	phy_lan0 = mipi_phy3_reg_rd_ext(MIPI_PHY_DATA_LANE0_STS);
+	phy_lan1 = mipi_phy3_reg_rd_ext(MIPI_PHY_DATA_LANE1_STS);
+	phy_lan2 = mipi_phy3_reg_rd_ext(MIPI_PHY_DATA_LANE2_STS);
+	phy_lan3 = mipi_phy3_reg_rd_ext(MIPI_PHY_DATA_LANE3_STS);
+
+	adap_read_ext(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, &adapter_err);
+	adap_read_ext(CSI2_X_START_END_ISP, FRONTEND3_IO, &x_start_isp);
+	adap_read_ext(CSI2_X_START_END_MEM, FRONTEND3_IO, &x_start_mem);
+	adap_read_ext(CSI2_Y_START_END_ISP, FRONTEND3_IO, &y_start_isp);
+	adap_read_ext(CSI2_Y_START_END_MEM, FRONTEND3_IO, &y_start_mem);
+
+	ret += sprintf(buf+ret, "\t\tcsi err1: %x\t\tcsi err2: %x\t\tadapter overflow:%x\n \
+		x_start_isp:%x\t\t\t\tx_start_mem:%x\n  \
+		y_start_isp:%x\t\t\t\ty_start_mem:%x\n  \
+		lane0:%x\t\tlane1:%x\t\tlane2:%x\t\tlane3:%x\n",\
+		csi_err1, csi_err2, adapter_err, \
 		x_start_isp, x_start_mem, \
 		y_start_isp, y_start_mem, \
 		phy_lan0, phy_lan1, phy_lan2, phy_lan3);

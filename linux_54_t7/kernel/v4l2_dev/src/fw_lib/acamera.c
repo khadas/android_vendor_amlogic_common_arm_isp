@@ -89,7 +89,7 @@ int32_t acamera_get_api_context( void )
 
 int32_t acamera_get_last_api_context( void )
 {
-    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (1 << CAM_LAST);
+    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (3 << CAM_LAST);
 
     result >>= CAM_LAST;
     return result & 0x03;
@@ -97,7 +97,7 @@ int32_t acamera_get_last_api_context( void )
 
 int32_t acamera_get_current_api_context( void )
 {
-    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (1 << CAM_CURRENT);
+    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (3 << CAM_CURRENT);
 
     result >>= CAM_CURRENT;
     return result & 0x03;
@@ -105,7 +105,7 @@ int32_t acamera_get_current_api_context( void )
 
 int32_t acamera_get_next_api_context( void )
 {
-    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (1 << CAM_NEXT);
+    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (3 << CAM_NEXT);
 
     result >>= CAM_NEXT;
     return result & 0x03;
@@ -113,7 +113,7 @@ int32_t acamera_get_next_api_context( void )
 
 int32_t acamera_get_next_next_api_context( void )
 {
-    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (1 << CAM_NEXT_NEXT);
+    int32_t result = system_hw_read_adap(MIPI_ADAPT_OTHER_CNTL0) & (3 << CAM_NEXT_NEXT);
 
     result >>= CAM_NEXT_NEXT;
     return result & 0x03;

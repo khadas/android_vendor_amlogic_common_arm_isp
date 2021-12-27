@@ -157,6 +157,11 @@ void am_mipi2_deinit(void);
 uint32_t mipi_csi2_host_reg_rd_ext(int addr);
 uint32_t mipi_phy2_reg_rd_ext(int addr);
 
+int am_mipi3_init(void *info);
+void am_mipi3_deinit(void);
+uint32_t mipi_csi3_host_reg_rd_ext(int addr);
+uint32_t mipi_phy3_reg_rd_ext(int addr);
+
 #endif
 
 

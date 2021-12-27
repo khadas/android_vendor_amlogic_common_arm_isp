@@ -42,7 +42,7 @@ struct ctrl_cmd_item {
     uint8_t cmd_category;
 
     /* command content */
-#if FIRMWARE_CONTEXT_NUMBER == 2
+#if FIRMWARE_CONTEXT_NUMBER >= 2
     uint32_t cmd_ctx_id;
 #endif
     uint8_t cmd_type;

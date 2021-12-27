@@ -329,11 +329,11 @@ static uint16_t sensor_get_id( void *ctx )
     sensor_id |= acamera_sbus_read_u8(&p_ctx->sbus, 0x301f);
 
     if (sensor_id != SENSOR_CHIP_ID) {
-        LOG(LOG_CRIT, "%s: Failed to 290sub read sensor id\n", __func__);
+        LOG(LOG_CRIT, "%s: Failed to 290ssub read sensor id\n", __func__);
         return 0xFFFF;
     }
 
-    LOG(LOG_INFO, "%s: success to read 290sub sensor %x\n", __func__, sensor_id);
+    LOG(LOG_INFO, "%s: success to read 290ssub sensor %x\n", __func__, sensor_id);
     return sensor_id;
 }
 
@@ -483,14 +483,14 @@ static void stop_streaming( void *ctx )
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x01 );
 
     reset_sensor_bus_counter();
-    sensor_iface2_disable();
+    sensor_iface3_disable();
 }
 static void start_streaming( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     sensor_param_t *param = &p_ctx->param;
-    sensor_set_iface2(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
+    sensor_set_iface3(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x00 );
 }
@@ -514,7 +514,7 @@ static void sensor_dcam_mode( void *ctx, int32_t mode )
     LOG(LOG_CRIT, "imx290sub set dcam mode:%d", mode);
 }
 
-void sensor_deinit_imx290sub( void *ctx )
+void sensor_deinit_imx290ssub( void *ctx )
 {
     sensor_context_t *t_ctx = ctx;
     reset_sensor_bus_counter();
@@ -570,7 +570,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
 
     sensor_ctx.sbus.mask = SBUS_MASK_SAMPLE_8BITS | SBUS_MASK_ADDR_16BITS | SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = 0;
-    sensor_ctx.sbus.bus = 1;
+    sensor_ctx.sbus.bus = 2;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init( &sensor_ctx.sbus, sbus_i2c );
 
@@ -643,7 +643,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
 }
 
 //--------------------Initialization------------------------------------------------------------
-void sensor_init_imx290sub( void **ctx, sensor_control_t *ctrl, void* sbp)
+void sensor_init_imx290ssub( void **ctx, sensor_control_t *ctrl, void* sbp)
 {
     *ctx = sensor_global_parameter(sbp);
 
@@ -670,7 +670,7 @@ void sensor_init_imx290sub( void **ctx, sensor_control_t *ctrl, void* sbp)
     system_timer_usleep( 1000 );
 }
 
-int sensor_detect_imx290sub( void* sbp)
+int sensor_detect_imx290ssub( void* sbp)
 {
     int ret = 0;
     sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
@@ -693,7 +693,7 @@ int sensor_detect_imx290sub( void* sbp)
 
     sensor_ctx.sbus.mask = SBUS_MASK_SAMPLE_8BITS | SBUS_MASK_ADDR_16BITS | SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = 0;
-    sensor_ctx.sbus.bus = 1;
+    sensor_ctx.sbus.bus = 2;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init( &sensor_ctx.sbus, sbus_i2c );
 
@@ -701,7 +701,7 @@ int sensor_detect_imx290sub( void* sbp)
     if (sensor_get_id(&sensor_ctx) == 0xFFFF)
         ret = -1;
     else
-        pr_info("sensor_detect_imx290sub:%d\n", sensor_get_id(&sensor_ctx));
+        pr_info("sensor_detect_imx290ssub:%d\n", sensor_get_id(&sensor_ctx));
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
 

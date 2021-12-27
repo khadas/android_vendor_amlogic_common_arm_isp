@@ -137,7 +137,7 @@ typedef enum {
 #define ZOOM_BITS       20
 #define PHASE_BITS      16
 
-#define CAM_CTX_NUM       2
+#define CAM_CTX_NUM       FIRMWARE_CONTEXT_NUMBER
 #define START_DELAY_THR   2
 #define FRAME_DELAY_QUEUE 3
 

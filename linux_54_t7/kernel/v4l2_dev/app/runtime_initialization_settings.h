@@ -50,6 +50,10 @@ static aframe_t sensor1_v4l2_temper_frames[ ] = {
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
 } ;
 
+static aframe_t sensor2_v4l2_temper_frames[ ] = {
+ { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
+} ;
+
 extern void sensor_init_v4l2( void** ctx, sensor_control_t*) ;
 extern void sensor_deinit_v4l2( void *ctx ) ;
 extern uint32_t get_calibrations_v4l2( uint32_t ctx_num,void * sensor_arg,ACameraCalibrations *, char* s_name) ;
@@ -66,8 +70,6 @@ extern void callback_sc0( uint32_t ctx_num,  tframe_t * tframe, const metadata_t
 extern void callback_sc1( uint32_t ctx_num,  tframe_t * tframe, const metadata_t *metadata) ;
 extern void callback_sc2( uint32_t ctx_num,  tframe_t * tframe, const metadata_t *metadata) ;
 extern void callback_sc3( uint32_t ctx_num,  tframe_t * tframe, const metadata_t *metadata) ;
-
-
 
 static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .sensor_init = sensor_init_v4l2,
@@ -99,7 +101,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .sc3_frames_number = 0,
         .callback_sc3 = callback_sc3,
     },
-#if FIRMWARE_CONTEXT_NUMBER == 2
+#if FIRMWARE_CONTEXT_NUMBER >= 2
     {
         .sensor_init = sensor_init_v4l2,
         .sensor_deinit = sensor_deinit_v4l2,
@@ -130,6 +132,37 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .sc3_frames_number = 0,
         .callback_sc3 = callback_sc3,
     },
-
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
+#if FIRMWARE_CONTEXT_NUMBER == 3
+    {
+        .sensor_init = sensor_init_v4l2,
+        .sensor_deinit = sensor_deinit_v4l2,
+        .get_calibrations = get_calibrations_v4l2,
+        .lens_init = lens_init,
+        .lens_deinit = lens_deinit,
+        .custom_initialization = custom_initialization,
+        .isp_base = 0x0,
+        .temper_frames = sensor2_v4l2_temper_frames,
+        .temper_frames_number = sizeof( sensor2_v4l2_temper_frames ) / sizeof( aframe_t ),
+        .callback_meta = callback_meta,
+        .fr_frames = NULL,
+        .fr_frames_number = 0,
+        .callback_fr = callback_fr,
+        .ds1_frames = NULL,
+        .ds1_frames_number = 0,
+        .callback_ds1 = callback_ds1,
+        .sc0_frames = NULL,
+        .sc0_frames_number = 0,
+        .callback_sc0 = callback_sc0,
+        .sc1_frames = NULL,
+        .sc1_frames_number = 0,
+        .callback_sc1 = callback_sc1,
+        .sc2_frames = NULL,
+        .sc2_frames_number = 0,
+        .callback_sc2 = callback_sc2,
+        .sc3_frames = NULL,
+        .sc3_frames_number = 0,
+        .callback_sc3 = callback_sc3,
+    },
+#endif // FIRMWARE_CONTEXT_NUMBER == 3
 } ;
