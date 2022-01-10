@@ -67,6 +67,19 @@ static sensor_mode_t supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
         .fps = 30 * 256,
+        .resolution.width = 2592,
+        .resolution.height = 1944,
+        .bits = 12,
+        .exposures = 1,
+        .lanes = 4,
+        .bps = 891,
+        .bayer = BAYER_RGGB,
+        .dol_type = DOL_NON,
+        .num = 6,
+    },
+    {
+        .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
+        .fps = 30 * 256,
         .resolution.width = 2560,
         .resolution.height = 1440,
         .bits = 12,
@@ -638,14 +651,14 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.param.isp_context_seq.seq_table_max = array_size_s( isp_seq_table );
     sensor_ctx.s_fps = 30;
     sensor_ctx.vmax = 0x1194;
-    sensor_ctx.param.active.width = 2560;
-    sensor_ctx.param.active.height = 1440;
+    sensor_ctx.param.active.width = 2952;
+    sensor_ctx.param.active.height = 1944;
     sensor_ctx.max_L = 0x1194 * 2 - 4;
     sensor_ctx.max_S = 526;
     imx335_ctx.rhs1 = 544;
     sensor_ctx.vmax_fps = sensor_ctx.s_fps;
     sensor_ctx.vmax_adjust = sensor_ctx.vmax;
-    sensor_ctx.param.total.width = 2560;
+    sensor_ctx.param.total.width = 2592;
     sensor_ctx.param.lines_per_second = sensor_ctx.pixel_clock / sensor_ctx.param.total.width;
     sensor_ctx.param.total.height = (uint16_t)sensor_ctx.vmax;
     sensor_ctx.param.pixels_per_line = sensor_ctx.param.total.width;

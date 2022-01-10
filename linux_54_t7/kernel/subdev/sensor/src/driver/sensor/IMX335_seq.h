@@ -140,7 +140,7 @@ static acam_reg_t linear_1080p_30fps_891Mbps_4lane_12bits[] = {
 
     {0x0000, 0x0000, 0x0000, 0x0000},
 };
-#if 0
+#if 1
 static acam_reg_t linear_5M_30fps_891Mbps_4lane_12bits[] = {
     //{0x3003, 0x01, 0xff, 1}, /* sw_reset */
     //{0xFFFF, 200},
@@ -783,12 +783,12 @@ static acam_reg_t imx335_test_pattern[] = {
 };
 
 static acam_reg_t settings_context_imx335[] = {
-    { 0x1c0f0, 0x5a00a00L, 0x0,4 },
-    { 0x18e88, 0x5a00a00L, 0x0,4 },
-    { 0x1c1a8, 0xa00L, 0x0,4 },
-    { 0x1c1ac, 0x5a0L, 0x0,4 },
-    { 0x1c1b8, 0xa00L, 0x0,4 },
-    { 0x1c1bc, 0x5a0L, 0x0,4 },
+    { 0x1c0f0, 0x7980a20L, 0x0,4 },
+    { 0x18e88, 0x7980a20L, 0x0,4 },
+    { 0x1c1a8, 0xa20L, 0x0,4 },
+    { 0x1c1ac, 0x798L, 0x0,4 },
+    { 0x1c1b8, 0xa20L, 0x0,4 },
+    { 0x1c1bc, 0x798L, 0x0,4 },
     //stop sequence - address is 0x0000
     { 0x0000, 0x0000, 0x0000, 0x0000 }
 };
@@ -800,6 +800,7 @@ static const acam_reg_t *imx335_seq_table[] = {
     dol_2568x1444_30fps_1188Mbps_4lane_10bits,
     linear_5M_60fps_1188Mbps_4lane_10bits,
     imx335_test_pattern,
+    linear_5M_30fps_891Mbps_4lane_12bits,
 };
 
 static const acam_reg_t *isp_seq_table[] = {

@@ -298,6 +298,8 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
         info.mode = DOL_MODE;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_DOL_MODE;
         info.type = mode->dol_type;
         if (info.type == DOL_LINEINFO) {
            info.offset.long_offset = offset.long_offset;
@@ -313,7 +315,9 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t
     uint32_t isp_clk_rate = 0;
     camera_notify(NOTIFY_GET_ISP_CLKRATE, &isp_clk_rate);
     isp_clk_rate = (isp_clk_rate / 10) * 9;
-    info.align_width = isp_clk_rate / ((mode->resolution.height + 60) * (mode->fps / 256) * 2);
+    info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
+    if (info.align_width < (mode->resolution.width + 64))
+        info.align_width = mode->resolution.width + 64;
     pr_info("Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
@@ -377,6 +381,8 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
         info.mode = DOL_MODE;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_DOL_MODE;
         info.type = mode->dol_type;
         if (info.type == DOL_LINEINFO) {
            info.offset.long_offset = offset.long_offset;
@@ -392,7 +398,9 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     uint32_t isp_clk_rate = 0;
     camera_notify(NOTIFY_GET_ISP_CLKRATE, &isp_clk_rate);
     isp_clk_rate = (isp_clk_rate / 10) * 9;
-    info.align_width = isp_clk_rate / ((mode->resolution.height + 60) * (mode->fps / 256) * 2);
+    info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
+    if (info.align_width < (mode->resolution.width + 64))
+        info.align_width = mode->resolution.width + 64;
     pr_info("Sub Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
@@ -456,6 +464,8 @@ void sensor_set_iface3(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
         info.mode = DOL_MODE;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_DOL_MODE;
         info.type = mode->dol_type;
         if (info.type == DOL_LINEINFO) {
            info.offset.long_offset = offset.long_offset;
@@ -471,7 +481,9 @@ void sensor_set_iface3(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     uint32_t isp_clk_rate = 0;
     camera_notify(NOTIFY_GET_ISP_CLKRATE, &isp_clk_rate);
     isp_clk_rate = (isp_clk_rate / 10) * 9;
-    info.align_width = isp_clk_rate / ((mode->resolution.height + 60) * (mode->fps / 256) * 2);
+    info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
+    if (info.align_width < (mode->resolution.width + 64))
+        info.align_width = mode->resolution.width + 64;
     pr_info("SSub Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);

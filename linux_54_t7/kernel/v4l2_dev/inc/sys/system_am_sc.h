@@ -69,6 +69,7 @@ extern void am_sc_hw_disable(void);
 extern void am_sc_set_workstatus(uint32_t status);
 extern uint32_t am_sc_get_workstatus(void);
 extern void am_sc_set_camid(uint32_t status);
+extern void am_sc_reset_hwstatus(uint32_t status);
 
 #endif
 

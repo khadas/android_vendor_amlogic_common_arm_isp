@@ -885,6 +885,11 @@ void isp_v4l2_subdev_notify(struct v4l2_subdev*sd, uint notification, void *arg)
         am_sc_set_camid(*(unsigned int *)arg);
         am_sc1_set_camid(*(unsigned int *)arg);
         am_sc2_set_camid(*(unsigned int *)arg);
+    } else if ( notification == NOTIFY_RESET_SC03_STATUS ) {
+        am_sc3_reset_hwstatus(*(unsigned int *)arg);
+        am_sc_reset_hwstatus(*(unsigned int *)arg);
+        am_sc1_reset_hwstatus(*(unsigned int *)arg);
+        am_sc2_reset_hwstatus(*(unsigned int *)arg);
     } else
         *(unsigned int *)arg = global_isp_clk_rate;
 }
@@ -1039,7 +1044,7 @@ int isp_v4l2_temper_alloc( struct v4l2_device *v4l2_dev, struct platform_device 
             sprintf(property, "temper-line-offset");
         else
             sprintf(property, "temper-line-offset%d", i);
-        rc = of_property_read_u32(pdev->dev.of_node, "temper-line-offset", &temper_line_offset[i]);
+        rc = of_property_read_u32(pdev->dev.of_node, property, &temper_line_offset[i]);
         if (rc != 0) {
             LOG(LOG_ERR, "failed to get temper-line-offset from dts, use default value\n");
             temper_line_offset[i] = DEFAULT_TEMPER_LINE_OFFSET;

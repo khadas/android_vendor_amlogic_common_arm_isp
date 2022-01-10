@@ -842,12 +842,13 @@ typedef enum {
 #define CAM_NEXT                   28
 #define CAM_NEXT_NEXT              30
 
-#define FRONT0_WR_DONE 30
-#define FRONT2_WR_DONE 10
-#define FRONT3_WR_DONE 16
+#define FRONT0_WR_DONE 28
+#define FRONT2_WR_DONE 8
+#define FRONT3_WR_DONE 14
+#define ALIGN_FRAME_END 9
 #define READ0_RD_DONE 21
 #define READ1_RD_DONE 15
-#define CAMERA_NUM        3
+#define CAMERA_NUM        FIRMWARE_CONTEXT_NUMBER
 #define DDR_BUF_SIZE      5
 #define CAMERA_QUEUE_NUM  15
 #define DOL_BUF_SIZE      6
@@ -933,7 +934,7 @@ struct am_adap {
     void __iomem *base_addr;
     int f_end_irq;
     int rd_irq;
-    unsigned int adap_buf_size;
+    unsigned int adap_buf_size[CAMERA_NUM];
     int f_fifo;
     int f_adap;
 

@@ -61,9 +61,9 @@ struct am_adap_fsm_t {
     int wbuf_index;
 
     int next_buf_index;
-    resource_size_t read_buf;
+    resource_size_t read_buf[2];
     resource_size_t buffer_start;
-    resource_size_t ddr_buf[DDR_BUF_SIZE];
+    resource_size_t ddr_buf[DDR_BUF_SIZE*2];
     struct kfifo adapt_fifo;
 
     struct page *cma_pages;
@@ -375,6 +375,8 @@ int am_adap_parse_dt(struct device_node *node)
     int rtn = -1;
     int irq = -1;
     int ret = 0;
+    char property[32];
+    int i = 0;
     struct resource rs;
     struct am_adap *t_adap = NULL;
 
@@ -429,15 +431,22 @@ int am_adap_parse_dt(struct device_node *node)
         return ret;
     }
 
-    ret = of_property_read_u32(t_adap->p_dev->dev.of_node, "mem_alloc",
-        &(t_adap->adap_buf_size));
-    pr_info("adapter alloc %dM memory\n", t_adap->adap_buf_size);
-    if (ret != 0) {
-        pr_err("failed to get adap-buf-size from dts, use default value\n");
-        t_adap->adap_buf_size = DEFAULT_ADAPTER_BUFFER_SIZE;
-    }
+    for ( i = 0; i < FIRMWARE_CONTEXT_NUMBER; i ++ ) {
+        memset(property, 0, 32);
+        if (i == 0)
+            sprintf(property, "mem_alloc");
+        else
+            sprintf(property, "mem_alloc%d", i);
+        rtn = of_property_read_u32(t_adap->p_dev->dev.of_node, property, &(t_adap->adap_buf_size[i]));
+        if ( rtn != 0 ) {
+            pr_err("failed to get adap-buf-size from dts, use default value\n");
+            t_adap->adap_buf_size[i] = DEFAULT_ADAPTER_BUFFER_SIZE;
+        }
 
-    t_adap->adap_buf_size = t_adap->adap_buf_size / CAMERA_NUM;
+        pr_info("adapter %d alloc %dM memory\n", i, t_adap->adap_buf_size[i]);
+
+        adap_fsm[i].cam_en = CAM_DIS;
+    }
 
     system_dbg_create(&(t_adap->p_dev->dev));
 
@@ -445,15 +454,11 @@ int am_adap_parse_dt(struct device_node *node)
 
     spin_lock_init(&g_adap->reg_lock);
 
-    adap_fsm[0].cam_en = CAM_DIS;
-    adap_fsm[1].cam_en = CAM_DIS;
-
     return 0;
 
 irq_error:
     iounmap(t_adap->base_addr);
     t_adap->base_addr = NULL;
-
 
 reg_error:
     if (t_adap != NULL)
@@ -609,6 +614,10 @@ int am_adap_frontend_init(struct adaptfe_param* prm, uint8_t channel) {
     mem_addr0_b = prm->fe_mem_pong_addr;
     mem_addr1_a = prm->fe_mem_ping_addr;
     mem_addr1_b = prm->fe_mem_pong_addr;
+    if (adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
+        mem_addr1_a = prm->fe_mem_other_addr;
+        mem_addr1_b = prm->fe_mem_other_addr;
+    }
 
     switch (prm->fe_work_mode) {
         case MODE_MIPI_RAW_SDR_DDR:
@@ -735,7 +744,7 @@ int am_adap_frontend_init(struct adaptfe_param* prm, uint8_t channel) {
                                          cfg_isp2ddr_enable     << 25 |
                                          cfg_isp2comb_enable    << 26);
 
-    if (prm->fe_work_mode == MODE_MIPI_RAW_HDR_DDR_DIRCT) {
+    if (prm->fe_work_mode == MODE_MIPI_RAW_HDR_DDR_DIRCT || prm->fe_work_mode == MODE_MIPI_RAW_HDR_DDR_DDR) {
         if (adap_fsm[channel].para.type == DOL_LINEINFO) {
             adap_write(CSI2_VC_MODE, fe_io, 0x11110052);
             if (adap_fsm[channel].para.fmt == MIPI_CSI_RAW10 ) {
@@ -824,6 +833,10 @@ int am_adap_reader_init(struct adaptrd_param* prm, uint8_t channel) {
     ddr_rd0_pong  = prm->rd_mem_pong_addr;
     ddr_rd1_ping  = prm->rd_mem_ping_addr;
     ddr_rd1_pong  = prm->rd_mem_pong_addr;
+    if (adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
+        ddr_rd1_ping = adap_fsm[channel].ddr_buf[1];
+        ddr_rd1_pong = adap_fsm[channel].ddr_buf[1];
+    }
 
     switch (prm->rd_work_mode) {
         case MODE_MIPI_RAW_SDR_DDR:
@@ -941,7 +954,7 @@ void am_adap_pixel_start(uint8_t channel)
 {
     uint32_t data = 0;
     adap_read( MIPI_ADAPT_PIXEL0_CNTL0, PIXEL_IO, &data);
-    adap_write(MIPI_ADAPT_PIXEL0_CNTL0, PIXEL_IO, data | pixel_param.pixel_en_0<< 31);
+    adap_write(MIPI_ADAPT_PIXEL0_CNTL0, PIXEL_IO, data | pixel_param.pixel_en_0 << 31);
     adap_read( MIPI_ADAPT_PIXEL1_CNTL0, PIXEL_IO, &data);
     adap_write(MIPI_ADAPT_PIXEL1_CNTL0, PIXEL_IO, data | pixel_param.pixel_en_1 << 31);
 }
@@ -1215,7 +1228,11 @@ static int get_next_wr_buf_index(uint8_t channel)
 {
     int index = 0;
     int total_size = DDR_BUF_SIZE;
-    adap_fsm[channel].wbuf_index = adap_fsm[channel].wbuf_index + 1;
+    if (adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
+        total_size = total_size * 2;
+        adap_fsm[channel].wbuf_index = adap_fsm[channel].wbuf_index + 2;
+    } else
+        adap_fsm[channel].wbuf_index = adap_fsm[channel].wbuf_index + 1;
 
     index = adap_fsm[channel].wbuf_index % total_size;
 
@@ -1247,12 +1264,16 @@ static irqreturn_t adpapter_isr(int irq, void *para)
         adap_fsm[ADAP0_PATH].next_buf_index = get_next_wr_buf_index(ADAP0_PATH);
         val = adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index];
         adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, val);
+        if (adap_fsm[ADAP0_PATH].para.mode == DCAM_DOL_MODE) {
+            val = adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index + 1];
+            adap_write(CSI2_DDR_START_PIX_B, FRONTEND0_IO, val);
+        }
         LOG(LOG_INFO, "frontend cam0 wr start %x", val);
         g_adap->frame_state = FRAME_READY;
         wake_up_interruptible( &g_adap->frame_wq);
     }
 
-    if (data & (1 << 9)) {
+    if (data & (1 << ALIGN_FRAME_END)) {
         adap_fsm[ADAP0_PATH].control_flag = 0;
         adap_fsm[ADAP1_PATH].control_flag = 0;
         adap_fsm[ADAP2_PATH].control_flag = 0;
@@ -1273,6 +1294,10 @@ static irqreturn_t adpapter_isr(int irq, void *para)
         adap_fsm[ADAP1_PATH].next_buf_index = get_next_wr_buf_index(ADAP1_PATH);
         val = adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index];
         adap_write(CSI2_DDR_START_PIX, FRONTEND2_IO, val);
+        if (adap_fsm[ADAP1_PATH].para.mode == DCAM_DOL_MODE) {
+            val = adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index + 1];
+            adap_write(CSI2_DDR_START_PIX_B, FRONTEND2_IO, val);
+        }
         LOG(LOG_INFO, "frontend cam1 wr start %x", val);
         g_adap->frame_state = FRAME_READY;
         wake_up_interruptible( &g_adap->frame_wq);
@@ -1292,12 +1317,30 @@ static irqreturn_t adpapter_isr(int irq, void *para)
         adap_fsm[ADAP2_PATH].next_buf_index = get_next_wr_buf_index(ADAP2_PATH);
         val = adap_fsm[ADAP2_PATH].ddr_buf[adap_fsm[ADAP2_PATH].next_buf_index];
         adap_write(CSI2_DDR_START_PIX, FRONTEND3_IO, val);
+        if (adap_fsm[ADAP2_PATH].para.mode == DCAM_DOL_MODE) {
+            val = adap_fsm[ADAP2_PATH].ddr_buf[adap_fsm[ADAP2_PATH].next_buf_index + 1];
+            adap_write(CSI2_DDR_START_PIX_B, FRONTEND3_IO, val);
+        }
         LOG(LOG_INFO, "frontend cam2 wr start %x", val);
         g_adap->frame_state = FRAME_READY;
         wake_up_interruptible( &g_adap->frame_wq);
     }
 
     return IRQ_HANDLED;
+}
+
+static resource_size_t am_adap_find_next_buf(uint8_t adapt_path, resource_size_t addr)
+{
+    int i = 0;
+    int buf_cnt = DDR_BUF_SIZE;
+    if (adap_fsm[adapt_path].para.mode == DCAM_DOL_MODE)
+        buf_cnt = DDR_BUF_SIZE * 2;
+    for (i = 0; i < buf_cnt - 1; i ++) {
+        if (addr == adap_fsm[adapt_path].ddr_buf[i])
+            return adap_fsm[adapt_path].ddr_buf[i + 1];
+    }
+
+    return adap_fsm[adapt_path].ddr_buf[1];
 }
 
 static int am_adap_isp_check_status(uint8_t adapt_path)
@@ -1308,7 +1351,7 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
     int kfifo_ret = -1;
 
     while (adap_fsm[CAM0_ACT].control_flag || adap_fsm[CAM1_ACT].control_flag || adap_fsm[CAM2_ACT].control_flag) {
-        if (check_count ++ > 16) {
+        if (check_count ++ > 200) {
             pr_err("adapt read%d done timeout %d-%d-%d.\n",adapt_path, adap_fsm[CAM0_ACT].control_flag,adap_fsm[CAM1_ACT].control_flag,adap_fsm[CAM1_ACT].control_flag);
             adap_fsm[CAM0_ACT].control_flag = 0;
             adap_fsm[CAM1_ACT].control_flag = 0;
@@ -1325,7 +1368,7 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
             camera_notify(NOTIFY_GET_QUEUE_STATUS, &kfifo_ret);
             if (kfifo_ret == 0)
                 break;
-            if (check_count ++ > 16) {
+            if (check_count ++ > 200) {
                 pr_err("isp %d busy now, kfifo_ret: %d\n", adapt_path, kfifo_ret);
                 frame_state = -1;
                 break;
@@ -1338,18 +1381,23 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
     kfifo_ret = -1;
     while (kfifo_ret) {
         camera_notify(NOTIFY_GET_SC03_STATUS, &kfifo_ret);
-        if (kfifo_ret == SCMIF_IDLE)
+        if (kfifo_ret == SCMIF_IDLE) {
+           mdelay(1); /* wait wrmif ready for next switch frame, it needs to be tuned other value*/
            break;
-        if (check_count ++ > 16) {
+        }
+        if (check_count ++ > 200) {
            pr_err("sc %d busy now, kfifo_ret: %d\n", adapt_path, kfifo_ret);
            frame_state = -1;
+           kfifo_ret = SCMIF_ERR;
+           camera_notify(NOTIFY_RESET_SC03_STATUS, &kfifo_ret);
            break;
         } else
            mdelay(1);
     }
 
     kfifo_ret = kfifo_out(&adap_fsm[adapt_path].adapt_fifo, &val, sizeof(val));
-    adap_fsm[adapt_path].read_buf = val;
+    adap_fsm[adapt_path].read_buf[0] = val;
+    adap_fsm[adapt_path].read_buf[1] = am_adap_find_next_buf(adapt_path, val);
     adap_fsm[adapt_path].control_flag = 1;
     if (g_adap->read_frame_ptr > 0)
         adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[g_adap->read_frame_ptr - 1], CAM_LAST, 2);
@@ -1370,6 +1418,11 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
         rd_param.rd_work_mode         = MODE_MIPI_RAW_SDR_DDR;
         pixel_param.pixel_work_mode  = MODE_MIPI_RAW_SDR_DDR;
         alig_param.alig_work_mode     = MODE_MIPI_RAW_SDR_DDR;
+        if (adap_fsm[adapt_path].para.mode == DCAM_DOL_MODE) {
+            rd_param.rd_work_mode		  = MODE_MIPI_RAW_HDR_DDR_DDR;
+            pixel_param.pixel_work_mode  = MODE_MIPI_RAW_HDR_DDR_DDR;
+            alig_param.alig_work_mode	  = MODE_MIPI_RAW_HDR_DDR_DDR;
+        }
     }
 
     rd_param.rd_mem_line_stride     = (adap_fsm[adapt_path].para.img.width * am_adap_get_depth(adapt_path) + 127) >> 7;
@@ -1424,9 +1477,14 @@ static int adap_stream_copy_thread( void *data )
 
         if ((kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) > 0) && camera_frame_fifo[g_adap->read_frame_ptr] == CAM0_ACT) {
             frame_state = am_adap_isp_check_status(ADAP0_PATH);
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP0_PATH].read_buf);
+            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP0_PATH].read_buf[0]);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
+            if (adap_fsm[ADAP0_PATH].para.mode == DCAM_DOL_MODE) {
+                adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[ADAP0_PATH].read_buf[1]);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
+            }
 
             if (frame_state == 0)
                 adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));// 0<<10 no care isp req
@@ -1435,15 +1493,24 @@ static int adap_stream_copy_thread( void *data )
 
             adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+            if (adap_fsm[ADAP0_PATH].para.mode == DCAM_DOL_MODE) {
+                adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
+            }
             LOG(LOG_INFO, "send cam 0 \n");
             continue;
         }
 
         if ((kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo) > 0)  && camera_frame_fifo[g_adap->read_frame_ptr] == CAM1_ACT) {
             frame_state = am_adap_isp_check_status(ADAP1_PATH);
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP1_PATH].read_buf);
+            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP1_PATH].read_buf[0]);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
+            if (adap_fsm[ADAP1_PATH].para.mode == DCAM_DOL_MODE) {
+                adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[ADAP1_PATH].read_buf[1]);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
+            }
 
             if (frame_state == 0)
                 adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));
@@ -1452,15 +1519,24 @@ static int adap_stream_copy_thread( void *data )
 
             adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+            if (adap_fsm[ADAP1_PATH].para.mode == DCAM_DOL_MODE) {
+                adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
+            }
             LOG(LOG_INFO, "send cam 1 \n");
             continue;
         }
 
         if ((kfifo_len(&adap_fsm[ADAP2_PATH].adapt_fifo) > 0)  && camera_frame_fifo[g_adap->read_frame_ptr] == CAM2_ACT) {
             frame_state = am_adap_isp_check_status(ADAP2_PATH);
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP2_PATH].read_buf);
+            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP2_PATH].read_buf[0]);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
+            if (adap_fsm[ADAP2_PATH].para.mode == DCAM_DOL_MODE) {
+                adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[ADAP2_PATH].read_buf[1]);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
+            }
 
             if (frame_state == 0)
                 adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));
@@ -1469,6 +1545,10 @@ static int adap_stream_copy_thread( void *data )
 
             adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
             adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+            if (adap_fsm[ADAP2_PATH].para.mode == DCAM_DOL_MODE) {
+                adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
+                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
+            }
             LOG(LOG_INFO, "send cam 2 \n");
             continue;
         }
@@ -1483,11 +1563,11 @@ int am_adap_alloc_mem(uint8_t channel)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
         adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
-                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0, false);
+                  (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT, 0, false);
 #else
         adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                  &(g_adap->p_dev->dev),
-                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0);
+                 (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT, 0);
 
 #endif
         if (adap_fsm[channel].cma_pages) {
@@ -1496,15 +1576,15 @@ int am_adap_alloc_mem(uint8_t channel)
             pr_err("alloc cma pages failed.\n");
             return 0;
         }
-    } else if (adap_fsm[channel].para.mode == DCAM_MODE) {
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
         adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
-                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0, false);
+                  (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT, 0, false);
 #else
         adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                  &(g_adap->p_dev->dev),
-                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0);
+                 (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT, 0);
 
 #endif
         if (adap_fsm[channel].cma_pages) {
@@ -1517,11 +1597,11 @@ int am_adap_alloc_mem(uint8_t channel)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
         adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
-                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0, false);
+                  (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT, 0, false);
 #else
         adap_fsm[channel].cma_pages = dma_alloc_from_contiguous(
                   &(g_adap->p_dev->dev),
-                  (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT, 0);
+                  (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT, 0);
 
 #endif
         if (adap_fsm[channel].cma_pages) {
@@ -1541,17 +1621,17 @@ int am_adap_free_mem(uint8_t channel)
             dma_release_from_contiguous(
                  &(g_adap->p_dev->dev),
                  adap_fsm[channel].cma_pages,
-                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT);
+                 (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT);
             adap_fsm[channel].cma_pages = NULL;
             adap_fsm[channel].buffer_start = 0;
             pr_info("release alloc CMA buffer. channel:%d\n",channel);
         }
-    } else if (adap_fsm[channel].para.mode == DCAM_MODE) {
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
         if (adap_fsm[channel].cma_pages) {
             dma_release_from_contiguous(
                  &(g_adap->p_dev->dev),
                  adap_fsm[channel].cma_pages,
-                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT);
+                 (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT);
             adap_fsm[channel].cma_pages = NULL;
             adap_fsm[channel].buffer_start = 0;
             pr_info("release alloc CMA buffer. channel:%d\n",channel);
@@ -1561,7 +1641,7 @@ int am_adap_free_mem(uint8_t channel)
             dma_release_from_contiguous(
                  &(g_adap->p_dev->dev),
                  adap_fsm[channel].cma_pages,
-                 (g_adap->adap_buf_size * SZ_1M) >> PAGE_SHIFT);
+                 (g_adap->adap_buf_size[channel] * SZ_1M) >> PAGE_SHIFT);
             adap_fsm[channel].cma_pages = NULL;
             adap_fsm[channel].buffer_start = 0;
             pr_info("release alloc dol CMA buffer. channel:%d\n",channel);
@@ -1592,6 +1672,7 @@ int am_adap_init(uint8_t channel)
 
     if ((adap_fsm[channel].para.mode == DDR_MODE) ||
         (adap_fsm[channel].para.mode == DCAM_MODE) ||
+        (adap_fsm[channel].para.mode == DCAM_DOL_MODE) ||
         (adap_fsm[channel].para.mode == DOL_MODE)) {
         am_adap_alloc_mem(channel);
         depth = am_adap_get_depth(channel);
@@ -1610,7 +1691,7 @@ int am_adap_init(uint8_t channel)
                 temp_buf = adap_fsm[channel].ddr_buf[i];
                 buf = phys_to_virt(adap_fsm[channel].ddr_buf[i]);
             }
-        } else if ((adap_fsm[channel].cma_pages) && (adap_fsm[channel].para.mode == DCAM_MODE)) {
+        } else if ((adap_fsm[channel].cma_pages) && (adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE)) {
             //note important : ddr_buf[0] and ddr_buf[1] address should alignment 16 byte
             stride = (adap_fsm[channel].para.img.width * depth)/8;
             stride = ((stride + (BOUNDRY - 1)) & (~(BOUNDRY - 1)));
@@ -1619,7 +1700,11 @@ int am_adap_init(uint8_t channel)
             temp_buf = adap_fsm[channel].ddr_buf[0];
             buf = phys_to_virt(adap_fsm[channel].ddr_buf[0]);
             memset(buf, 0x0, (stride * adap_fsm[channel].para.img.height));
-            for (i = 1; i < DDR_BUF_SIZE; i++) {
+            if (adap_fsm[channel].para.mode == DCAM_DOL_MODE)
+                buf_cnt = DDR_BUF_SIZE * 2;
+            else
+                buf_cnt = DDR_BUF_SIZE;
+            for (i = 1; i < buf_cnt; i++) {
                 adap_fsm[channel].ddr_buf[i] = temp_buf + (stride * (adap_fsm[channel].para.img.height + 100));
                 adap_fsm[channel].ddr_buf[i] = (adap_fsm[channel].ddr_buf[i] + (PAGE_SIZE - 1)) & (~(PAGE_SIZE - 1));
                 temp_buf = adap_fsm[channel].ddr_buf[i];
@@ -1646,7 +1731,7 @@ int am_adap_init(uint8_t channel)
         "adapter-irq", (void *)g_adap);
         g_adap->f_end_irq = 1;
         pr_info("adapter irq = %d, ret = %d\n", g_adap->rd_irq, ret);
-    } else if (adap_fsm[channel].para.mode == DCAM_MODE && g_adap->f_end_irq == 0) {
+    } else if ((adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) && g_adap->f_end_irq == 0) {
         ret = request_irq(g_adap->rd_irq, &adpapter_isr, IRQF_SHARED | IRQF_TRIGGER_HIGH,
         "adapter-irq", (void *)g_adap);
         g_adap->f_end_irq = 1;
@@ -1670,7 +1755,7 @@ int am_adap_init(uint8_t channel)
         sched_setscheduler(g_adap->kadap_stream, SCHED_IDLE, &param);
         wake_up_process(g_adap->kadap_stream);
         g_adap->f_fifo = 1;
-    } else if (adap_fsm[channel].para.mode == DCAM_MODE && g_adap->f_fifo == 0) {
+    } else if ((adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) && g_adap->f_fifo == 0) {
         kfifo_ret = kfifo_alloc(&adap_fsm[CAM0_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
         kfifo_ret = kfifo_alloc(&adap_fsm[CAM1_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
         kfifo_ret = kfifo_alloc(&adap_fsm[CAM2_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
@@ -1731,6 +1816,7 @@ int am_adap_init(uint8_t channel)
             adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 9, 1 );//rd0 done
             break;
         case DCAM_MODE:
+        case DCAM_DOL_MODE:
             rd_param.rd_work_mode        = MODE_MIPI_RAW_SDR_DDR;
             pixel_param.pixel_work_mode     = MODE_MIPI_RAW_SDR_DDR;
             alig_param.alig_work_mode    = MODE_MIPI_RAW_SDR_DDR;
@@ -1740,14 +1826,20 @@ int am_adap_init(uint8_t channel)
                 pixel_param.pixel_work_mode  = MODE_MIPI_YUV_SDR_DDR;
                 alig_param.alig_work_mode     = MODE_MIPI_YUV_SDR_DDR;
                 temp_work_mode                 = MODE_MIPI_YUV_SDR_DDR;
+            } else if ( adap_fsm[channel].para.mode == DCAM_DOL_MODE ) {
+                rd_param.rd_work_mode         = MODE_MIPI_RAW_HDR_DDR_DDR;
+                pixel_param.pixel_work_mode  = MODE_MIPI_RAW_HDR_DDR_DDR;
+                alig_param.alig_work_mode     = MODE_MIPI_RAW_HDR_DDR_DDR;
+                temp_work_mode                 = MODE_MIPI_RAW_HDR_DDR_DDR;
             }
+
             if (channel == 0)
                 adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, FRONT0_WR_DONE, 1 );//fe0 wr done
             else if (channel == 1)
                 adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT2_WR_DONE, 1 );//fe2 wr done
             else if (channel == 2)
                 adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT3_WR_DONE, 1 );//fe3 wr done
-            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 9, 1 );//rd0 done
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, ALIGN_FRAME_END, 1 );//rd0 done
             break;
         case DOL_MODE:
             rd_param.rd_work_mode        = MODE_MIPI_RAW_HDR_DDR_DIRCT;
@@ -1816,7 +1908,8 @@ int am_adap_init(uint8_t channel)
 
     g_adap->f_adap = 1;
 
-    if (adap_fsm[channel].para.mode != DCAM_MODE) {
+    if (adap_fsm[channel].para.mode != DCAM_MODE ||
+        adap_fsm[channel].para.mode != DCAM_DOL_MODE) {
         if (channel == CAM0_ACT) {
             adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_LAST, 2);
             adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_CURRENT, 2);
@@ -1963,7 +2056,7 @@ int am_adap_deinit(uint8_t channel)
             kfifo_free(&adap_fsm[CAM1_ACT].adapt_fifo);
             kfifo_free(&adap_fsm[CAM2_ACT].adapt_fifo);
         }
-    } else if (adap_fsm[channel].para.mode == DCAM_MODE) {
+    } else if (adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
         am_disable_irq(channel);
         am_adap_free_mem(channel);
         // switch sc interrput source

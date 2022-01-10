@@ -549,9 +549,11 @@
 #define NOTIFY_GET_SC03_STATUS                            0x00000005
 #define NOTIFY_SET_SC03_STATUS                            0x00000006
 #define NOTIFY_UPDATE_SC03_CAMID                          0x00000007
+#define NOTIFY_RESET_SC03_STATUS                          0x00000008
 
 #define SCMIF_IDLE                                        0x00000000
 #define SCMIF_BUSY                                        0x000000AA
+#define SCMIF_ERR                                         0x000000AB
 
 // ------------------------------------------------------------------------------ //
 //        SET/GET FUNCTION

@@ -110,7 +110,7 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
     //do_gettimeofday(&txs);
 
 #if FW_DO_INITIALIZATION
-    if (p_fsm->p_fsm_mgr->isp_seamless == 0)
+    if (p_fsm->p_fsm_mgr->isp_seamless == 0 && p_fsm->p_fsm_mgr->p_ctx->p_gfw->isp_user == 0)
         acamera_isp_input_port_mode_request_write( p_fsm->cmn.isp_base, ACAMERA_ISP_INPUT_PORT_MODE_REQUEST_SAFE_STOP ); // urgent stop
 #endif                                                                                                               //FW_DO_INITIALIZATION
 
@@ -338,11 +338,11 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
             acamera_reset_ping_pong_port();
             acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
         }
-    }
-    else
-    {
-        acamera_reset_ping_pong_port();
-        acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+    } else {
+        if (p_fsm->p_fsm_mgr->p_ctx->p_gfw->isp_user == 0) {
+            acamera_reset_ping_pong_port();
+            acamera_update_cur_settings_to_isp(ISP_CONFIG_PING);
+        }
     }
     LOG( LOG_NOTICE, "Sensor initialization is complete, ID 0x%04X resolution %dx%d", p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height );
 }

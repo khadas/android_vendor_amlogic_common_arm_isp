@@ -804,8 +804,8 @@ int32_t isp_clk_enable(void)
         pr_err("Invalid clk level %d !\n", dev_info.clk_level);
         break;
     }
-    isp_clk_rate = 400000000;
-    global_isp_clk_rate = isp_clk_rate;
+    isp_clk_rate = 666666667;
+    global_isp_clk_rate = 500000000;
     uint32_t isp_mipi_rate = 200000000;
     clk_set_rate(dev_info.clk_isp_0, isp_clk_rate);
     clk_set_rate(dev_info.clk_mipi_0, isp_mipi_rate);

@@ -787,9 +787,12 @@ static void am_sc_swap_buf(int check_last, u32 flag_ready)
     }
 
     if (check_last) {
-        if (g_sc->multi_camera.pre_frame[frame_delay]) {
-            kfifo_in(&am_ctx[g_sc->multi_camera.cam_id[frame_delay]].sc_fifo_in, &g_sc->multi_camera.pre_frame[frame_delay], sizeof(tframe_t*));
-            g_sc->multi_camera.pre_frame[frame_delay] = NULL;
+        for (frame_delay = 0; frame_delay < FRAME_DELAY_QUEUE; frame_delay ++) {
+            if (g_sc->multi_camera.cam_id[frame_delay] == g_sc->cam_id_current) {
+                if (g_sc->multi_camera.pre_frame[frame_delay])
+                    kfifo_in(&am_ctx[g_sc->multi_camera.cam_id[frame_delay]].sc_fifo_in, &g_sc->multi_camera.pre_frame[frame_delay], sizeof(tframe_t*));
+                g_sc->multi_camera.pre_frame[frame_delay] = NULL;
+            }
         }
     }
 }
@@ -816,11 +819,13 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
 
             flag_ready = (flag & (1 << 6)) ? 1 : 0;
             if (flag_ready == g_sc->last_end_frame) {
-                pr_info("%d, sc last fifo no ready %d.\n", __LINE__, g_sc->cam_id_current);
-                am_sc_swap_buf(1, flag_ready);
-                g_sc->no_ready_th ++;
-                g_sc->working = 0;
-                return IRQ_HANDLED;
+                if (am_ctx[g_sc->cam_id_current].temp_buf) {
+                    pr_info("%d, sc last fifo no ready %d.\n", __LINE__, g_sc->cam_id_current);
+                    am_sc_swap_buf(1, flag_ready);
+                    g_sc->no_ready_th ++;
+                    g_sc->working = 0;
+                    return IRQ_HANDLED;
+                 }
             } else
                 g_sc->no_ready_th = 0;
 
@@ -871,7 +876,8 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
                 schedule_work(&(sc_workqueue.work_obj));
 #endif
             } else {
-                pr_info("%d, cam %d sc fifo is empty.\n", __LINE__, g_sc->multi_camera.cam_id[FRAME_DELAY_QUEUE-1]);
+                if (am_ctx[g_sc->multi_camera.cam_id[FRAME_DELAY_QUEUE-1]].temp_buf)
+                    pr_info("%d, cam %d sc fifo is empty.\n", __LINE__, g_sc->multi_camera.cam_id[FRAME_DELAY_QUEUE-1]);
             }
 
             for (flag = FRAME_DELAY_QUEUE - 1; flag > 0; flag --) {
@@ -1350,7 +1356,7 @@ int am_sc_hw_init(int ctx_id, int is_print, int clip_mode)
         am_ctx[ctx_id].info.c_width = am_ctx[ctx_id].info.src_w;
 
     if ( am_ctx[ctx_id].info.c_height == 0 )
-        am_ctx[ctx_id].info.c_height = am_ctx[ctx_id].info.src_w;
+        am_ctx[ctx_id].info.c_height = am_ctx[ctx_id].info.src_h;
 
     if ( ( am_ctx[ctx_id].info.c_width != am_ctx[ctx_id].info.src_w ) || ( am_ctx[ctx_id].info.c_height != am_ctx[ctx_id].info.src_h ) )
         am_ctx[ctx_id].info.clip_sc_mode |= CLIP_MODE;
@@ -1438,6 +1444,7 @@ int am_sc_stop(int ctx_id)
     if (!g_sc->stop_flag && !g_sc->user) {
         g_sc->stop_flag = true;
         g_sc->start_delay_cnt = 0;
+        g_sc->working = 0;
         sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 0, 1);
         sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 3, 1);
         mdelay(66);
@@ -1573,3 +1580,23 @@ void am_sc_set_camid(uint32_t status)
     g_sc->cam_id_next = system_get_next_api_context();
     g_sc->cam_id_next_next = system_get_next_next_api_context();
 }
+
+void am_sc_reset_hwstatus(uint32_t status)
+{
+    if (status == SCMIF_ERR) {
+        if ( am_ctx[g_sc->cam_id_next].temp_buf) {
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 0, 1);
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 1, 1);
+            mdelay(66);
+            g_sc->refresh = 1;
+            am_sc_hw_init(g_sc->cam_id_next, 0, 1);
+            g_sc->refresh = 0;
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 1, 1);
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 0, 1);
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 28, 1);
+            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 28, 1);
+            pr_err("%s\n", __func__);
+        }
+    }
+}
+
