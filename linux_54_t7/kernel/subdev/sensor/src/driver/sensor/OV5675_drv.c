@@ -591,7 +591,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_err("set mclk fail\n");
     write1_reg(0xfe000428, 0x11400400);
 
-#elif PLATFORM_C305X
+#else
     ret = gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
     if (ret < 0 )
         pr_info("set mclk fail\n");
@@ -600,15 +600,6 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     udelay(30);
 
 #if NEED_CONFIG_BSP
-/*
-    ret = gp_pl_am_enable((sensor_bringup_t*) sbp, "mclk_0", 24000000);
-    if (ret < 0 )
-        pr_info("set mclk0 fail\n");
-    ret = gp_pl_am_enable((sensor_bringup_t*) sbp, "mclk_1", 24000000);
-    if (ret < 0 )
-        pr_info("set mclk1 fail\n");
-*/
-    mdelay(1);
     ret = reset_am_enable(sensor_bp,"reset", 0);
     if (ret < 0 )
         pr_err("set reset fail\n");
@@ -730,19 +721,10 @@ int sensor_detect_ov5675( void* sbp)
         pr_err("set mclk fail\n");
 #elif PLATFORM_C308X
     write1_reg(0xfe000428, 0x11400400);
-#elif PLATFORM_C305X
+#else
     ret = gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
     if (ret < 0 )
         pr_info("set mclk fail\n");
-#endif
-#if 0// NEED_CONFIG_BSP
-    ret = gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
-    if (ret < 0 )
-        pr_info("set mclk fail\n");
-
-    ret = gp_pl_am_enable(sensor_bp, "mclk_1", 24000000);
-    if (ret < 0 )
-        pr_info("set mclk1 fail\n");
 #endif
 
     mdelay(1);
@@ -757,7 +739,7 @@ int sensor_detect_ov5675( void* sbp)
     acamera_sbus_init( &sensor_ctx.sbus, sbus_i2c );
 
     ret = 0;
-    if (sensor_get_id(&sensor_ctx) == 0xFFFF)
+    if (sensor_get_id_real(&sensor_ctx) == 0xFFFF)
         ret = -1;
     else
         pr_info("sensor_detect_OV5675:%d\n", ret);

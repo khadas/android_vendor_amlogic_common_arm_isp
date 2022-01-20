@@ -644,7 +644,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_err("set mclk fail\n");
     write1_reg(0xfe000428, 0x11400400);
 
-#elif PLATFORM_C305X
+#else
     ret = gp_pl_am_enable(sensor_bp, "mclk_0", 24000000);
     if (ret < 0 )
         pr_info("set mclk fail\n");

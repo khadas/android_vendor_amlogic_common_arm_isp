@@ -1033,17 +1033,14 @@ void am_adap_alig_start(uint8_t channel)
     int width, height, alig_width, alig_height;
     width = adap_fsm[channel].para.img.width;
     height = adap_fsm[channel].para.img.height;
-    alig_width = width + 40; //hblank > 32 cycles
-    alig_width = adap_fsm[channel].para.align_width;
-    if (channel) {
-        if (adap_fsm[channel - 1].para.align_width > adap_fsm[channel].para.align_width)
-            alig_width = adap_fsm[channel - 1].para.align_width;
-    } else {
-        if (adap_fsm[channel + 1].para.align_width > adap_fsm[channel].para.align_width)
-            alig_width = adap_fsm[channel + 1].para.align_width;
+    alig_width = width + 64; //hblank > 32 cycles
+    if (adap_fsm[channel].para.mode == DDR_MODE ||
+        adap_fsm[channel].para.mode == DCAM_MODE ||
+        adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
+            alig_width = adap_fsm[channel].para.align_width;
     }
 
-    alig_height = height + 60; //vblank > 48 lines
+    alig_height = height + 64; //vblank > 48 lines
     //val = width + 35; // width < val < alig_width
     adap_wr_bit(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, alig_width, 0, 13);
     adap_wr_bit(MIPI_ADAPT_ALIG_CNTL0, ALIGN_IO, alig_height, 16, 13);

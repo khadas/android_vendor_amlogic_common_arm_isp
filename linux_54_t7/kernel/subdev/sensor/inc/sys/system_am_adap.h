@@ -862,6 +862,7 @@ typedef enum {
     DIR_MODE,
     DCAM_MODE,
     DOL_MODE,
+    DCAM_DOL_MODE,
 } adap_mode_t;
 
 typedef enum {

@@ -181,6 +181,13 @@ int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t 
         clk = NULL;
         return -1;
     }
+
+    if (sensor_bp->mclk) {
+       clk_val = clk_get_rate(sensor_bp->mclk);
+       if (clk_val == 24000000)
+           rate = 24000000;
+    }
+
     ret = clk_set_rate(clk, rate);
     if (ret < 0)
         pr_err("clk_set_rate failed\n");
@@ -189,7 +196,7 @@ int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t 
     if (ret < 0)
         pr_err(" clk_prepare_enable failed\n");
     clk_val = clk_get_rate(clk);
-    pr_err("init mclock is %d MHZ\n",clk_val/1000000);
+    pr_err("init mclk is %d MHZ\n",clk_val/1000000);
 
     sensor_bp->mclk = clk;
     return 0;

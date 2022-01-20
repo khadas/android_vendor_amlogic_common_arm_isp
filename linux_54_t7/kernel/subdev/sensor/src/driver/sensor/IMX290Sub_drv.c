@@ -704,7 +704,7 @@ int sensor_detect_imx290sub( void* sbp)
         pr_info("sensor_detect_imx290sub:%d\n", sensor_get_id(&sensor_ctx));
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
-
+    gp_pl_am_disable(sensor_bp, "mclk_1");
     return ret;
 }
 
