@@ -1,16 +1,21 @@
-//----------------------------------------------------------------------------
-//   The confidential and proprietary information contained in this file may
-//   only be used by a person authorised under and to the extent permitted
-//   by a subsisting licensing agreement from ARM Limited or its affiliates.
-//
-//          (C) COPYRIGHT [2018] ARM Limited or its affiliates.
-//              ALL RIGHTS RESERVED
-//
-//   This entire notice must be reproduced on all copies of this file
-//   and copies of this file may only be made by a person if such person is
-//   permitted to do so under the terms of a subsisting license agreement
-//   from ARM Limited or its affiliates.
-//----------------------------------------------------------------------------
+/*
+*
+* SPDX-License-Identifier: GPL-2.0
+*
+* Copyright (C) 2011-2018 ARM or its affiliates
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; version 2.
+* This program is distributed in the hope that it will be useful, but
+* WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+* or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+* for more details.
+* You should have received a copy of the GNU General Public License along
+* with this program; if not, write to the Free Software Foundation, Inc.,
+* 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+*
+*/
 
 #ifndef __ACAMERA_3AALG_PRESET_H__
 #define __ACAMERA_3AALG_PRESET_H__

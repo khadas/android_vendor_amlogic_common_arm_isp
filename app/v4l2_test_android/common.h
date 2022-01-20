@@ -1,17 +1,11 @@
-//----------------------------------------------------------------------------
-//   The confidential and proprietary information contained in this file may
-//   only be used by a person authorised under and to the extent permitted
-//   by a subsisting licensing agreement from ARM Limited or its affiliates.
-//
-//          (C) COPYRIGHT [2018] ARM Limited or its affiliates.
-//              ALL RIGHTS RESERVED
-//
-//   This entire notice must be reproduced on all copies of this file
-//   and copies of this file may only be made by a person if such person is
-//   permitted to do so under the terms of a subsisting license agreement
-//   from ARM Limited or its affiliates.
-//----------------------------------------------------------------------------
-
+/*
+ * Copyright (c) 2018 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
 
 #ifndef __COMMON_H__
 #define __COMMON_H__
