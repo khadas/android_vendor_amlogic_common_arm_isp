@@ -278,7 +278,7 @@ void sensor_deinit_ov5640( void *ctx )
     acamera_sbus_deinit(&t_ctx->sbus,  sbus_i2c);
 
     if (t_ctx != NULL && t_ctx->sbp != NULL)
-        clk_am_disable(t_ctx->sbp);
+        gp_pl_am_disable(t_ctx->sbp, "mclk_0");
 }
 
 static sensor_context_t *sensor_global_parameter(void* sbp)
