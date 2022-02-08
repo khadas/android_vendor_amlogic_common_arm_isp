@@ -1112,8 +1112,8 @@ int am_adap_alig_init(struct adaptalig_param* prm, uint8_t channel)
             pix_datamode_1 = 0;
             vdata0_sel     = 0;
             vdata1_sel     = 1;
-            vdata2_sel     = 0;
-            vdata3_sel     = 0;
+            vdata2_sel     = 1;
+            vdata3_sel     = 1;
             yuvrgb_mode    = 0;
             break;
         case MODE_MIPI_RAW_HDR_DDR_DIRCT:

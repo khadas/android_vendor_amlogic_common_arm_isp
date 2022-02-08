@@ -515,7 +515,7 @@ static void enable_isp_scale_new (
 
     isp_mtx_setting(ch_mode, mtx_mode);
 
-    sc_reg_wr(ISP_SCWR_SC_CTRL1, ((clip_w & 0xfff) << 16) | (clip_h & 0xfff));
+    sc_reg_wr(ISP_SCWR_SC_CTRL1, ((clip_w & 0x1fff) << 16) | (clip_h & 0x1fff));
 
     if (initial_en && g_sc1->stop_flag) {
         sc_reg_rd(ISP_SCWR_TOP_DBG0, &val);
