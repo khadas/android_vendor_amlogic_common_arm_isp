@@ -312,8 +312,13 @@ static int am_mipi_aphy1_dphy3_init(void *info)
 
     //aphy
     mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL4, 0x3f425c00);
-    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL5, 0x333a0000);
-    mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL6, 0x3800000);
+    if (m_info->lanes == 4)
+        mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL5, 0x33a0000);
+    else
+        mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL5, 0x333a0000);
+
+    if (m_info->lanes == 2)
+        mipi_aphy_reg_wr(MIPI_CSI_PHY_CNTL6, 0x3800000);
 
     pr_err("init aphy 1 success.");
 
@@ -334,9 +339,13 @@ static int am_mipi_aphy1_dphy3_init(void *info)
     mipi_phy3_reg_wr(MIPI_PHY_TWD_HS ,0x400000);
     mipi_phy3_reg_wr(MIPI_PHY_DATA_LANE_CTRL , 0x0);
     mipi_phy3_reg_wr(MIPI_PHY_DATA_LANE_CTRL1 , 0x3 | (0x1f << 2 ) | (0x3 << 7));      // enable data lanes pipe line and hs sync bit err.
-    mipi_phy3_reg_wr(MIPI_PHY_MUX_CTRL0 , 0x123ff);      //config input mux
-    mipi_phy3_reg_wr(MIPI_PHY_MUX_CTRL1 , 0x1ff01);
-
+    if (m_info->lanes == 2) {
+        mipi_phy3_reg_wr(MIPI_PHY_MUX_CTRL0 , 0x123ff);    //config input mux
+        mipi_phy3_reg_wr(MIPI_PHY_MUX_CTRL1 , 0x1ff01);
+    } else {
+        mipi_phy3_reg_wr(MIPI_PHY_MUX_CTRL0 , 0x00000123);    //config input mux
+        mipi_phy3_reg_wr(MIPI_PHY_MUX_CTRL1 , 0x00000123);
+    }
 
     mipi_phy3_reg_wr(MIPI_PHY_CTRL, 0);          //  (0 << 9) | (((~chan) & 0xf ) << 5) | 0 << 4 | ((~chan) & 0xf) );
 

@@ -492,7 +492,7 @@ static void stop_streaming( void *ctx )
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x01 );
 
     reset_sensor_bus_counter();
-    sensor_iface_disable();
+    sensor_iface_disable(p_ctx);
 }
 
 uint32_t write2_reg(uint32_t val, unsigned long addr)
@@ -661,6 +661,9 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.win_offset.long_offset = 0x8;
     sensor_ctx.win_offset.short_offset = 0x8;
 #endif
+
+    sensor_ctx.cam_isp_path = CAM0_ACT;
+    sensor_ctx.cam_fe_path = FRONTEND0_IO;
 
     return &sensor_ctx;
 }

@@ -447,11 +447,11 @@ void fw_intf_stream_stop( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, in
 #endif
 
     if (streamType == V4L2_STREAM_TYPE_FR) {
-        if (stream_on_count == 1)
+        if (stream_on_count == 0)
             acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
         acamera_api_dma_buff_queue_reset(ctx_id, dma_fr);
     } else if (streamType == V4L2_STREAM_TYPE_DS1) {
-        if (stream_on_count == 1)
+        if (stream_on_count == 0)
             acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
         acamera_api_dma_buff_queue_reset(ctx_id, dma_ds1);
     }
@@ -477,12 +477,12 @@ void fw_intf_stream_stop( uint32_t ctx_id, isp_v4l2_stream_type_t streamType, in
 
     uint32_t ret_val;
     LOG( LOG_ERR, "Stopping stream type %d", streamType );
-    if (stream_on_count == 1)
+    if ( stream_on_count == 0 )
         acamera_command( ctx_id, TSENSOR, SENSOR_STREAMING, OFF, COMMAND_SET, &rc );
 
     acamera_command( ctx_id, TAML_SCALER, SCALER_STREAMING_OFF, OFF | (dma_type << 16), COMMAND_SET, &ret_val );
 
-    if ( stream_on_count == 1 )
+    if ( stream_on_count == 0 )
         ((acamera_context_ptr_t)acamera_get_ctx_ptr(ctx_id))->isp_frame_counter = 0;
 
     LOG( LOG_CRIT, "Stream off %d, user: %d\n",  streamType, stream_on_count);

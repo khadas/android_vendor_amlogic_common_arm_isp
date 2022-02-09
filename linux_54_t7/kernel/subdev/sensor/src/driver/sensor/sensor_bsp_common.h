@@ -59,7 +59,9 @@ typedef struct _sensor_context_t {
     exp_offset_t win_offset;
     void *sbp;
     void *sdrv;
-	int dcam_mode;
+    int dcam_mode;
+    uint8_t cam_isp_path;
+    uint8_t cam_fe_path;
 } sensor_context_t;
 
 int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev);
@@ -75,9 +77,11 @@ int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t 
 int gp_pl_am_disable(sensor_bringup_t* sensor_bp, const char* propname);
 int clk_am_disable(sensor_bringup_t *sensor_bp);
 void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
-void sensor_iface_disable(void);
+void sensor_iface_disable(sensor_context_t *p_ctx);
+void sensor_set_iface1(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
+void sensor_iface1_disable(sensor_context_t *p_ctx);
 void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
-void sensor_iface2_disable(void);
+void sensor_iface2_disable(sensor_context_t *p_ctx);
 void sensor_set_iface3(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx);
-void sensor_iface3_disable(void);
+void sensor_iface3_disable(sensor_context_t *p_ctx);
 

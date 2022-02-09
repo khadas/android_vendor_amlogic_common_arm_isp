@@ -65,6 +65,7 @@ struct am_adap_fsm_t {
     resource_size_t buffer_start;
     resource_size_t ddr_buf[DDR_BUF_SIZE*2];
     struct kfifo adapt_fifo;
+    spinlock_t adap_lock;
 
     struct page *cma_pages;
 
@@ -72,7 +73,7 @@ struct am_adap_fsm_t {
 };
 
 struct am_adap_fsm_t adap_fsm[CAMERA_NUM];
-uint32_t camera_frame_fifo[CAMERA_QUEUE_NUM];
+uint32_t camera_fifo[CAMERA_QUEUE_NUM];
 
 resource_size_t dol_buf[DOL_BUF_SIZE];
 
@@ -81,8 +82,6 @@ struct adaptfe_param fe_param[FRONTEDN_USED];
 struct adaptrd_param rd_param;
 struct adaptpixel_param pixel_param;
 struct adaptalig_param alig_param;
-
-struct kfifo adapt_fifo;
 
 /*we allocte from CMA*/
 
@@ -446,6 +445,7 @@ int am_adap_parse_dt(struct device_node *node)
         pr_info("adapter %d alloc %dM memory\n", i, t_adap->adap_buf_size[i]);
 
         adap_fsm[i].cam_en = CAM_DIS;
+        fe_param[i].fe_sel = 0xFF;
     }
 
     system_dbg_create(&(t_adap->p_dev->dev));
@@ -495,6 +495,7 @@ void am_adap_set_info(struct am_adap_info *info)
 {
     memset(&adap_fsm[info->path].para, 0, sizeof(struct am_adap_info));
     memcpy(&adap_fsm[info->path].para, info, sizeof(struct am_adap_info));
+    fe_param[info->path].fe_sel = info->frontend;
 }
 
 int am_adap_get_depth(uint8_t channel)
@@ -533,15 +534,44 @@ int am_disable_irq(uint8_t channel)
 {
     //disable irq mask
     //adap_write(CSI2_INTERRUPT_CTRL_STAT, FRONTEND0_IO, 0);
-    if (channel == CAM0_ACT) {
-        adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, FRONT0_WR_DONE, 1);
-    } else if (channel == CAM1_ACT) {
-        adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 0, FRONT2_WR_DONE, 1);
-    } else {
-        adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 0, FRONT3_WR_DONE, 1);
+    switch (fe_param[channel].fe_sel) {
+        case FRONTEND0_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, FRONT0_WR_DONE, 1);
+            break;
+        case FRONTEND1_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 0, FRONT1_WR_DONE, 1);
+            break;
+        case FRONTEND2_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 0, FRONT2_WR_DONE, 1);
+            break;
+        case FRONTEND3_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 0, FRONT3_WR_DONE, 1);
+            break;
     }
 
     //adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1 );//rd0 done
+
+    return 0;
+}
+
+int am_enable_irq(uint8_t channel)
+{
+    switch (fe_param[channel].fe_sel) {
+        case FRONTEND0_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, FRONT0_WR_DONE, 1 );//fe0 wr done
+            break;
+        case FRONTEND1_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT1_WR_DONE, 1);//fe1 wr done
+            break;
+        case FRONTEND2_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT2_WR_DONE, 1 );//fe2 wr done
+            break;
+        case FRONTEND3_IO:
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT3_WR_DONE, 1 );//fe3 wr done
+            break;
+    }
+
+    adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, ALIGN_FRAME_END, 1 );//rd0 done
 
     return 0;
 }
@@ -569,7 +599,7 @@ void am_adap_frontend_start(uint8_t channel)
         default:
             break;
     }
-    adap_wr_bit(CSI2_GEN_CTRL0, fe_io, 0xf, 0, 4);
+    adap_wr_bit(CSI2_GEN_CTRL0, fe_io, 0x3, 0, 4);
 }
 
 
@@ -1239,105 +1269,105 @@ static int get_next_wr_buf_index(uint8_t channel)
     return index;
 }
 
+static void get_data_from_frontend(uint8_t fe_chan) {
+    resource_size_t val = 0;
+    uint8_t p_cam = 0;
+    uint8_t i = 0;
+    unsigned long flags;
+
+    for (i = 0; i < CAMS_MAX; i ++) {
+        if (fe_param[i].fe_sel == fe_chan) {
+            p_cam = i;
+            break;
+        }
+    }
+
+    spin_lock_irqsave( &adap_fsm[p_cam].adap_lock, flags );
+    if ((kfifo_len(&adap_fsm[p_cam].adapt_fifo) / 8) < (DDR_BUF_SIZE - 2)) {
+        kfifo_in(&adap_fsm[p_cam].adapt_fifo, &adap_fsm[p_cam].ddr_buf[adap_fsm[p_cam].next_buf_index], sizeof(resource_size_t));
+        camera_fifo[g_adap->write_frame_ptr ++] = p_cam;
+        if (g_adap->write_frame_ptr == CAMERA_QUEUE_NUM)
+            g_adap->write_frame_ptr = 0;
+    } else {
+        LOG(LOG_INFO, "adapt %d fifo is full .\n", p_cam);
+        spin_unlock_irqrestore( &adap_fsm[p_cam].adap_lock, flags );
+        return;
+    }
+    spin_unlock_irqrestore( &adap_fsm[p_cam].adap_lock, flags );
+
+    adap_fsm[p_cam].next_buf_index = get_next_wr_buf_index(p_cam);
+    val = adap_fsm[p_cam].ddr_buf[adap_fsm[p_cam].next_buf_index];
+    adap_write(CSI2_DDR_START_PIX, fe_chan, val);
+    if (adap_fsm[p_cam].para.mode == DCAM_DOL_MODE) {
+        val = adap_fsm[p_cam].ddr_buf[adap_fsm[p_cam].next_buf_index + 1];
+        adap_write(CSI2_DDR_START_PIX_B, fe_chan, val);
+    }
+
+    LOG(LOG_INFO, "frontend cam %d wr start %x", p_cam, val);
+    g_adap->frame_state = FRAME_READY;
+
+    wake_up_interruptible( &g_adap->frame_wq);
+}
+
 static irqreturn_t adpapter_isr(int irq, void *para)
 {
     uint32_t data = 0;
     uint32_t data1 = 0;
-    resource_size_t val = 0;
+    uint8_t i = 0;
 
     adap_read(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, &data);
     adap_read(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, &data1);
     adap_write(MIPI_TOP_ISP_PENDING0, CMPR_CNTL_IO, data);
     adap_write(MIPI_TOP_ISP_PENDING1, CMPR_CNTL_IO, data1);
 
-    if ((data & (1 << FRONT0_WR_DONE))) {
-        if ((kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) / 8) < (DDR_BUF_SIZE - 2)) {
-            kfifo_in(&adap_fsm[ADAP0_PATH].adapt_fifo, &adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index], sizeof(resource_size_t));
-            camera_frame_fifo[g_adap->write_frame_ptr ++] = CAM0_ACT;
-            if (g_adap->write_frame_ptr == CAMERA_QUEUE_NUM)
-                g_adap->write_frame_ptr = 0;
-        } else {
-            LOG(LOG_INFO, "adapt fifo 0 is full .\n");
-            return IRQ_HANDLED;
-        }
-
-        adap_fsm[ADAP0_PATH].next_buf_index = get_next_wr_buf_index(ADAP0_PATH);
-        val = adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index];
-        adap_write(CSI2_DDR_START_PIX, FRONTEND0_IO, val);
-        if (adap_fsm[ADAP0_PATH].para.mode == DCAM_DOL_MODE) {
-            val = adap_fsm[ADAP0_PATH].ddr_buf[adap_fsm[ADAP0_PATH].next_buf_index + 1];
-            adap_write(CSI2_DDR_START_PIX_B, FRONTEND0_IO, val);
-        }
-        LOG(LOG_INFO, "frontend cam0 wr start %x", val);
-        g_adap->frame_state = FRAME_READY;
-        wake_up_interruptible( &g_adap->frame_wq);
-    }
-
     if (data & (1 << ALIGN_FRAME_END)) {
-        adap_fsm[ADAP0_PATH].control_flag = 0;
-        adap_fsm[ADAP1_PATH].control_flag = 0;
-        adap_fsm[ADAP2_PATH].control_flag = 0;
+        for (i = 0; i < CAMS_MAX; i ++)
+            adap_fsm[i].control_flag = 0;
         LOG(LOG_INFO, "align read done");
     }
 
-    if (data1 & (1 << FRONT2_WR_DONE)) {
-        if ((kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo) / 8) < (DDR_BUF_SIZE - 2)) {
-            kfifo_in(&adap_fsm[ADAP1_PATH].adapt_fifo, &adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index], sizeof(resource_size_t));
-            camera_frame_fifo[g_adap->write_frame_ptr ++] = CAM1_ACT;
-            if (g_adap->write_frame_ptr == CAMERA_QUEUE_NUM)
-                g_adap->write_frame_ptr = 0;
-        } else {
-            LOG(LOG_INFO, "adapt fifo 1 is full .\n");
-            return IRQ_HANDLED;
-        }
+    if ((data & (1 << FRONT0_WR_DONE)))
+        get_data_from_frontend(FRONTEND0_IO);
 
-        adap_fsm[ADAP1_PATH].next_buf_index = get_next_wr_buf_index(ADAP1_PATH);
-        val = adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index];
-        adap_write(CSI2_DDR_START_PIX, FRONTEND2_IO, val);
-        if (adap_fsm[ADAP1_PATH].para.mode == DCAM_DOL_MODE) {
-            val = adap_fsm[ADAP1_PATH].ddr_buf[adap_fsm[ADAP1_PATH].next_buf_index + 1];
-            adap_write(CSI2_DDR_START_PIX_B, FRONTEND2_IO, val);
-        }
-        LOG(LOG_INFO, "frontend cam1 wr start %x", val);
-        g_adap->frame_state = FRAME_READY;
-        wake_up_interruptible( &g_adap->frame_wq);
-    }
+    if (data1 & (1 << FRONT1_WR_DONE))
+        get_data_from_frontend(FRONTEND1_IO);
 
-    if (data1 & (1 << FRONT3_WR_DONE)) {
-        if ((kfifo_len(&adap_fsm[ADAP2_PATH].adapt_fifo) / 8) < (DDR_BUF_SIZE - 2)) {
-            kfifo_in(&adap_fsm[ADAP2_PATH].adapt_fifo, &adap_fsm[ADAP2_PATH].ddr_buf[adap_fsm[ADAP2_PATH].next_buf_index], sizeof(resource_size_t));
-            camera_frame_fifo[g_adap->write_frame_ptr ++] = CAM2_ACT;
-            if (g_adap->write_frame_ptr == CAMERA_QUEUE_NUM)
-                g_adap->write_frame_ptr = 0;
-        } else {
-            LOG(LOG_INFO, "adapt fifo 2 is full .\n");
-            return IRQ_HANDLED;
-        }
+    if (data1 & (1 << FRONT2_WR_DONE))
+        get_data_from_frontend(FRONTEND2_IO);
 
-        adap_fsm[ADAP2_PATH].next_buf_index = get_next_wr_buf_index(ADAP2_PATH);
-        val = adap_fsm[ADAP2_PATH].ddr_buf[adap_fsm[ADAP2_PATH].next_buf_index];
-        adap_write(CSI2_DDR_START_PIX, FRONTEND3_IO, val);
-        if (adap_fsm[ADAP2_PATH].para.mode == DCAM_DOL_MODE) {
-            val = adap_fsm[ADAP2_PATH].ddr_buf[adap_fsm[ADAP2_PATH].next_buf_index + 1];
-            adap_write(CSI2_DDR_START_PIX_B, FRONTEND3_IO, val);
-        }
-        LOG(LOG_INFO, "frontend cam2 wr start %x", val);
-        g_adap->frame_state = FRAME_READY;
-        wake_up_interruptible( &g_adap->frame_wq);
-    }
+    if (data1 & (1 << FRONT3_WR_DONE))
+        get_data_from_frontend(FRONTEND3_IO);
 
     return IRQ_HANDLED;
+}
+
+void am_adap_camid_update(uint8_t flag, uint8_t channel) {
+    if (flag) {
+        if (g_adap->read_frame_ptr > 0)
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_fifo[g_adap->read_frame_ptr - 1], CAM_LAST, 2);
+        else
+            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_fifo[CAMERA_QUEUE_NUM - 1], CAM_LAST, 2);
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_fifo[g_adap->read_frame_ptr], CAM_CURRENT, 2);
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_fifo[(g_adap->read_frame_ptr + 1)%CAMERA_QUEUE_NUM], CAM_NEXT, 2);
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_fifo[(g_adap->read_frame_ptr + 2)%CAMERA_QUEUE_NUM], CAM_NEXT_NEXT, 2);
+    } else {
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, channel, CAM_LAST, 2);
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, channel, CAM_CURRENT, 2);
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, channel, CAM_NEXT, 2);
+        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, channel, CAM_NEXT_NEXT, 2);
+    }
 }
 
 static resource_size_t am_adap_find_next_buf(uint8_t adapt_path, resource_size_t addr)
 {
     int i = 0;
     int buf_cnt = DDR_BUF_SIZE;
-    if (adap_fsm[adapt_path].para.mode == DCAM_DOL_MODE)
+    if (adap_fsm[adapt_path].para.mode == DCAM_DOL_MODE) {
         buf_cnt = DDR_BUF_SIZE * 2;
-    for (i = 0; i < buf_cnt - 1; i ++) {
-        if (addr == adap_fsm[adapt_path].ddr_buf[i])
-            return adap_fsm[adapt_path].ddr_buf[i + 1];
+        for (i = 0; i < buf_cnt - 1; i ++) {
+            if (addr == adap_fsm[adapt_path].ddr_buf[i])
+                return adap_fsm[adapt_path].ddr_buf[i + 1];
+        }
     }
 
     return adap_fsm[adapt_path].ddr_buf[1];
@@ -1349,13 +1379,25 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
     int check_count = 0;
     int frame_state = 0;
     int kfifo_ret = -1;
+    int i = 0, finished = 0, f_yuv = 0;
+    unsigned long flags;
 
-    while (adap_fsm[CAM0_ACT].control_flag || adap_fsm[CAM1_ACT].control_flag || adap_fsm[CAM2_ACT].control_flag) {
+    for (i = 0; i < CAMS_MAX; i ++) {
+        finished += adap_fsm[i].control_flag;
+        if (adap_fsm[i].para.type == DOL_YUV)
+            f_yuv = 1;
+    }
+
+    while (finished) {
+        finished = 0;
+        for (i = 0; i < CAMS_MAX; i ++)
+            finished += adap_fsm[i].control_flag;
         if (check_count ++ > 200) {
-            pr_err("adapt read%d done timeout %d-%d-%d.\n",adapt_path, adap_fsm[CAM0_ACT].control_flag,adap_fsm[CAM1_ACT].control_flag,adap_fsm[CAM1_ACT].control_flag);
-            adap_fsm[CAM0_ACT].control_flag = 0;
-            adap_fsm[CAM1_ACT].control_flag = 0;
-            adap_fsm[CAM2_ACT].control_flag = 0;
+            for (i = 0; i < CAMS_MAX; i ++) {
+                if (adap_fsm[i].control_flag)
+                    pr_err("adapt read cam %d timeout.\n",i);
+                adap_fsm[i].control_flag = 0;
+            }
             frame_state = -1;
             break;
         } else
@@ -1363,7 +1405,7 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
     }
 
     check_count = 0;
-    if (adap_fsm[CAM0_ACT].para.type != DOL_YUV && adap_fsm[CAM1_ACT].para.type != DOL_YUV && adap_fsm[CAM2_ACT].para.type != DOL_YUV) {
+    if (!f_yuv) {
         while (kfifo_ret) {
             camera_notify(NOTIFY_GET_QUEUE_STATUS, &kfifo_ret);
             if (kfifo_ret == 0)
@@ -1395,18 +1437,13 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
            mdelay(1);
     }
 
+    spin_lock_irqsave( &adap_fsm[adapt_path].adap_lock, flags );
     kfifo_ret = kfifo_out(&adap_fsm[adapt_path].adapt_fifo, &val, sizeof(val));
+    spin_unlock_irqrestore( &adap_fsm[adapt_path].adap_lock, flags );
     adap_fsm[adapt_path].read_buf[0] = val;
     adap_fsm[adapt_path].read_buf[1] = am_adap_find_next_buf(adapt_path, val);
     adap_fsm[adapt_path].control_flag = 1;
-    if (g_adap->read_frame_ptr > 0)
-        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[g_adap->read_frame_ptr - 1], CAM_LAST, 2);
-    else
-        adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[CAMERA_QUEUE_NUM - 1], CAM_LAST, 2);
-    adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[g_adap->read_frame_ptr], CAM_CURRENT, 2);
-    adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[(g_adap->read_frame_ptr + 1)%CAMERA_QUEUE_NUM], CAM_NEXT, 2);
-    adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, camera_frame_fifo[(g_adap->read_frame_ptr + 2)%CAMERA_QUEUE_NUM], CAM_NEXT_NEXT, 2);
-
+    am_adap_camid_update(1, adapt_path);
     g_adap->read_frame_ptr ++ ;
     g_adap->read_frame_ptr %= CAMERA_QUEUE_NUM;
 
@@ -1447,6 +1484,7 @@ static int am_adap_isp_check_status(uint8_t adapt_path)
 
 static int adap_stream_copy_thread( void *data )
 {
+    uint8_t i = 0;
     uint8_t cam_mode = 0;
     uint8_t frame_num = 0;
     int8_t frame_state = 0;
@@ -1460,8 +1498,12 @@ static int adap_stream_copy_thread( void *data )
             break;
 
         frame_state = 0;
-        cam_mode = adap_fsm[ADAP0_PATH].cam_en + adap_fsm[ADAP1_PATH].cam_en + adap_fsm[ADAP2_PATH].cam_en;
-        frame_num = kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) + kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo) + kfifo_len(&adap_fsm[ADAP2_PATH].adapt_fifo);
+        cam_mode = 0;
+        frame_num = 0;
+        for (i = 0; i < CAMS_MAX; i ++) {
+            cam_mode += adap_fsm[i].cam_en;
+            frame_num += kfifo_len(&adap_fsm[i].adapt_fifo);
+        }
 
         if ( wait_event_interruptible_timeout( g_adap->frame_wq,
             (g_adap->frame_state == FRAME_READY),
@@ -1475,82 +1517,32 @@ static int adap_stream_copy_thread( void *data )
         if ((frame_num / 8 ) < 3)
             continue;
 
-        if ((kfifo_len(&adap_fsm[ADAP0_PATH].adapt_fifo) > 0) && camera_frame_fifo[g_adap->read_frame_ptr] == CAM0_ACT) {
-            frame_state = am_adap_isp_check_status(ADAP0_PATH);
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP0_PATH].read_buf[0]);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
-            if (adap_fsm[ADAP0_PATH].para.mode == DCAM_DOL_MODE) {
-                adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[ADAP0_PATH].read_buf[1]);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
-            }
+        for (i = 0; i < CAMS_MAX; i ++) {
+            if ((kfifo_len(&adap_fsm[i].adapt_fifo) > 0) && (camera_fifo[g_adap->read_frame_ptr] == i)) {
+               frame_state = am_adap_isp_check_status(i);
+               adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[i].read_buf[0]);
+               adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
+               adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
+               if (adap_fsm[i].para.mode == DCAM_DOL_MODE) {
+                   adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[i].read_buf[1]);
+                   adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
+                   adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
+               }
 
-            if (frame_state == 0)
-                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));// 0<<10 no care isp req
-            else
-                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001000 | (1 << 6) | (1 << 5));// 3<<10 care isp req
+               if (frame_state == 0)
+                   adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));// 0<<10 no care isp req
+               else
+                   adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001000 | (1 << 6) | (1 << 5));// 3<<10 care isp req
 
-            adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
-            if (adap_fsm[ADAP0_PATH].para.mode == DCAM_DOL_MODE) {
-                adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
-            }
-            LOG(LOG_INFO, "send cam 0 \n");
-            continue;
-        }
-
-        if ((kfifo_len(&adap_fsm[ADAP1_PATH].adapt_fifo) > 0)  && camera_frame_fifo[g_adap->read_frame_ptr] == CAM1_ACT) {
-            frame_state = am_adap_isp_check_status(ADAP1_PATH);
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP1_PATH].read_buf[0]);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
-            if (adap_fsm[ADAP1_PATH].para.mode == DCAM_DOL_MODE) {
-                adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[ADAP1_PATH].read_buf[1]);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
-            }
-
-            if (frame_state == 0)
-                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));
-            else
-                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001000 | (1 << 6) | (1 << 5));
-
-            adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
-            if (adap_fsm[ADAP1_PATH].para.mode == DCAM_DOL_MODE) {
-                adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
-            }
-            LOG(LOG_INFO, "send cam 1 \n");
-            continue;
-        }
-
-        if ((kfifo_len(&adap_fsm[ADAP2_PATH].adapt_fifo) > 0)  && camera_frame_fifo[g_adap->read_frame_ptr] == CAM2_ACT) {
-            frame_state = am_adap_isp_check_status(ADAP2_PATH);
-            adap_write(MIPI_ADAPT_DDR_RD0_CNTL2, RD_IO, adap_fsm[ADAP2_PATH].read_buf[0]);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 25, 1);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 0, 25, 1);
-            if (adap_fsm[ADAP2_PATH].para.mode == DCAM_DOL_MODE) {
-                adap_write(MIPI_ADAPT_DDR_RD1_CNTL2, RD_IO, adap_fsm[ADAP2_PATH].read_buf[1]);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 25, 1);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 0, 25, 1);
-            }
-
-            if (frame_state == 0)
-                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001C00 | (1 << 6) | (1 << 5));
-            else
-                adap_write(MIPI_ADAPT_ALIG_CNTL8, ALIGN_IO, 0x80001000 | (1 << 6) | (1 << 5));
-
-            adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
-            adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
-            if (adap_fsm[ADAP2_PATH].para.mode == DCAM_DOL_MODE) {
-                adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
-                adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
-            }
-            LOG(LOG_INFO, "send cam 2 \n");
-            continue;
+               adap_wr_bit(MIPI_ADAPT_PIXEL0_CNTL0, RD_IO, 1, 31, 1);
+               adap_wr_bit(MIPI_ADAPT_DDR_RD0_CNTL0, RD_IO, 1, 31, 1);
+               if (adap_fsm[i].para.mode == DCAM_DOL_MODE) {
+                   adap_wr_bit(MIPI_ADAPT_PIXEL1_CNTL0, RD_IO, 1, 31, 1);
+                   adap_wr_bit(MIPI_ADAPT_DDR_RD1_CNTL0, RD_IO, 1, 31, 1);
+               }
+               LOG(LOG_INFO, "send cam %d \n", i);
+               break;
+           }
         }
     }
 
@@ -1674,6 +1666,7 @@ int am_adap_init(uint8_t channel)
         (adap_fsm[channel].para.mode == DCAM_MODE) ||
         (adap_fsm[channel].para.mode == DCAM_DOL_MODE) ||
         (adap_fsm[channel].para.mode == DOL_MODE)) {
+        spin_lock_init(&adap_fsm[channel].adap_lock);
         am_adap_alloc_mem(channel);
         depth = am_adap_get_depth(channel);
         if ((adap_fsm[channel].cma_pages) && (adap_fsm[channel].para.mode == DDR_MODE)) {
@@ -1740,9 +1733,9 @@ int am_adap_init(uint8_t channel)
     }
 
     if (adap_fsm[channel].para.mode == DDR_MODE && g_adap->f_fifo == 0) {
-        kfifo_ret = kfifo_alloc(&adap_fsm[CAM0_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
-        kfifo_ret = kfifo_alloc(&adap_fsm[CAM1_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
-        kfifo_ret = kfifo_alloc(&adap_fsm[CAM2_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+        for (i = 0; i < CAMS_MAX; i++)
+            kfifo_ret = kfifo_alloc(&adap_fsm[i].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+
         if (kfifo_ret) {
             pr_info("alloc adapter fifo failed.\n");
             return kfifo_ret;
@@ -1756,9 +1749,9 @@ int am_adap_init(uint8_t channel)
         wake_up_process(g_adap->kadap_stream);
         g_adap->f_fifo = 1;
     } else if ((adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) && g_adap->f_fifo == 0) {
-        kfifo_ret = kfifo_alloc(&adap_fsm[CAM0_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
-        kfifo_ret = kfifo_alloc(&adap_fsm[CAM1_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
-        kfifo_ret = kfifo_alloc(&adap_fsm[CAM2_ACT].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+        for (i = 0; i < CAMS_MAX; i++)
+            kfifo_ret = kfifo_alloc(&adap_fsm[i].adapt_fifo, 8 * DDR_BUF_SIZE, GFP_KERNEL);
+
         if (kfifo_ret) {
             pr_info("alloc adapter fifo failed.\n");
             return kfifo_ret;
@@ -1774,13 +1767,9 @@ int am_adap_init(uint8_t channel)
         g_adap->f_fifo = 1;
     }
 
+    fe_param[channel].fe_sel = adap_fsm[channel].para.frontend;
     if (g_adap->f_adap == 0) {
-        if (channel == CAM0_ACT)
-            am_adap_reset(ADAP0_PATH);
-        else if (channel == CAM1_ACT)
-            am_adap_reset(ADAP2_PATH);
-        else if (channel == CAM2_ACT)
-            am_adap_reset(ADAP3_PATH);
+         am_adap_reset(channel);
     }
 
     switch (adap_fsm[channel].para.mode) {
@@ -1807,13 +1796,7 @@ int am_adap_init(uint8_t channel)
                 alig_param.alig_work_mode     = MODE_MIPI_YUV_SDR_DDR;
                 temp_work_mode                 = MODE_MIPI_YUV_SDR_DDR;
             }
-            if (channel == 0)
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, FRONT0_WR_DONE, 1 );//fe0 wr done
-            else if (channel == 1)
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT2_WR_DONE, 1 );//fe2 wr done
-            else if (channel == 2)
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT3_WR_DONE, 1 );//fe3 wr done
-            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, 9, 1 );//rd0 done
+            am_enable_irq(channel);
             break;
         case DCAM_MODE:
         case DCAM_DOL_MODE:
@@ -1832,14 +1815,7 @@ int am_adap_init(uint8_t channel)
                 alig_param.alig_work_mode     = MODE_MIPI_RAW_HDR_DDR_DDR;
                 temp_work_mode                 = MODE_MIPI_RAW_HDR_DDR_DDR;
             }
-
-            if (channel == 0)
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, FRONT0_WR_DONE, 1 );//fe0 wr done
-            else if (channel == 1)
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT2_WR_DONE, 1 );//fe2 wr done
-            else if (channel == 2)
-                adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK1, CMPR_CNTL_IO, 1, FRONT3_WR_DONE, 1 );//fe3 wr done
-            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 1, ALIGN_FRAME_END, 1 );//rd0 done
+            am_enable_irq(channel);
             break;
         case DOL_MODE:
             rd_param.rd_work_mode        = MODE_MIPI_RAW_HDR_DDR_DIRCT;
@@ -1852,12 +1828,6 @@ int am_adap_init(uint8_t channel)
             break;
     }
 
-    if (channel == CAM2_ACT)
-        fe_param[channel].fe_sel              = ADAP3_PATH;
-    else if (channel == CAM1_ACT)
-        fe_param[channel].fe_sel              = ADAP2_PATH;
-    else
-        fe_param[channel].fe_sel              = ADAP0_PATH;
     fe_param[channel].fe_work_mode        = temp_work_mode;
     fe_param[channel].fe_mem_x_start      = 0;
     fe_param[channel].fe_mem_x_end        = adap_fsm[channel].para.img.width - 1;
@@ -1904,49 +1874,36 @@ int am_adap_init(uint8_t channel)
         adap_wr_bit(MIPI_ADAPT_ALIG_CNTL12, MISC_IO, 0x2, 16, 3);
         adap_wr_bit(MIPI_ADAPT_ALIG_CNTL13, MISC_IO, 0x2, 16, 3);
         adap_wr_bit(MIPI_ADAPT_ALIG_CNTL14, MISC_IO, 0x2, 16, 3);
+
+        g_adap->f_adap = 1;
     }
 
-    g_adap->f_adap = 1;
 
     if (adap_fsm[channel].para.mode != DCAM_MODE ||
         adap_fsm[channel].para.mode != DCAM_DOL_MODE) {
-        if (channel == CAM0_ACT) {
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_LAST, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_CURRENT, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT_NEXT, 2);
-
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 0, 24, 4);
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 0, 0, 2);
-        } else if (channel == CAM1_ACT) {
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_LAST, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_CURRENT, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT_NEXT, 2);
-
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 24, 4);
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 2, 0, 2);
-        } else {
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_LAST, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_CURRENT, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_NEXT, 2);
-            adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_NEXT_NEXT, 2);
-
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 3, 24, 4);
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 3, 0, 2);
-        }
+        am_adap_camid_update(0, channel);
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, fe_param[channel].fe_sel, 24, 4);
+        adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, fe_param[channel].fe_sel, 0, 2);
 
         kfifo_ret = SCMIF_BUSY;
         camera_notify(NOTIFY_UPDATE_SC03_CAMID, &kfifo_ret);
     }
 
     if (adap_fsm[channel].para.mode != DIR_MODE) {
-        if (channel == CAM0_ACT)
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 4, 24, 4); //interrput source for sc
-        else if(channel == CAM1_ACT)
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 6, 24, 4);
-        else if(channel == CAM2_ACT)
-            adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 7, 24, 4);
+        switch (fe_param[channel].fe_sel) {
+            case FRONTEND0_IO:
+                adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 4, 24, 4); //interrput source for sc
+                break;
+            case FRONTEND1_IO:
+                adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 5, 24, 4);
+                break;
+            case FRONTEND2_IO:
+                adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 6, 24, 4);
+                break;
+            case FRONTEND3_IO:
+                adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 7, 24, 4);
+                break;
+        }
     }
 
     return 0;
@@ -1954,48 +1911,32 @@ int am_adap_init(uint8_t channel)
 
 int am_adap_start(uint8_t channel, uint8_t dcam)
 {
+    int i = 0, t_cams = 0;
     adap_fsm[channel].cam_en = CAM_EN;
+
     if ( dcam ) {
+        for (i = 0; i < CAMS_MAX; i++)
+            t_cams += adap_fsm[i].cam_en;
+
         am_adap_frontend_start(channel);
-        if ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_EN) {
+        if (t_cams == CAM_EN) {
             am_adap_alig_start(channel);
             am_adap_pixel_start(channel);
             am_adap_reader_start(channel);
-            memset(camera_frame_fifo, 0, CAMERA_QUEUE_NUM * sizeof(uint32_t));
+            memset(camera_fifo, 0, CAMERA_QUEUE_NUM * sizeof(uint32_t));
             g_adap->read_frame_ptr = 0;
             g_adap->write_frame_ptr = 0;
-            if (channel == CAM0_ACT) {
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_LAST, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_CURRENT, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM0_ACT, CAM_NEXT_NEXT, 2);
-            } else if (channel == CAM1_ACT) {
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_LAST, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_CURRENT, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM1_ACT, CAM_NEXT_NEXT, 2);
-            } else {
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_LAST, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_CURRENT, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_NEXT, 2);
-                adap_wr_bit(MIPI_OTHER_CNTL0, RD_IO, CAM2_ACT, CAM_NEXT_NEXT, 2);
-            }
+            am_adap_camid_update(0, channel);
         }
     } else {
         am_adap_alig_start(channel);
         am_adap_pixel_start(channel);
         am_adap_reader_start(channel);
         am_adap_frontend_start(channel);
-        if (channel == CAM0_ACT) {
-            adap_fsm[1].cam_en = CAM_DIS;
-            adap_fsm[2].cam_en = CAM_DIS;
-        } else if (channel == CAM1_ACT) {
-            adap_fsm[0].cam_en = CAM_DIS;
-            adap_fsm[2].cam_en = CAM_DIS;
-        } else if(channel == CAM2_ACT) {
-            adap_fsm[0].cam_en = CAM_DIS;
-            adap_fsm[1].cam_en = CAM_DIS;
-        }
+        for (i = 0; i < CAMS_MAX; i++)
+            adap_fsm[i].cam_en = CAM_DIS;
+
+        adap_fsm[channel].cam_en = CAM_EN;
     }
 
     return 0;
@@ -2003,7 +1944,7 @@ int am_adap_start(uint8_t channel, uint8_t dcam)
 
 int am_adap_reset(uint8_t channel)
 {
-    switch (channel) {
+    switch (fe_param[channel].fe_sel) {
         case FRONTEND0_IO:
             adap_write(CSI2_GEN_CTRL0, FRONTEND0_IO, 0x00000000);
             adap_wr_bit(CSI2_CLK_RESET, FRONTEND0_IO, 1, 0, 1);
@@ -2038,23 +1979,25 @@ int am_adap_reset(uint8_t channel)
 
 int am_adap_deinit(uint8_t channel)
 {
+    int i = 0, t_cams = 0;
     adap_fsm[channel].cam_en = CAM_DIS;
 
-    if ( (adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_DIS ) {
-        am_adap_reset(ADAP0_PATH);
-        am_adap_reset(ADAP2_PATH);
-        am_adap_reset(ADAP3_PATH);
+    for (i = 0; i < CAMS_MAX; i++)
+        t_cams += adap_fsm[i].cam_en;
+
+    if ( t_cams == CAM_DIS ) {
+        for (i = 0; i < CAMS_MAX; i++)
+            am_adap_reset(i);
     }
 
     if (adap_fsm[channel].para.mode == DDR_MODE) {
         am_disable_irq(channel);
         am_adap_free_mem(channel);
-        if (g_adap->f_fifo && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_DIS)) {
+        if (g_adap->f_fifo && (t_cams == CAM_DIS)) {
             adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1);  //align rd done
             g_adap->f_fifo = 0;
-            kfifo_free(&adap_fsm[CAM0_ACT].adapt_fifo);
-            kfifo_free(&adap_fsm[CAM1_ACT].adapt_fifo);
-            kfifo_free(&adap_fsm[CAM2_ACT].adapt_fifo);
+            for (i = 0; i < CAMS_MAX; i++)
+                kfifo_free(&adap_fsm[i].adapt_fifo);
         }
     } else if (adap_fsm[channel].para.mode == DCAM_MODE || adap_fsm[channel].para.mode == DCAM_DOL_MODE) {
         am_disable_irq(channel);
@@ -2067,18 +2010,17 @@ int am_adap_deinit(uint8_t channel)
         else if (channel == CAM2_ACT)
             adap_wr_bit(MIPI_ADAPT_FE_MUX_CTL0, MISC_IO, 4, 24, 4);
 
-        if (g_adap->f_fifo && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_DIS)) {
-            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1);  //align rd done
+        if (g_adap->f_fifo && (t_cams == CAM_DIS)) {
             g_adap->f_fifo = 0;
-            kfifo_free(&adap_fsm[CAM0_ACT].adapt_fifo);
-            kfifo_free(&adap_fsm[CAM1_ACT].adapt_fifo);
-            kfifo_free(&adap_fsm[CAM2_ACT].adapt_fifo);
+            adap_wr_bit(MIPI_TOP_ISP_PENDING_MASK0, CMPR_CNTL_IO, 0, 9, 1);  //align rd done
+            for (i = 0; i < CAMS_MAX; i++)
+                kfifo_free(&adap_fsm[i].adapt_fifo);
         }
     } else if (adap_fsm[channel].para.mode == DOL_MODE) {
         am_adap_free_mem(channel);
     }
 
-    if (g_adap->f_end_irq && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_DIS)) {
+    if (g_adap->f_end_irq && (t_cams == CAM_DIS)) {
         g_adap->f_end_irq = 0;
         free_irq( g_adap->rd_irq, (void *)g_adap );
     }
@@ -2086,10 +2028,10 @@ int am_adap_deinit(uint8_t channel)
     adap_fsm[channel].control_flag = 0;
     adap_fsm[channel].wbuf_index = 0;
     adap_fsm[channel].next_buf_index = 0;
-    if ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_DIS)
+    if (t_cams == CAM_DIS)
         g_adap->f_adap = 0;
 
-    if ( g_adap->kadap_stream != NULL && ((adap_fsm[CAM0_ACT].cam_en + adap_fsm[CAM1_ACT].cam_en + adap_fsm[CAM2_ACT].cam_en) == CAM_DIS)) {
+    if ( g_adap->kadap_stream != NULL && (t_cams == CAM_DIS)) {
         kthread_stop( g_adap->kadap_stream);
         g_adap->kadap_stream = NULL;
         g_adap->read_frame_ptr = 0;

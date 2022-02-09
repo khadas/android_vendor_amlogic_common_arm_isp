@@ -322,9 +322,10 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t
     }
     //p_ctx->dcam_mode = 1;
 
+    info.path = p_ctx->cam_isp_path;
+    info.frontend = p_ctx->cam_fe_path;
     info.img.width = mode->resolution.width;
     info.img.height = mode->resolution.height;
-    info.path = PATH0;
     info.offset.offset_x = offset.offset_x;
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
@@ -349,17 +350,101 @@ void sensor_set_iface(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t
     info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
     if (info.align_width < (mode->resolution.width + 64))
         info.align_width = mode->resolution.width + 64;
-    pr_info("Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
+    pr_info("Dcam%x:%d, aligh:%d\n",p_ctx->cam_isp_path, p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
-    am_adap_init(CAM0_ACT);
-    am_adap_start(CAM0_ACT, p_ctx->dcam_mode);
+    am_adap_init(p_ctx->cam_isp_path);
+    am_adap_start(p_ctx->cam_isp_path, p_ctx->dcam_mode);
 }
 
-void sensor_iface_disable(void)
+void sensor_iface_disable(sensor_context_t *p_ctx)
 {
-    am_adap_deinit(CAM0_ACT);
+    am_adap_deinit(p_ctx->cam_isp_path);
     am_mipi_deinit();
+}
+
+void sensor_set_iface1(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx)
+{
+    am_mipi_info_t mipi_info;
+    struct am_adap_info info;
+
+    if (mode == NULL) {
+        pr_info( "Error input param\n");
+        return;
+    }
+
+    memset(&mipi_info, 0, sizeof(mipi_info));
+    memset(&info, 0, sizeof(struct am_adap_info));
+    mipi_info.lanes = mode->lanes;
+    mipi_info.ui_val = 1000 / mode->bps;
+
+    if ((1000 % mode->bps) != 0)
+        mipi_info.ui_val += 1;
+
+    am_mipi1_init(&mipi_info);
+
+    switch (mode->bits) {
+    case 8:
+        info.fmt = MIPI_CSI_RAW8;
+        break;
+    case 10:
+        info.fmt = MIPI_CSI_RAW10;
+        break;
+    case 12:
+        info.fmt = MIPI_CSI_RAW12;
+        break;
+    default:
+        info.fmt = MIPI_CSI_RAW10;
+        break;
+    }
+
+    if ( mode->dol_type == DOL_YUV ) {
+        if ( mode->bits == 8 )
+            info.fmt = MIPI_CSI_YUV422_8BIT;
+        else
+            info.fmt = MIPI_CSI_YUV422_10BIT;
+    }
+    //p_ctx->dcam_mode = 1;
+
+    info.path = p_ctx->cam_isp_path;
+    info.frontend = p_ctx->cam_fe_path;
+    info.img.width = mode->resolution.width;
+    info.img.height = mode->resolution.height;
+    info.offset.offset_x = offset.offset_x;
+    info.offset.offset_y = offset.offset_y;
+    if (mode->wdr_mode == WDR_MODE_FS_LIN) {
+        info.mode = DOL_MODE;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_DOL_MODE;
+        info.type = mode->dol_type;
+        if (info.type == DOL_LINEINFO) {
+           info.offset.long_offset = offset.long_offset;
+           info.offset.short_offset = offset.short_offset;
+        }
+    } else {
+        info.type = mode->dol_type;
+        if (p_ctx->dcam_mode)
+            info.mode = DCAM_MODE;
+        else
+            info.mode = DIR_MODE;
+    }
+    uint32_t isp_clk_rate = 0;
+    camera_notify(NOTIFY_GET_ISP_CLKRATE, &isp_clk_rate);
+    isp_clk_rate = (isp_clk_rate / 10) * 9;
+    info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
+    if (info.align_width < (mode->resolution.width + 64))
+        info.align_width = mode->resolution.width + 64;
+    pr_info("Dcam%x:%d, aligh:%d\n",p_ctx->cam_isp_path, p_ctx->dcam_mode, info.align_width);
+
+    am_adap_set_info(&info);
+    am_adap_init(p_ctx->cam_isp_path);
+    am_adap_start(p_ctx->cam_isp_path, p_ctx->dcam_mode);
+}
+
+void sensor_iface1_disable(sensor_context_t *p_ctx)
+{
+    am_adap_deinit(p_ctx->cam_isp_path);
+    am_mipi1_deinit();
 }
 
 void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_t *p_ctx)
@@ -405,9 +490,10 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     }
     //p_ctx->dcam_mode = 1;
 
+    info.path = p_ctx->cam_isp_path;
+    info.frontend = p_ctx->cam_fe_path;
     info.img.width = mode->resolution.width;
     info.img.height = mode->resolution.height;
-    info.path = PATH1;
     info.offset.offset_x = offset.offset_x;
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
@@ -432,16 +518,16 @@ void sensor_set_iface2(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
     if (info.align_width < (mode->resolution.width + 64))
         info.align_width = mode->resolution.width + 64;
-    pr_info("Sub Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
+    pr_info("Dcam%x:%d, aligh:%d\n",p_ctx->cam_isp_path, p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
-    am_adap_init(CAM1_ACT);
-    am_adap_start(CAM1_ACT, p_ctx->dcam_mode);
+    am_adap_init(p_ctx->cam_isp_path);
+    am_adap_start(p_ctx->cam_isp_path, p_ctx->dcam_mode);
 }
 
-void sensor_iface2_disable(void)
+void sensor_iface2_disable(sensor_context_t *p_ctx)
 {
-    am_adap_deinit(CAM1_ACT);
+    am_adap_deinit(p_ctx->cam_isp_path);
     am_mipi2_deinit();
 }
 
@@ -488,9 +574,10 @@ void sensor_set_iface3(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     }
     //p_ctx->dcam_mode = 1;
 
+    info.path = p_ctx->cam_isp_path;
+    info.frontend = p_ctx->cam_fe_path;
     info.img.width = mode->resolution.width;
     info.img.height = mode->resolution.height;
-    info.path = PATH2;
     info.offset.offset_x = offset.offset_x;
     info.offset.offset_y = offset.offset_y;
     if (mode->wdr_mode == WDR_MODE_FS_LIN) {
@@ -515,16 +602,16 @@ void sensor_set_iface3(sensor_mode_t *mode, exp_offset_t offset, sensor_context_
     info.align_width = isp_clk_rate / ((mode->resolution.height + 64) * (mode->fps / 256) * 2);
     if (info.align_width < (mode->resolution.width + 64))
         info.align_width = mode->resolution.width + 64;
-    pr_info("SSub Dcam:%d, aligh:%d\n",p_ctx->dcam_mode, info.align_width);
+    pr_info("Dcam%x:%d, aligh:%d\n",p_ctx->cam_isp_path, p_ctx->dcam_mode, info.align_width);
 
     am_adap_set_info(&info);
-    am_adap_init(CAM2_ACT);
-    am_adap_start(CAM2_ACT, p_ctx->dcam_mode);
+    am_adap_init(p_ctx->cam_isp_path);
+    am_adap_start(p_ctx->cam_isp_path, p_ctx->dcam_mode);
 }
 
-void sensor_iface3_disable(void)
+void sensor_iface3_disable(sensor_context_t *p_ctx)
 {
-    am_adap_deinit(CAM2_ACT);
+    am_adap_deinit(p_ctx->cam_isp_path);
     am_mipi3_deinit();
 }
 

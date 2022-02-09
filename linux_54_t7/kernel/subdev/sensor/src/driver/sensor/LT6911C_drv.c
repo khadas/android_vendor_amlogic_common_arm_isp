@@ -225,7 +225,7 @@ static void stop_streaming( void *ctx )
     p_ctx->streaming_flg = 0;
 
     reset_sensor_bus_counter();
-    sensor_iface_disable();
+    sensor_iface_disable(p_ctx);
 }
 
 static void start_streaming( void *ctx )
@@ -335,6 +335,9 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     //lt6911_get_size(&sensor_ctx);
 
     memset(&sensor_ctx.win_offset, 0, sizeof(sensor_ctx.win_offset));
+
+    sensor_ctx.cam_isp_path = CAM0_ACT;
+    sensor_ctx.cam_fe_path = FRONTEND0_IO;
 
     return &sensor_ctx;
 }

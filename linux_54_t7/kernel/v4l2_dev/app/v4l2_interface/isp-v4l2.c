@@ -269,9 +269,9 @@ static int isp_v4l2_fop_close( struct file *file )
         if (pstream->stream_started)
         {
             isp_v4l2_stream_type_t type = pstream->stream_type;
-            isp_v4l2_stream_deinit( pstream, atomic_read(&dev->stream_on_cnt) );
             if (atomic_read(&dev->stream_on_cnt) && ( type != V4L2_STREAM_TYPE_META))
                 atomic_sub_return( 1, &dev->stream_on_cnt );
+            isp_v4l2_stream_deinit( pstream, atomic_read(&dev->stream_on_cnt) );
             dev->pstreams[sp->stream_id] = NULL;
         }
         if ( dev->pstreams[sp->stream_id] ) {
@@ -506,14 +506,14 @@ static int isp_v4l2_streamoff( struct file *file, void *priv, enum v4l2_buf_type
     if ( isp_v4l2_is_q_busy( &sp->vb2_q, file ) )
         return -EBUSY;
 
+    if (atomic_read(&dev->stream_on_cnt) && (pstream->stream_type != V4L2_STREAM_TYPE_META))
+        atomic_sub_return( 1, &dev->stream_on_cnt );
+
     /* Stop hardware */
     isp_v4l2_stream_off( pstream, atomic_read(&dev->stream_on_cnt) );
 
     /* vb streamoff */
     rc = vb2_streamoff( &sp->vb2_q, i );
-
-    if (atomic_read(&dev->stream_on_cnt) && (pstream->stream_type != V4L2_STREAM_TYPE_META))
-        atomic_sub_return( 1, &dev->stream_on_cnt );
 
     return rc;
 }

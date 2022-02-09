@@ -843,6 +843,7 @@ typedef enum {
 #define CAM_NEXT_NEXT              30
 
 #define FRONT0_WR_DONE 28
+#define FRONT1_WR_DONE 2
 #define FRONT2_WR_DONE 8
 #define FRONT3_WR_DONE 14
 #define ALIGN_FRAME_END 9
@@ -884,6 +885,7 @@ typedef enum {
     CAM0_ACT,
     CAM1_ACT,
     CAM2_ACT,
+    CAMS_MAX,
 } cam_num_t;
 
 typedef enum {
@@ -949,6 +951,7 @@ struct am_adap {
 
 struct am_adap_info {
     adap_path_t path;
+    adap_io_type_t frontend;
     adap_mode_t mode;
     adap_img_t img;
     int fmt;
@@ -1028,6 +1031,7 @@ int am_adap_deinit(uint8_t channel);
 void am_adap_set_info(struct am_adap_info *info);
 int get_fte1_flag(void);
 int am_adap_get_depth(uint8_t channel);
+void am_adap_camid_update(uint8_t flag, uint8_t channel);
 extern int32_t system_timer_usleep( uint32_t usec );
 extern int camera_notify( uint notification, void *arg);
 

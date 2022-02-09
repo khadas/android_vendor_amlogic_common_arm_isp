@@ -507,7 +507,7 @@ static void stop_streaming( void *ctx )
     acamera_sbus_write_u8(p_sbus, 0x0100, 0x00);
 
     reset_sensor_bus_counter();
-    sensor_iface2_disable();
+    sensor_iface2_disable(p_ctx);
     gp_pl_am_disable(sensor_bp, "mclk_0");
     gp_pl_am_disable(sensor_bp, "mclk_1");
 }
@@ -642,6 +642,9 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.param.isp_context_seq.seq_num = 0;
     sensor_ctx.param.isp_context_seq.seq_table_max = array_size_s( isp_seq_table );
     memset(&sensor_ctx.win_offset, 0, sizeof(sensor_ctx.win_offset));
+
+    sensor_ctx.cam_isp_path = CAM0_ACT;
+    sensor_ctx.cam_fe_path = FRONTEND0_IO;
 
     return &sensor_ctx;
 }
