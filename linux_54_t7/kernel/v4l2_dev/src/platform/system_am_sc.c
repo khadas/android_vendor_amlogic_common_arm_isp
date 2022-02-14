@@ -1381,6 +1381,8 @@ int am_sc_hw_init(int ctx_id, int is_print, int clip_mode)
             swap_uv = 1;
         } else if (am_ctx[ctx_id].info.out_fmt == NV12_YVU) {
             swap_uv = 0;
+        } else if (am_ctx[ctx_id].info.out_fmt == UYVY) {
+            swap_uv = 1;
         }
     } else if (am_ctx[ctx_id].info.in_fmt == AYUV) {
         if ((am_ctx[ctx_id].info.out_fmt == NV12_YUV) ||
