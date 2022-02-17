@@ -200,17 +200,17 @@ int sensor_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         }
 
         break;
+    }
 
-        case FSM_PARAM_GET_SENSOR_VMAX_FPS: {
-            if ( !output || output_size != sizeof( uint32_t ) ) {
+    case FSM_PARAM_GET_SENSOR_VMAX_FPS: {
+        if ( !output || output_size != sizeof( uint32_t ) ) {
                 LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
                 rc = -1;
                 break;
-            }
-
-            rc = 0;
-            *(uint32_t *)output = p_fsm->ctrl.vmax_fps(p_fsm->sensor_ctx, rc);
         }
+
+        rc = 0;
+        *(uint32_t *)output = p_fsm->ctrl.vmax_fps(p_fsm->sensor_ctx, rc);
 
         break;
     }

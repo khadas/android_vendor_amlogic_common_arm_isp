@@ -44,15 +44,19 @@ static tframe_t sensor0_v4l2_ds1_frames[ ] = {
 #endif
 static aframe_t sensor0_v4l2_temper_frames[ ] = {
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
-} ;
+ { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
+};
 
 static aframe_t sensor1_v4l2_temper_frames[ ] = {
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
-} ;
+ { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
+};
+
 
 static aframe_t sensor2_v4l2_temper_frames[ ] = {
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
-} ;
+ { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
+};
 
 extern void sensor_init_v4l2( void** ctx, sensor_control_t*) ;
 extern void sensor_deinit_v4l2( void *ctx ) ;

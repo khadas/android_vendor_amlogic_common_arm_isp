@@ -628,8 +628,10 @@ int aml_cmpr_bypass(void) {
     data = read_reg(MIPI_TOP_ADAPT_DE_CTRL0);
     write_reg(data | 1<<7 | 1<<3, MIPI_TOP_ADAPT_DE_CTRL0);  //adapt_de_bypass
 
+#if ISP_HAS_CMPR == 0
     data = read_reg(MIPI_TOP_TNR_DE_CTRL0);
     write_reg(data | 1 << 0, MIPI_TOP_TNR_DE_CTRL0);       //tnr_de_bypass
+#endif
     return 0;
 }
 

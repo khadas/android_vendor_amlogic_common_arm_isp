@@ -154,6 +154,7 @@ struct _acamera_context_t {
     uint32_t isp_frame_counter_raw; // frame counter for raw callback
     uint32_t isp_frame_counter;     // frame counter for frame / metadata callbacks
     uint32_t isp_decmp_counter;
+    uint32_t isp_decmp_counter_last;
 
     acamera_isp_sw_regs_map sw_reg_map;
     auto_write_cfg_t fr_auto_cfg;

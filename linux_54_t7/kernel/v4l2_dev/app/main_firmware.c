@@ -144,6 +144,7 @@ void isp_update_setting(void)
         }
 
         paddr = isp_temper_paddr[j].isp_paddr;
+        settings[j].temper_frames_number = temper_frame_num[j];
 
         aframe = settings[j].temper_frames;
         fr_num = settings[j].temper_frames_number;
@@ -158,8 +159,6 @@ void isp_update_setting(void)
 #endif
             aframe[i].line_offset = temper_line_offset[j];
         }
-
-        settings[j].temper_frames_number = temper_frame_num[j];
     }
 }
 

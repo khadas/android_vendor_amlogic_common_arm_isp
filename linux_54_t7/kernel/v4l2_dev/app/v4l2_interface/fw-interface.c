@@ -1632,7 +1632,7 @@ static int isp_fw_do_set_manual_exposure( uint32_t ctx_id, int enable )
     }
 
     result_sensor_digital_gain = acamera_command( ctx_id, TSYSTEM, SYSTEM_MANUAL_SENSOR_DIGITAL_GAIN, enable, COMMAND_SET, &ret_val );
-    if ( result_sensor_analog_gain ) {
+    if ( result_sensor_digital_gain ) {
         LOG( LOG_ERR, "Failed to set manual_sensor_digital_gain to manual mode, ret_value: %d", result_sensor_digital_gain );
         return ( result_sensor_digital_gain );
     }
@@ -2680,7 +2680,7 @@ int fw_intf_set_customer_antiflicker(uint32_t ctx_id, uint32_t ctrl_val)
 
 int fw_intf_set_customer_defog_mode(uint32_t ctx_id, uint32_t ctrl_val)
 {
-    if ( ctrl_val < 0 || ctrl_val > 2) {
+    if ( ctrl_val > 2 ) {
        return -1;
     }
 
@@ -2689,7 +2689,7 @@ int fw_intf_set_customer_defog_mode(uint32_t ctx_id, uint32_t ctrl_val)
 
 int fw_intf_set_customer_defog_ratio(uint32_t ctx_id, uint32_t ctrl_val)
 {
-    if ( ctrl_val < 0 || ctrl_val > 4096) {
+    if ( ctrl_val > 4096 ) {
        return -1;
     }
 
@@ -2698,7 +2698,7 @@ int fw_intf_set_customer_defog_ratio(uint32_t ctx_id, uint32_t ctrl_val)
 
 int fw_intf_set_customer_calibration(uint32_t ctx_id, uint32_t ctrl_val)
 {
-    if ( ctrl_val < 0 || ctrl_val > 16) {
+    if ( ctrl_val > 16 ) {
        return -1;
     }
 
@@ -2776,9 +2776,6 @@ int fw_intf_get_customer_antiflicker( uint32_t ctx_id )
 
 int fw_intf_set_customer_temper_mode(uint32_t ctx_id, uint32_t ctrl_val)
 {
-    if ( ctrl_val != 1 || ctrl_val != 2) {
-       return 0;
-    }
 
     settings[ctx_id].temper_frames_number = ctrl_val;
 

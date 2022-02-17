@@ -1060,6 +1060,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
         p_ctx->isp_frame_counter = 0;
         p_ctx->cali_mode = 0;
         p_ctx->isp_decmp_counter = 0;
+        p_ctx->isp_decmp_counter_last = 0;
 
         acamera_fw_init( p_ctx );
 

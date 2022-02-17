@@ -658,6 +658,7 @@ static void pf_ext_param_update(general_fsm_ptr_t p_fsm)
 
 void general_frame_start( general_fsm_ptr_t p_fsm )
 {
+#if ISP_HAS_CMPR
     if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter > DECMPR_FRM_CNT * 2) {
         uint32_t val = 0;
 
@@ -669,13 +670,17 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
             if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter % 2  == 0) {
                 cmpr_rd(MIPI_TNR_CMPR_RO_INT_STATUS, &val);
 
-                if ((val & (DECMPR_DEC_FRMEND | DECMPR_DEC_FRMRST)) == 0)
+                if ((val & (DECMPR_DEC_FRMEND | DECMPR_DEC_FRMRST)) == 0) {
                     ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter ++;
+                    LOG(LOG_CRIT, "Decmpr frame start/end exception: %d, frm cnt %x", val, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter);
+                }
 
-                if ((val & (DECMPR_DEC_UNK0 | DECMPR_DEC_UNK1)) == (DECMPR_DEC_UNK0 | DECMPR_DEC_UNK1))
+                if ((val & (DECMPR_DEC_UNK0 | DECMPR_DEC_UNK1)) == (DECMPR_DEC_UNK0 | DECMPR_DEC_UNK1)) {
                     ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter ++;
+                    LOG(LOG_CRIT, "Decmpr frame dec error: %d, frm cnt %x", val, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter);
+                }
 
-                if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter == DECMPR_FRM_CNT) {
+                if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter >= DECMPR_FRM_CNT) {
                     LOG(LOG_CRIT, "Decmpr exception status and protect method %x, frm cnt %x", val, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter);
                     acamera_isp_temper_temper2_mode_write( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, 1 );
                     acamera_isp_isp_global_interrupt_mask_vector_write( 0, ISP_IRQ_MASK_VECTOR & ~(1 << ISP_INTERRUPT_EVENT_ISP_END_FRAME_END));
@@ -686,6 +691,16 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
 
     if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter == (DECMPR_FRM_CNT * 5))
         LOG(LOG_CRIT, "Decmpr exception counter = %d", ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter);
+
+    if ((ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter % (DECMPR_FRM_CNT * 50)) == 0) {
+        if (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter && (ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter == ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter_last)) {
+            LOG(LOG_CRIT, "Clear Decmpr exception status cnt %x, frm cnt %x", ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter, ACAMERA_FSM2CTX_PTR( p_fsm )->isp_frame_counter);
+            ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter = 0;
+        }
+
+        ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter_last = ACAMERA_FSM2CTX_PTR( p_fsm )->isp_decmp_counter;
+    }
+#endif
 
     p_fsm->gamma2_enable = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD )[0];
 
