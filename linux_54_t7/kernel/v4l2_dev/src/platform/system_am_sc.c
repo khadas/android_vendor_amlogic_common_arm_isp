@@ -608,7 +608,7 @@ static void init_sc_mif_setting(int ctx_id, ISP_MIF_t *mif_frame)
 
     mif_frame->reg_bit10_mode = 0;
     mif_frame->reg_words_lim = 4;
-    mif_frame->reg_burst_lim = 3;
+    mif_frame->reg_burst_lim = 2;
     mif_frame->reg_hconv_mode = 2;
     mif_frame->reg_vconv_mode = 0;
     mif_frame->reg_pingpong_en = 0;
@@ -858,8 +858,10 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
             if (f_buf)
                 sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
 
-            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 28, 1);
-            sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 28, 1);
+            if (g_sc->user > 1) {
+                sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 28, 1);
+                sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 28, 1);
+            }
 
             if (g_sc->multi_camera.pre_frame[FRAME_DELAY_QUEUE-1]) {
 #ifdef ENABLE_SC_BOTTOM_HALF_TASKLET
