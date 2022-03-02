@@ -249,7 +249,7 @@ void sensor_deinit_lt6911( void *ctx )
     acamera_sbus_deinit(&t_ctx->sbus,  sbus_i2c);
 
     if (t_ctx != NULL && t_ctx->sbp != NULL)
-        gp_pl_am_disable(t_ctx->sbp, "mclk_0");
+        clk_am_disable(t_ctx->sbp);
 }
 
 static void lt6911_get_size( void *ctx )
@@ -384,7 +384,6 @@ int sensor_detect_lt6911( void* sbp)
     pr_info("sensor_detect_lt6911:%d\n", ret);
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
-    gp_pl_am_disable(sensor_bp, "mclk_0");
     return ret;
 }
 //*************************************************************************************

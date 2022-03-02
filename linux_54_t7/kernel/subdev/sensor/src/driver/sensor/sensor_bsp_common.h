@@ -17,7 +17,7 @@ typedef struct sensor_bringup {
     int power;
     int pwren;
     int reset;
-    struct clk *mclk[2];
+    struct clk *mclk;
     int ir_gname[IR_CUT_GPIO_MAX_NUM];  //there is a one-to-one correspondence between ir_gname[5] and ir_cut_gpio of g12b_a311d_skt.dts.
     int ir_gcount;
 }sensor_bringup_t;

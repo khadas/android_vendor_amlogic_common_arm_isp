@@ -520,7 +520,7 @@ void sensor_deinit_imx290ssub( void *ctx )
     reset_sensor_bus_counter();
     acamera_sbus_deinit(&t_ctx->sbus,  sbus_i2c);
     if (t_ctx != NULL && t_ctx->sbp != NULL)
-        gp_pl_am_disable(t_ctx->sbp, "mclk_1");
+        clk_am_disable(t_ctx->sbp);
 }
 
 static sensor_context_t *sensor_global_parameter(void* sbp)

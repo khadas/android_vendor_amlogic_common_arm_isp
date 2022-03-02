@@ -19,8 +19,6 @@ int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev)
     sbp->vdig = 0;
     sbp->power = 0;
     sbp->reset = 0;
-    sbp->mclk[0] = NULL;
-    sbp->mclk[1] = NULL;
 
     pr_info("sensor bsp init\n");
 
@@ -168,34 +166,14 @@ int clk_am_enable(sensor_bringup_t* sensor_bp, const char* propname)
     clk_val = clk_get_rate(clk);
     pr_info("init mclock is %d MHZ\n",clk_val/1000000);
 
-    sensor_bp->mclk[0] = clk;
-    return 0;
-}
-
-int clk_am_disable(sensor_bringup_t *sensor_bp)
-{
-    struct clk *mclk = NULL;
-
-    if (sensor_bp == NULL || sensor_bp->mclk[0] == NULL) {
-        pr_err("Error input param\n");
-        return -EINVAL;
-    }
-
-    mclk = sensor_bp->mclk[0];
-
-    clk_disable_unprepare(mclk);
-
-    devm_clk_put(sensor_bp->dev, mclk);
-
-    pr_info("Success disable mclk\n");
-
+    sensor_bp->mclk = clk;
     return 0;
 }
 
 int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t rate)
 {
     int ret;
-    struct clk *clk,*clk0_pre,*clk1_pre,*clk_p,*clk_x;
+    struct clk *clk;
     int clk_val;
     clk = devm_clk_get(sensor_bp->dev, propname);
     if (IS_ERR(clk)) {
@@ -207,37 +185,22 @@ int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t 
     if (ret < 0)
         pr_err("clk_set_rate failed\n");
     udelay(30);
-
     ret = clk_prepare_enable(clk);
     if (ret < 0)
         pr_err(" clk_prepare_enable failed\n");
-
-    if ((strcmp(propname, "mclk_0") == 0) && (sensor_bp->mclk[0] == NULL)) {
-        if (IS_ERR(clk0_pre) == 0) {
-            clk_disable_unprepare(clk0_pre);
-            sensor_bp->mclk[0] = clk;
-        }
-    }
-
-    if ((strcmp(propname, "mclk_1") == 0) && (sensor_bp->mclk[1] == NULL)) {
-        if (IS_ERR(clk1_pre) == 0) {
-            clk_disable_unprepare(clk1_pre);
-            sensor_bp->mclk[1] = clk;
-        }
-    }
-
     clk_val = clk_get_rate(clk);
     pr_err("init mclock is %d MHZ\n",clk_val/1000000);
 
+    sensor_bp->mclk = clk;
     return 0;
 }
 
 int gp_pl_am_disable(sensor_bringup_t* sensor_bp, const char* propname)
 {
-    struct clk *clk;
-    int clk_val;
 
-    if (sensor_bp == NULL) {
+    struct clk *clk;
+
+    if (sensor_bp == NULL || sensor_bp->mclk == NULL) {
         pr_err("Error input param\n");
         return -EINVAL;
     }
@@ -249,14 +212,31 @@ int gp_pl_am_disable(sensor_bringup_t* sensor_bp, const char* propname)
         return -1;
     }
 
-    clk_val = clk_get_rate(clk);
-    if ((clk_val != 12000000) && (clk_val != 24000000)) {
-        clk_disable_unprepare(clk);
-    }
+    clk_disable_unprepare(clk);
 
     devm_clk_put(sensor_bp->dev, clk);
 
-    pr_info("Success disable mclk: %d\n", clk_val);
+    pr_info("Success disable mclk\n");
+
+    return 0;
+}
+
+int clk_am_disable(sensor_bringup_t *sensor_bp)
+{
+    struct clk *mclk = NULL;
+
+    if (sensor_bp == NULL || sensor_bp->mclk == NULL) {
+        pr_err("Error input param\n");
+        return -EINVAL;
+    }
+
+    mclk = sensor_bp->mclk;
+
+    clk_disable_unprepare(mclk);
+
+    devm_clk_put(sensor_bp->dev, mclk);
+
+    pr_info("Success disable mclk\n");
 
     return 0;
 }
