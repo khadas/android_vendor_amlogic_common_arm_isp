@@ -222,6 +222,7 @@ struct am_sc {
 	u32 working;
 	u32 user;
 	u32 refresh;
+	u32 dcam_mode;
 
 	struct sc_tasklet_t sc_tasklet;
 

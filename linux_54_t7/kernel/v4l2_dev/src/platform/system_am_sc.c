@@ -858,7 +858,7 @@ static irqreturn_t isp_sc_isr(int irq, void *data)
             if (f_buf)
                 sc_config_next_buffer(f_buf, (flag & (1 << 8)) ? 0 : 1);
 
-            if (g_sc->user > 1) {
+            if ((g_sc->user > 1) || (g_sc->dcam_mode)) {
                 sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 1, 28, 1);
                 sc_wr_reg_bits(ISP_SCWR_TOP_CTRL, 0, 28, 1);
             }
@@ -956,6 +956,7 @@ int am_sc_parse_dt(struct device_node *node, int port)
     t_sc->stop_flag = true;
     t_sc->user = 0;
     t_sc->working = 0;
+    t_sc->dcam_mode = 0;
     t_sc->no_ready_th = 0;
     t_sc->refresh = 0;
     t_sc->cam_id_last = 0;
@@ -1604,3 +1605,7 @@ void am_sc_reset_hwstatus(uint32_t status)
     }
 }
 
+void am_sc_dcam(uint32_t status)
+{
+    g_sc->dcam_mode = status;
+}

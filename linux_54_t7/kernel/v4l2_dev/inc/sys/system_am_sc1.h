@@ -70,6 +70,7 @@ extern void am_sc1_set_workstatus(uint32_t status);
 extern uint32_t am_sc1_get_workstatus(void);
 extern void am_sc1_set_camid(uint32_t status);
 extern void am_sc1_reset_hwstatus(uint32_t status);
+extern void am_sc1_dcam(uint32_t status);
 
 #endif
 

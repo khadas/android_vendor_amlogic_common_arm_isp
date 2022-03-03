@@ -793,6 +793,10 @@ uint8_t sensor_dcam_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t d
        result = NOT_SUPPORTED;
     } else {
         acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SENSOR_DCAM_MODE, &mode, sizeof( mode ) );
+        am_sc_dcam(mode);
+        am_sc1_dcam(mode);
+        am_sc2_dcam(mode);
+        am_sc3_dcam(mode);
     }
 
     return result;
