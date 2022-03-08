@@ -52,8 +52,12 @@ static aframe_t sensor1_v4l2_temper_frames[ ] = {
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
 };
 
-
 static aframe_t sensor2_v4l2_temper_frames[ ] = {
+ { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
+ { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
+};
+
+static aframe_t sensor3_v4l2_temper_frames[ ] = {
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
  { FW_OUTPUT_FORMAT, 0, 0, 0x72400000, 15360, 0xBDD800},
 };
@@ -137,7 +141,7 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_sc3 = callback_sc3,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
-#if FIRMWARE_CONTEXT_NUMBER == 3
+#if FIRMWARE_CONTEXT_NUMBER >= 3
     {
         .sensor_init = sensor_init_v4l2,
         .sensor_deinit = sensor_deinit_v4l2,
@@ -169,4 +173,36 @@ static acamera_settings settings[ FIRMWARE_CONTEXT_NUMBER ] = {    {
         .callback_sc3 = callback_sc3,
     },
 #endif // FIRMWARE_CONTEXT_NUMBER == 3
+#if FIRMWARE_CONTEXT_NUMBER == 4
+    {
+        .sensor_init = sensor_init_v4l2,
+        .sensor_deinit = sensor_deinit_v4l2,
+        .get_calibrations = get_calibrations_v4l2,
+        .lens_init = lens_init,
+        .lens_deinit = lens_deinit,
+        .custom_initialization = custom_initialization,
+        .isp_base = 0x0,
+        .temper_frames = sensor3_v4l2_temper_frames,
+        .temper_frames_number = sizeof( sensor3_v4l2_temper_frames ) / sizeof( aframe_t ),
+        .callback_meta = callback_meta,
+        .fr_frames = NULL,
+        .fr_frames_number = 0,
+        .callback_fr = callback_fr,
+        .ds1_frames = NULL,
+        .ds1_frames_number = 0,
+        .callback_ds1 = callback_ds1,
+        .sc0_frames = NULL,
+        .sc0_frames_number = 0,
+        .callback_sc0 = callback_sc0,
+        .sc1_frames = NULL,
+        .sc1_frames_number = 0,
+        .callback_sc1 = callback_sc1,
+        .sc2_frames = NULL,
+        .sc2_frames_number = 0,
+        .callback_sc2 = callback_sc2,
+        .sc3_frames = NULL,
+        .sc3_frames_number = 0,
+        .callback_sc3 = callback_sc3,
+    },
+#endif // FIRMWARE_CONTEXT_NUMBER == 4
 } ;

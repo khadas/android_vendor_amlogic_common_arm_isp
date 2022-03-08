@@ -61,11 +61,11 @@ static sensor_mode_t supported_modes[] = {
         .resolution.height = 1080,
         .bits = 12,
         .exposures = 1,
-        .lanes = 4,
+        .lanes = 2,
         .bps = 446,
         .bayer = BAYER_RGGB,
         .dol_type = DOL_NON,
-        .num = 0,
+        .num = 7,
     },
     {
         .wdr_mode = WDR_MODE_FS_LIN, // 8 Lanes

@@ -851,7 +851,7 @@ typedef enum {
 #define READ1_RD_DONE 15
 #define CAMERA_NUM        FIRMWARE_CONTEXT_NUMBER
 #define DDR_BUF_SIZE      5
-#define CAMERA_QUEUE_NUM  15
+#define CAMERA_QUEUE_NUM  (CAMERA_NUM * DDR_BUF_SIZE)
 #define DOL_BUF_SIZE      6
 
 typedef enum {
@@ -885,6 +885,7 @@ typedef enum {
     CAM0_ACT,
     CAM1_ACT,
     CAM2_ACT,
+    CAM3_ACT,
     CAMS_MAX,
 } cam_num_t;
 

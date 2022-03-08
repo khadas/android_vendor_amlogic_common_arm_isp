@@ -65,6 +65,7 @@ struct IqConversion IqConversionTable[] = {
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX335, NULL, "imx335"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, NULL, "imx290sub"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, NULL, "imx290ssub"},
+    {CALIBRATION_SUBDEV_FUNCTIONS_IMX290, NULL, "imx290sssub"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX415, NULL, "imx415"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX227, CALIBRATION_SUBDEV_FUNCTIONS_IMX227_OTP, "imx227"},
     {CALIBRATION_SUBDEV_FUNCTIONS_IMX307, NULL, "imx307"},
@@ -104,6 +105,31 @@ static int get_cali_name_id( int cali_name_id, int sensor_name_id )
         default:
             CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_OS08A10_IPC;
             LOG( LOG_CRIT, "Loading Calibration for OS08A10_IPC\n" );
+            break;
+        }
+    }
+
+    if (strcmp(IqConversionTable[sensor_name_id].sensor_name, "imx290sssub") == 0) {
+        switch ( cali_name_id ) {
+        case 0:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
+            LOG( LOG_CRIT, "get_calibrations_imx290\n" );
+            break;
+        case 1:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_SLT;
+            LOG( LOG_CRIT, "get_calibrations_imx290 slt\n" );
+            break;
+        case 2:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_8mm;
+            LOG( LOG_CRIT, "get_calibrations_imx290_lens_8mm\n" );
+            break;
+        case 3:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290_LENS_4mm;
+            LOG( LOG_CRIT, "get_calibrations_imx290_lens_4mm\n" );
+            break;
+        default:
+            CALIBRATION_FUNC_ARR[0] = CALIBRATION_SUBDEV_FUNCTIONS_IMX290;
+            LOG( LOG_CRIT, "get_calibrations_imx290\n" );
             break;
         }
     }

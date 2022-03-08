@@ -47,7 +47,113 @@ typedef struct _iic_master_t {
 } iic_master_t;
 
 
-static struct arm_i2c_sensor_ctrl *g_sensor_ctrl[3] = {NULL, NULL, NULL};
+static struct arm_i2c_sensor_ctrl *g_sensor_ctrl[4] = {NULL, NULL, NULL, NULL};
+
+static const struct i2c_device_id arm_sensor_i2c_id_sssub[] = {
+    {ARM_I2C_SENSOR_NAME_SSSUB, 0},
+    { }
+};
+
+static const struct of_device_id arm_sensor_i2c_dt_match_sssub[] = {
+    {.compatible = ARM_I2C_SENSOR_NAME_SSSUB},
+    {}
+};
+
+static int arm_sensor_i2c_probe_sssub(struct i2c_client *client,
+                                    const struct i2c_device_id *dev_id)
+{
+    int rtn = 0;
+    struct arm_i2c_sensor_ctrl *sensor_ctrl = NULL;
+
+    pr_err("%s: start to probe\n", __func__);
+
+    if (client == NULL) {
+        pr_err("%s: client is null\n", __func__);
+        return -EINVAL;
+    }
+
+    rtn = of_device_is_compatible(client->dev.of_node, ARM_I2C_SENSOR_NAME_SSSUB);
+
+    if (rtn == 0) {
+        pr_err("%s:failed to match compatible\n", __func__);
+        return -EINVAL;
+    }
+
+    sensor_ctrl = kzalloc(sizeof(*sensor_ctrl), GFP_KERNEL);
+
+    if (sensor_ctrl == NULL) {
+        pr_err("%s:failed to malloc isp_ctrl\n", __func__);
+        return -EINVAL;
+    }
+
+    i2c_set_clientdata(client, sensor_ctrl);
+
+    sensor_ctrl->client = client;
+    sensor_ctrl->of_node = client->dev.of_node;
+
+    rtn = of_property_read_u32(sensor_ctrl->of_node, "slave-addr",
+                                &sensor_ctrl->slave_addr);
+    pr_info("%s:arm isp slave addr 0x%x, rtn %d\n", __func__, sensor_ctrl->slave_addr, rtn);
+
+    if (rtn != 0) {
+        pr_err("%s: failed to get isp slave addr\n", __func__);
+        goto error;
+    }
+
+    rtn = of_property_read_u32(sensor_ctrl->of_node, "reg-type",
+                                &sensor_ctrl->reg_addr_type);
+    pr_info("%s:arm reg_addr_type %d, rtn %d\n", __func__, sensor_ctrl->reg_addr_type, rtn);
+
+    rtn = of_property_read_u32(sensor_ctrl->of_node, "reg-data-type",
+                                    &sensor_ctrl->reg_data_type);
+    pr_info("%s:arm reg_data_type %d, rtn %d\n", __func__, sensor_ctrl->reg_data_type, rtn);
+
+    sensor_ctrl->link_node =
+        of_parse_phandle(sensor_ctrl->of_node, "link-device", 0);
+    if (sensor_ctrl->link_node == NULL)
+        pr_err("%s:failed to get link device\n", __func__);
+    else
+        pr_info("%s: success get link device:%s\n", __func__, sensor_ctrl->link_node->name);
+
+    if (g_sensor_ctrl[0] == NULL && g_sensor_ctrl[1] == NULL && g_sensor_ctrl[2] == NULL)
+        am_mipi_parse_dt(sensor_ctrl->link_node);
+
+    g_sensor_ctrl[3] = sensor_ctrl;
+
+    return rtn;
+
+error:
+    kfree(sensor_ctrl);
+    sensor_ctrl = NULL;
+
+    g_sensor_ctrl[0] = sensor_ctrl;
+
+    return rtn;
+}
+
+
+static int arm_sensor_i2c_remove_sssub(struct i2c_client *client)
+{
+    struct arm_i2c_sensor_ctrl *s_ctrl = NULL;
+
+    s_ctrl = i2c_get_clientdata(client);
+
+    if (s_ctrl == NULL) {
+        pr_err("%s: Error client data is NULL\n", __func__);
+        return -EINVAL;
+    }
+
+    //if(g_sensor_ctrl[0] == NULL)
+    am_mipi_deinit_parse_dt();
+
+    kfree(s_ctrl);
+    s_ctrl = NULL;
+    g_sensor_ctrl[3] = s_ctrl;
+
+    pr_info("%s: remove i2c sensor sssub\n", __func__);
+
+    return 0;
+}
 
 static const struct i2c_device_id arm_sensor_i2c_id_ssub[] = {
     {ARM_I2C_SENSOR_NAME_SSUB, 0},
@@ -115,7 +221,7 @@ static int arm_sensor_i2c_probe_ssub(struct i2c_client *client,
     else
         pr_info("%s: success get link device:%s\n", __func__, sensor_ctrl->link_node->name);
 
-    if (g_sensor_ctrl[0] == NULL && g_sensor_ctrl[1] == NULL)
+    if (g_sensor_ctrl[0] == NULL && g_sensor_ctrl[1] == NULL && g_sensor_ctrl[3] == NULL)
         am_mipi_parse_dt(sensor_ctrl->link_node);
 
     g_sensor_ctrl[2] = sensor_ctrl;
@@ -221,7 +327,7 @@ static int arm_sensor_i2c_probe_sub(struct i2c_client *client,
     else
         pr_info("%s: success get link device:%s\n", __func__, sensor_ctrl->link_node->name);
 
-    if (g_sensor_ctrl[0] == NULL && g_sensor_ctrl[2] == NULL)
+    if (g_sensor_ctrl[0] == NULL && g_sensor_ctrl[2] == NULL && g_sensor_ctrl[3] == NULL)
         am_mipi_parse_dt(sensor_ctrl->link_node);
 
     g_sensor_ctrl[1] = sensor_ctrl;
@@ -327,7 +433,7 @@ static int arm_sensor_i2c_probe(struct i2c_client *client,
     else
         pr_info("%s: success get link device:%s\n", __func__, sensor_ctrl->link_node->name);
 
-    if (g_sensor_ctrl[1] == NULL && g_sensor_ctrl[2] == NULL)
+    if (g_sensor_ctrl[1] == NULL && g_sensor_ctrl[2] == NULL && g_sensor_ctrl[3] == NULL)
         am_mipi_parse_dt(sensor_ctrl->link_node);
 
     g_sensor_ctrl[0] = sensor_ctrl;
@@ -366,6 +472,17 @@ static int arm_sensor_i2c_remove(struct i2c_client *client)
 
     return 0;
 }
+
+static struct i2c_driver arm_sensor_i2c_driver_sssub = {
+    .id_table = arm_sensor_i2c_id_sssub,
+    .probe  = arm_sensor_i2c_probe_sssub,
+    .remove = arm_sensor_i2c_remove_sssub,
+    .driver = {
+        .name = "arm, i2c-sensor-max",
+        .owner = THIS_MODULE,
+        .of_match_table = arm_sensor_i2c_dt_match_sssub,
+    },
+};
 
 static struct i2c_driver arm_sensor_i2c_driver_ssub = {
     .id_table = arm_sensor_i2c_id_ssub,
@@ -412,8 +529,10 @@ void system_i2c_init( uint32_t bus )
         rtn = i2c_add_driver(&arm_sensor_i2c_driver);
     else if(bus == 1)
         rtn = i2c_add_driver(&arm_sensor_i2c_driver_sub);
-    else
+    else if(bus == 2)
         rtn = i2c_add_driver(&arm_sensor_i2c_driver_ssub);
+    else
+        rtn = i2c_add_driver(&arm_sensor_i2c_driver_sssub);
 
     if (rtn != 0)
         pr_err("%s:failed to add i2c driver\n", __func__);
@@ -427,8 +546,10 @@ void system_i2c_deinit( uint32_t bus )
         i2c_del_driver(&arm_sensor_i2c_driver);
     else if (bus == 1)
         i2c_del_driver(&arm_sensor_i2c_driver_sub);
-    else
+    else if (bus == 2)
         i2c_del_driver(&arm_sensor_i2c_driver_ssub);
+    else
+        i2c_del_driver(&arm_sensor_i2c_driver_sssub);
 }
 
 uint8_t system_i2c_write( uint32_t bus, uint32_t phy_addr, uint8_t *data, uint32_t size )

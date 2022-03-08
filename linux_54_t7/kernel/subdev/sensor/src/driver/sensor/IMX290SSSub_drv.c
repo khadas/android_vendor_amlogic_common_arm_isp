@@ -483,14 +483,14 @@ static void stop_streaming( void *ctx )
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x01 );
 
     reset_sensor_bus_counter();
-    sensor_iface3_disable(p_ctx);
+    sensor_iface1_disable(p_ctx);
 }
 static void start_streaming( void *ctx )
 {
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     sensor_param_t *param = &p_ctx->param;
-    sensor_set_iface3(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
+    sensor_set_iface1(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x00 );
 }
@@ -511,10 +511,10 @@ static void sensor_dcam_mode( void *ctx, int32_t mode )
 {
     sensor_context_t *p_ctx = ctx;
     p_ctx->dcam_mode = mode;
-    LOG(LOG_CRIT, "imx290ssub set dcam mode:%d", mode);
+    LOG(LOG_CRIT, "imx290sssub set dcam mode:%d", mode);
 }
 
-void sensor_deinit_imx290ssub( void *ctx )
+void sensor_deinit_imx290sssub( void *ctx )
 {
     sensor_context_t *t_ctx = ctx;
     reset_sensor_bus_counter();
@@ -556,7 +556,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
 #endif
 
 #if NEED_CONFIG_BSP
-    ret = gp_pl_am_enable(sensor_bp, "mclk_1", 37125000);
+    ret = gp_pl_am_enable(sensor_bp, "mclk_0", 37125000);
     if (ret < 0 )
         pr_info("set mclk fail\n");
     udelay(30);
@@ -570,7 +570,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
 
     sensor_ctx.sbus.mask = SBUS_MASK_SAMPLE_8BITS | SBUS_MASK_ADDR_16BITS | SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = 0;
-    sensor_ctx.sbus.bus = 2;
+    sensor_ctx.sbus.bus = 3;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init( &sensor_ctx.sbus, sbus_i2c );
 
@@ -639,14 +639,14 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_ctx.win_offset.short_offset = 0x8;
 #endif
 
-    sensor_ctx.cam_isp_path = CAM2_ACT;
-    sensor_ctx.cam_fe_path = FRONTEND3_IO;
+    sensor_ctx.cam_isp_path = CAM3_ACT;
+    sensor_ctx.cam_fe_path = FRONTEND1_IO;
 
     return &sensor_ctx;
 }
 
 //--------------------Initialization------------------------------------------------------------
-void sensor_init_imx290ssub( void **ctx, sensor_control_t *ctrl, void* sbp)
+void sensor_init_imx290sssub( void **ctx, sensor_control_t *ctrl, void* sbp)
 {
     *ctx = sensor_global_parameter(sbp);
 
@@ -673,14 +673,14 @@ void sensor_init_imx290ssub( void **ctx, sensor_control_t *ctrl, void* sbp)
     system_timer_usleep( 1000 );
 }
 
-int sensor_detect_imx290ssub( void* sbp)
+int sensor_detect_imx290sssub( void* sbp)
 {
     int ret = 0;
     sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
     sensor_ctx.sbp = sbp;
 
 #if NEED_CONFIG_BSP
-    ret = gp_pl_am_enable(sensor_bp, "mclk_1", 37125000);
+    ret = gp_pl_am_enable(sensor_bp, "mclk_0", 37125000);
     if (ret < 0 )
         pr_info("set mclk fail\n");
     udelay(30);
@@ -696,7 +696,7 @@ int sensor_detect_imx290ssub( void* sbp)
 
     sensor_ctx.sbus.mask = SBUS_MASK_SAMPLE_8BITS | SBUS_MASK_ADDR_16BITS | SBUS_MASK_ADDR_SWAP_BYTES;
     sensor_ctx.sbus.control = 0;
-    sensor_ctx.sbus.bus = 2;
+    sensor_ctx.sbus.bus = 3;
     sensor_ctx.sbus.device = SENSOR_DEV_ADDRESS;
     acamera_sbus_init( &sensor_ctx.sbus, sbus_i2c );
 
