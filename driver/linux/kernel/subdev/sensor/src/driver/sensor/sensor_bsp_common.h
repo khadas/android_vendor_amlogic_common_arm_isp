@@ -59,6 +59,7 @@ typedef struct _sensor_context_t {
     exp_offset_t win_offset;
     void *sbp;
     void *sdrv;
+    struct class *camera_class;
 } sensor_context_t;
 
 int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev);
