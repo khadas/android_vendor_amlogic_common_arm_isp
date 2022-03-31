@@ -360,13 +360,13 @@ uint32_t mipi_isp_line_stride (uint32_t hsize){
     return line_stride;
 }
 
-void mipi_adapt_de_enable (){
+void mipi_adapt_de_enable (void){
     uint32_t data = 0;
 	adap_read(MIPI_TOP_ADAPT_DE_CTRL0, CMPR_CNTL_IO,&data);
 	adap_write(MIPI_TOP_TNR_DE_CTRL0, CMPR_CNTL_IO,data & (~(1<<7 | 1<<3)));
 }
 
-void mipi_adapt_de_bypass (){
+void mipi_adapt_de_bypass (void){
     uint32_t data = 0;
 	adap_read(MIPI_TOP_ADAPT_DE_CTRL0,CMPR_CNTL_IO, &data);
     adap_write(MIPI_TOP_ADAPT_DE_CTRL0,CMPR_CNTL_IO, data | 1<<7 | 1<<3);

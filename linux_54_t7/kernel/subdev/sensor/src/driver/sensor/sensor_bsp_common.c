@@ -201,7 +201,7 @@ int clk_am_disable(sensor_bringup_t *sensor_bp)
 int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t rate)
 {
     int ret;
-    struct clk *clk,*clk0_pre,*clk1_pre,*clk_p,*clk_x;
+    struct clk *clk = NULL,*clk0_pre = NULL,*clk1_pre = NULL,*clk_p = NULL,*clk_x = NULL;
     int clk_val;
     clk = devm_clk_get(sensor_bp->dev, propname);
     if (IS_ERR(clk)) {
