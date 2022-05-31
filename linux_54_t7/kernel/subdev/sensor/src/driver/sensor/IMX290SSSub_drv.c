@@ -561,9 +561,9 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_info("set mclk fail\n");
     udelay(30);
 #if PLATFORM_T7
-    pwr_am_enable(sensor_bp,"pwdn", 0);
+    pwr_am_enable(sensor_bp,"pwdn-sssub", 0);
 #endif
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp,"reset-sssub", 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
 #endif
@@ -686,10 +686,10 @@ int sensor_detect_imx290sssub( void* sbp)
     udelay(30);
 
 #if PLATFORM_T7
-    pwr_am_enable(sensor_bp,"pwdn", 0);
+    pwr_am_enable(sensor_bp,"pwdn-sssub", 0);
 #endif
 
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp,"reset-sssub", 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
 #endif

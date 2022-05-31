@@ -293,7 +293,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_info("set mclk fail\n");
 
 #if NEED_CONFIG_BSP
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp,"reset-sub", 1);
     if (ret < 0 )
         pr_err("set reset fail\n");
 #endif
@@ -384,7 +384,7 @@ int sensor_detect_ov5640sub( void* sbp)
         pr_info("set mclk fail\n");
 
 #if NEED_CONFIG_BSP
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp,"reset-sub", 1);
     if (ret < 0 )
         pr_err("set reset fail\n");
 #endif

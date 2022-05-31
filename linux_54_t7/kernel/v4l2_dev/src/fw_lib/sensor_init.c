@@ -274,7 +274,7 @@ void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offse
                     val = ( uint8_t )( ( sdata & ~mask ) | ( wdata & mask ) );
                 }
                 acamera_sbus_write_u8( p_sbus, seq->address + isp_offset, (uint8_t)val );
-                LOG( LOG_DEBUG, "A16: 0x%x : 0x%x", seq->address + isp_offset, (uint8_t)val );
+                LOG( LOG_DEBUG, "A8: 0x%x : 0x%x", seq->address + isp_offset, (uint8_t)val );
             } else {
                 LOG( LOG_ERR, "Invalid size %d", size );
             }
