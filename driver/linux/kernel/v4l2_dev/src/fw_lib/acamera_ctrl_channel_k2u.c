@@ -26,6 +26,7 @@
 #include <linux/kfifo.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
+#include <linux/compat.h>
 #include "acamera_logger.h"
 #include "system_stdlib.h"
 #include "acamera_command_api.h"
