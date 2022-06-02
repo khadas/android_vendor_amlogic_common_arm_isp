@@ -68,6 +68,14 @@ static void stop_streaming( void *ctx );
 static imx307_private_t imx307_ctx;
 static sensor_context_t sensor_ctx;
 
+// 0 - reset & power-enable
+// 1 - reset-sub & power-enable-sub
+// 2 - reset-ssub & power-enable-ssub
+static const int32_t config_sensor_idx = 0;                  // 1 2 3
+static const char * reset_dts_pin_name = "reset";             // reset-sub  reset-ssub
+static const char * pwr_dts_pin_name   = "pwdn";              // pwdn-sub pwdn-ssub
+
+
 static sensor_mode_t supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
@@ -568,7 +576,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_info("set mclk fail\n");
     udelay(30);
 
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
         pr_info("set reset fail\n");
 #endif
@@ -660,7 +668,7 @@ int sensor_detect_imx307( void* sbp)
     sensor_ctx.sbp = sbp;
 
 #if PLATFORM_C305X
-    pwr_am_enable(sensor_bp,"pwdn", 0);
+    pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
 #endif
 
 #if NEED_CONFIG_BSP
@@ -668,7 +676,7 @@ int sensor_detect_imx307( void* sbp)
     if (ret < 0 )
         pr_info("set mclk fail\n");
     udelay(30);
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
         pr_err("set reset fail\n");
 #endif

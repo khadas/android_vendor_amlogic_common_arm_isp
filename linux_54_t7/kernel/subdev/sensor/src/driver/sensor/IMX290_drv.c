@@ -53,6 +53,14 @@ static sensor_context_t sensor_ctx;
 
 static uint32_t initial_sensor = 0;
 
+// 0 - reset & power-enable
+// 1 - reset-sub & power-enable-sub
+// 2 - reset-ssub & power-enable-ssub
+static const int32_t config_sensor_idx = 0;                  // 1 2 3
+static const char * reset_dts_pin_name = "reset";             // reset-sub  reset-ssub
+static const char * pwr_dts_pin_name   = "pwdn";              // pwdn-sub pwdn-ssub
+
+
 static sensor_mode_t supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
@@ -346,12 +354,12 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     uint8_t setting_num = param->modes_table[mode].num;
 
     if (initial_sensor ++ >= 1) {
-        reset_am_enable(p_ctx->sbp,"reset", 0);
+        reset_am_enable(p_ctx->sbp, reset_dts_pin_name, config_sensor_idx, 0);
         sensor_hw_reset_enable();
         system_timer_usleep( 10000 );
         sensor_hw_reset_disable();
         system_timer_usleep( 10000 );
-        reset_am_enable(p_ctx->sbp,"reset", 1);
+        reset_am_enable(p_ctx->sbp, reset_dts_pin_name, config_sensor_idx, 1);
     }
 
     if (sensor_get_id(ctx) != SENSOR_CHIP_ID) {
@@ -584,9 +592,9 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_info("set mclk fail\n");
     udelay(30);
 #if PLATFORM_T7
-    pwr_am_enable(sensor_bp,"pwdn", 0);
+    pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
 #endif
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
 #endif
@@ -709,10 +717,10 @@ int sensor_detect_imx290( void* sbp)
     udelay(30);
 
 #if PLATFORM_T7
-    pwr_am_enable(sensor_bp,"pwdn", 0);
+    pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
 #endif
 
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
 #endif

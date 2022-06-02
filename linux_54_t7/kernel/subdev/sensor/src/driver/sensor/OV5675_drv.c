@@ -61,6 +61,14 @@ static void stop_streaming( void *ctx );
 
 static sensor_context_t sensor_ctx;
 
+// 0 - reset & power-enable
+// 1 - reset-sub & power-enable-sub
+// 2 - reset-ssub & power-enable-ssub
+static const int32_t config_sensor_idx = 0;                  // 1 2 3
+static const char * reset_dts_pin_name = "reset";            // reset-sub  reset-ssub
+static const char * pwr_dts_pin_name   = "power-enable";     // power-enalbe-sub power-enable-ssub
+
+
 static sensor_mode_t supported_modes[] = {
 
     {
@@ -571,7 +579,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     sensor_bringup_t* sensor_bp = (sensor_bringup_t*) sbp;
 #if PLATFORM_G12B
 #if NEED_CONFIG_BSP
-    ret = pwr_am_enable(sensor_bp, "power-enable", 0);
+    ret = pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
     if (ret < 0 )
         pr_err("set power fail\n");
     udelay(30);
@@ -582,7 +590,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_err("set mclk fail\n");
 
 #elif PLATFORM_C308X
-    ret = pwr_am_enable(sensor_bp, "power-enable", 0);
+    ret = pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
     if (ret < 0 )
         pr_err("set power fail\n");
     mdelay(50);
@@ -600,7 +608,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
     udelay(30);
 
 #if NEED_CONFIG_BSP
-    ret = reset_am_enable(sensor_bp,"reset", 0);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 0);
     if (ret < 0 )
         pr_err("set reset fail\n");
 #endif
@@ -655,7 +663,7 @@ static uint32_t power_on ( void *ctx ) {
     sensor_bringup_t* sensor_bp = p_ctx->sbp;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     mdelay(1);
-    ret = reset_am_enable(sensor_bp,"reset", 0);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 0);
     if (ret < 0 )
         pr_err("set reset fail\n");
 
@@ -675,7 +683,7 @@ static uint32_t power_off ( void *ctx ) {
     sensor_context_t *p_ctx = ctx;
     sensor_bringup_t* sensor_bp = p_ctx->sbp;
 
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
 
     LOG(LOG_CRIT, "%s: ov5675\n", __func__);
     return 0;
@@ -731,7 +739,7 @@ int sensor_detect_ov5675( void* sbp)
 #endif
 
     mdelay(1);
-    ret = reset_am_enable(sensor_bp,"reset", 0);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 0);
     if (ret < 0 )
         pr_err("set reset fail\n");
 
@@ -748,7 +756,7 @@ int sensor_detect_ov5675( void* sbp)
         pr_info("sensor_detect_OV5675:%d\n", ret);
 
     acamera_sbus_deinit(&sensor_ctx.sbus,  sbus_i2c);
-    reset_am_disable(sensor_bp);
+    reset_am_disable(sensor_bp, config_sensor_idx);
     gp_pl_am_disable(sensor_bp, "mclk_0");
     return ret;
 }

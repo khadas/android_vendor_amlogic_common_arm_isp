@@ -15,10 +15,16 @@ int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev)
 {
     sbp->dev = dev;
     sbp->np = dev->of_node;
-    sbp->vana = 0;
+    sbp->vana[0] = -1;
+    sbp->vana[1] = -1;
+    sbp->vana[2] = -1;
+    sbp->vana[3] = -1;
     sbp->vdig = 0;
     sbp->power = 0;
-    sbp->reset = 0;
+    sbp->reset[0] = -1;
+    sbp->reset[1] = -1;
+    sbp->reset[2] = -1;
+    sbp->reset[3] = -1;
     sbp->mclk[0] = NULL;
     sbp->mclk[1] = NULL;
 
@@ -27,37 +33,37 @@ int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev)
     return 0;
 }
 
-int pwr_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int val)
+int pwr_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int idx, int val)
 {
     struct device_node *np = NULL;
     int ret = -1;
 
     np = sensor_bp->np;
-    sensor_bp->vana = of_get_named_gpio(np, propname, 0);
-    ret = sensor_bp->vana;
+    sensor_bp->vana[idx] = of_get_named_gpio(np, propname, 0);
+    ret = sensor_bp->vana[idx];
 
     if (ret >= 0) {
-        devm_gpio_request(sensor_bp->dev, sensor_bp->vana, "POWER");
-        if (gpio_is_valid(sensor_bp->vana)) {
-            gpio_direction_output(sensor_bp->vana, val);
+        devm_gpio_request(sensor_bp->dev, sensor_bp->vana[idx], "POWER");
+        if (gpio_is_valid(sensor_bp->vana[idx])) {
+            gpio_direction_output(sensor_bp->vana[idx], val);
         } else {
-            pr_err("pwr_enable: gpio %s is not valid\n", propname);
+            pr_err("pwr_enable[%d]: gpio %s is not valid\n", idx, propname);
             return -1;
         }
     } else {
-        pr_err("pwr_enable: get_named_gpio %s fail\n", propname);
+        pr_err("pwr_enable[%d]: get_named_gpio %s fail\n", idx, propname);
     }
 
     return ret;
 }
 
-int pwr_am_disable(sensor_bringup_t *sensor_bp)
+int pwr_am_disable(sensor_bringup_t *sensor_bp, int idx)
 {
-    if (gpio_is_valid(sensor_bp->vana)) {
-        gpio_direction_output(sensor_bp->vana, 0);
-        devm_gpio_free(sensor_bp->dev, sensor_bp->vana);
+    if (gpio_is_valid(sensor_bp->vana[idx])) {
+        gpio_direction_output(sensor_bp->vana[idx], 0);
+        devm_gpio_free(sensor_bp->dev, sensor_bp->vana[idx]);
     } else {
-        pr_err("Error invalid pwr gpio\n");
+        pr_err("Error invalid pwr gpio, idx [%d]\n", idx);
     }
 
     return 0;
@@ -82,37 +88,37 @@ int pwr_ir_cut_enable(sensor_bringup_t* sensor_bp, int propname, int val)
     return ret;
 }
 
-int reset_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int val)
+int reset_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int idx, int val)
 {
     struct device_node *np = NULL;
     int ret = -1;
 
     np = sensor_bp->np;
-    sensor_bp->reset = of_get_named_gpio(np, propname, 0);
-    ret = sensor_bp->reset;
+    sensor_bp->reset[idx] = of_get_named_gpio(np, propname, 0);
+    ret = sensor_bp->reset[idx];
 
     if (ret >= 0) {
-        devm_gpio_request(sensor_bp->dev, sensor_bp->reset, "RESET");
-        if (gpio_is_valid(sensor_bp->reset)) {
-            gpio_direction_output(sensor_bp->reset, val);
+        devm_gpio_request(sensor_bp->dev, sensor_bp->reset[idx], "RESET");
+        if (gpio_is_valid(sensor_bp->reset[idx])) {
+            gpio_direction_output(sensor_bp->reset[idx], val);
         } else {
-            pr_err("reset_enable: gpio %s is not valid\n", propname);
+            pr_err("reset_enable[%d]: gpio %s is not valid\n", idx, propname);
             return -1;
         }
     } else {
-        pr_err("reset_enable: get_named_gpio %s fail\n", propname);
+        pr_err("reset_enable[%d]: get_named_gpio %s fail\n", idx, propname);
     }
 
     return ret;
 }
 
-int reset_am_disable(sensor_bringup_t* sensor_bp)
+int reset_am_disable(sensor_bringup_t* sensor_bp, int idx)
 {
-    if (gpio_is_valid(sensor_bp->reset)) {
-        gpio_direction_output(sensor_bp->reset, 0);
-        devm_gpio_free(sensor_bp->dev, sensor_bp->reset);
+    if (gpio_is_valid(sensor_bp->reset[idx])) {
+        gpio_direction_output(sensor_bp->reset[idx], 0);
+        devm_gpio_free(sensor_bp->dev, sensor_bp->reset[idx]);
     } else {
-        pr_err("Error invalid reset gpio\n");
+        pr_err("Error invalid reset gpio, idx [%d]\n", idx);
     }
 
     return 0;

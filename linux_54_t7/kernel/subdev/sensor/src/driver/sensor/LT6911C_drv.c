@@ -57,6 +57,14 @@ static void stop_streaming( void *ctx );
 
 static sensor_context_t sensor_ctx;
 
+// 0 - reset & power-enable
+// 1 - reset-sub & power-enable-sub
+// 2 - reset-ssub & power-enable-ssub
+static const int32_t config_sensor_idx = 0;                  // 1 2 3
+static const char * reset_dts_pin_name = "reset";            // reset-sub  reset-ssub
+static const char * pwr_dts_pin_name   = "power-enable";     // power-enalbe-sub power-enable-ssub
+
+
 static sensor_mode_t supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_LINEAR,
@@ -142,11 +150,11 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     sensor_param_t *param = &p_ctx->param;
     uint8_t setting_num = param->modes_table[mode].num;
 
-    pwr_am_enable(p_ctx->sbp, "power-enable", 1);
+    pwr_am_enable(p_ctx->sbp, pwr_dts_pin_name, config_sensor_idx, 1);
     sensor_hw_reset_enable();
     system_timer_usleep( 10000 );
     sensor_hw_reset_disable();
-    pwr_am_enable(p_ctx->sbp, "power-enable", 0);
+    pwr_am_enable(p_ctx->sbp, pwr_dts_pin_name, config_sensor_idx, 0);
     system_timer_usleep( 10000 );
 
     p_ctx->again[0] = 0;
@@ -290,7 +298,7 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_info("set mclk fail\n");
 
 #if NEED_CONFIG_BSP
-    ret = reset_am_enable(sensor_bp,"reset", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
         pr_err("set reset fail\n");
 #endif

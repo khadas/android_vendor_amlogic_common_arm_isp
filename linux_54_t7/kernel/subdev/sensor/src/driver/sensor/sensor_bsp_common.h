@@ -12,11 +12,11 @@
 typedef struct sensor_bringup {
     struct device *dev;
     struct device_node *np;
-    int vana;
+    int vana[4];
     int vdig;
     int power;
     int pwren;
-    int reset;
+    int reset[4];
     struct clk *mclk[2];
     int ir_gname[IR_CUT_GPIO_MAX_NUM];  //there is a one-to-one correspondence between ir_gname[5] and ir_cut_gpio of g12b_a311d_skt.dts.
     int ir_gcount;
@@ -65,13 +65,13 @@ typedef struct _sensor_context_t {
 } sensor_context_t;
 
 int sensor_bp_init(sensor_bringup_t* sbp, struct device* dev);
-int pwr_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int val);
-int pwr_am_disable(sensor_bringup_t* sensor_bp);
+int pwr_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int idx, int val);
+int pwr_am_disable(sensor_bringup_t* sensor_bp, int idx);
 int pwren_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int val);
 int pwren_am_disable(sensor_bringup_t* sensor_bp);
 int pwr_ir_cut_enable(sensor_bringup_t* sensor_bp, int propname, int val);
-int reset_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int val);
-int reset_am_disable(sensor_bringup_t *sensor_bp);
+int reset_am_enable(sensor_bringup_t* sensor_bp, const char* propname, int idx, int val);
+int reset_am_disable(sensor_bringup_t *sensor_bp,int idx);
 int clk_am_enable(sensor_bringup_t* sensor_bp, const char* propname);
 int gp_pl_am_enable(sensor_bringup_t* sensor_bp, const char* propname, uint32_t rate);
 int gp_pl_am_disable(sensor_bringup_t* sensor_bp, const char* propname);

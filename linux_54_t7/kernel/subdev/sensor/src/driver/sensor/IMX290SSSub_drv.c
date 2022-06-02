@@ -53,6 +53,15 @@ static sensor_context_t sensor_ctx;
 
 static uint32_t initial_sensor = 0;
 
+// 0 - reset & pwdn
+// 1 - reset-sub & pwdn-sub
+// 2 - reset-ssub & pwdn-ssub
+// 3 - reset-sssub & pwdn-sssub
+static const int32_t config_sensor_idx = 3;                   // 0      1         2           3
+static const char * reset_dts_pin_name = "reset-sssub";       // reset reset-sub  reset-ssub reset-sssub
+static const char * pwr_dts_pin_name   = "pwdn-sssub";        // pwdn pwdn-sub pwdn-ssub  pwdn-sssub
+
+
 static sensor_mode_t supported_modes[] = {
     {
         .wdr_mode = WDR_MODE_LINEAR, // 4 Lanes
@@ -561,9 +570,9 @@ static sensor_context_t *sensor_global_parameter(void* sbp)
         pr_info("set mclk fail\n");
     udelay(30);
 #if PLATFORM_T7
-    pwr_am_enable(sensor_bp,"pwdn-sssub", 0);
+    pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
 #endif
-    ret = reset_am_enable(sensor_bp,"reset-sssub", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
 #endif
@@ -686,10 +695,10 @@ int sensor_detect_imx290sssub( void* sbp)
     udelay(30);
 
 #if PLATFORM_T7
-    pwr_am_enable(sensor_bp,"pwdn-sssub", 0);
+    pwr_am_enable(sensor_bp, pwr_dts_pin_name, config_sensor_idx, 0);
 #endif
 
-    ret = reset_am_enable(sensor_bp,"reset-sssub", 1);
+    ret = reset_am_enable(sensor_bp, reset_dts_pin_name, config_sensor_idx, 1);
     if (ret < 0 )
        pr_info("set reset fail\n");
 #endif
