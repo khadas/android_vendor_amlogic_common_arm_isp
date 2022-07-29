@@ -1,0 +1,34 @@
+
+LOCAL_ARCH := arm64
+LOCAL_KDIR := /mnt/fileroot/zhiwei.zhang/r-aosp-t7-2022-6-4/out/android12-5.4/common/
+LOCAL_CROSS_COMPILE := /opt/gcc-linaro-6.3.1-2017.02-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
+LOCAL_PATH := $(shell dirname $(lastword $(MAKEFILE_LIST)))
+
+obj-m += amlcam.o
+
+DRV_SRC := $(wildcard $(LOCAL_PATH)/*.c) \
+			$(wildcard $(LOCAL_PATH)/cam_common/*.c) \
+			$(wildcard $(LOCAL_PATH)/cam_adapter/*.c) \
+			$(wildcard $(LOCAL_PATH)/cam_adapter/*/*.c) \
+			$(wildcard $(LOCAL_PATH)/cam_csiphy/*.c) \
+			$(wildcard $(LOCAL_PATH)/cam_csiphy/*/*.c)
+
+M_DRV_SRC := $(DRV_SRC:$(LOCAL_PATH)/%=%)
+DRV_SRC_OBJ := $(M_DRV_SRC:.c=.o)
+
+ccflags-y := -I$(PWD)/ -I$(PWD)/cam_common -Wno-implicit-fallthrough
+
+ccflags-y += -Wno-unused-function
+ccflags-y += -Wno-unused-variable
+ccflags-y += -Wno-declaration-after-statement
+
+amlcam-objs := $(DRV_SRC_OBJ)
+
+all:
+	make ARCH=$(LOCAL_ARCH) CROSS_COMPILE=$(LOCAL_CROSS_COMPILE) -C $(LOCAL_KDIR)  M=$(PWD) modules
+
+clean:
+	make ARCH=$(LOCAL_ARCH) CROSS_COMPILE=$(LOCAL_CROSS_COMPILE) -C $(LOCAL_KDIR)  M=$(PWD) clean
+
+install:
+	@find $(LOCAL_PATH) -name "*.ko" | xargs -i cp {} $(LOCAL_KDIR)/../vendor_lib/modules
