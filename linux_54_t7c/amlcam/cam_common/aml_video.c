@@ -413,6 +413,12 @@ static int video_start_streaming(struct vb2_queue *queue, unsigned int count)
 	struct aml_video *video = vb2_get_drv_priv(queue);
 	struct media_entity *entity = &video->vdev.entity;
 
+	if (strstr(entity->name, "isp-stats") || strstr(entity->name, "isp-param")) {
+		if (video->ops->cap_stream_on)
+			video->ops->cap_stream_on(video);
+		return 0;
+	}
+
 	rtn = media_pipeline_start(entity, video->pipe);
 	if (rtn) {
 		dev_err(video->dev, "Failed to start pipeline: %d\n", rtn);
@@ -458,6 +464,14 @@ static void video_stop_streaming(struct vb2_queue *queue)
 	struct v4l2_subdev *subdev = NULL;
 	struct aml_video *video = vb2_get_drv_priv(queue);
 	struct media_entity *entity = &video->vdev.entity;
+
+	if (strstr(entity->name, "isp-stats") || strstr(entity->name, "isp-param")) {
+		if (video->ops->cap_stream_off)
+			video->ops->cap_stream_off(video);
+		if (video->ops->cap_flush_buffer)
+			video->ops->cap_flush_buffer(video);
+		return;
+	}
 
 	media_pipeline_stop(entity);
 

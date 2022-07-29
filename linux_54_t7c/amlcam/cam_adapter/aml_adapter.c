@@ -160,7 +160,7 @@ static int adap_alloc_raw_buffs(struct adapter_dev_t *a_dev)
 
 	rtn = aml_subdev_cma_alloc(a_dev->pdev, &paddr, virtaddr, bsize);
 	if (rtn != 0) {
-		pr_err("Failed to alloc ptnr buff\n");
+		pr_err("Failed to alloc raw buff\n");
 		return -1;
 	}
 
@@ -226,6 +226,8 @@ static int adap_of_parse_dev(struct adapter_dev_t *adap_dev)
 {
 	int rtn = 0;
 
+	of_reserved_mem_device_init(adap_dev->dev);
+
 	adap_dev->adap = adap_ioremap_resource(adap_dev, "adapter");
 	if (!adap_dev->adap) {
 		dev_err(adap_dev->dev, "Failed to get adapter reg\n");
@@ -237,22 +239,6 @@ static int adap_of_parse_dev(struct adapter_dev_t *adap_dev)
 #ifndef T7C_CHIP
 	adap_dev->vapb_clk = devm_clk_get(adap_dev->dev, "vapb_clk");
 #endif
-	if (adap_dev->index == AML_CAM_4) {
-		of_reserved_mem_device_init(adap_dev->dev);
-
-		adap_dev->wrmif = adap_ioremap_resource(adap_dev, "wrmif");
-		if (!adap_dev->wrmif) {
-			dev_err(adap_dev->dev, "Failed to get adapt-wrmif reg\n");
-			rtn = -EINVAL;
-			goto error_rtn;
-		}
-
-		adap_dev->wrmif_clk = devm_clk_get(adap_dev->dev, "cts_mipi_wrmif_clk");
-		if (IS_ERR(adap_dev->wrmif_clk)) {
-			dev_err(adap_dev->dev, "Error to get tof clk\n");
-			return PTR_ERR(adap_dev->wrmif_clk);
-		}
-	}
 
 error_rtn:
 	return rtn;
@@ -503,7 +489,7 @@ static int adap_subdev_power_on(struct adapter_dev_t *adap_dev)
 	if (rtn)
 		pr_err("Error to enable vapb clk\n");
 #endif
-    clk_set_rate(adap_dev->adap_clk, 400000000);
+    clk_set_rate(adap_dev->adap_clk, 666666666);
     rtn = clk_prepare_enable(adap_dev->adap_clk);
     if (rtn)
         dev_err(adap_dev->dev, "Error to enable adap_clk(isp) clk\n");

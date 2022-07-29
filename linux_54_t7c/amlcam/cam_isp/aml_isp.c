@@ -535,7 +535,7 @@ static int isp_subdev_power_on(struct isp_dev_t *isp_dev)
 	switch (isp_dev->index) {
 	case 0:
 	case 1:
-		clk_set_rate(isp_dev->isp_clk, 400000000);
+		clk_set_rate(isp_dev->isp_clk, 666666666);
 	break;
 	case 2:
 	case 3:
