@@ -1125,8 +1125,7 @@ static int imx290_power_resume(struct device *dev)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct imx290 *imx290 = to_imx290(sd);
 
-	gpiod_set_value_cansleep(imx290->rst_gpio, 0);
-	//gpiod_set_value_cansleep(imx290->pwdn_gpio, 1);
+	reset_am_enable(imx290->dev,"reset", 1);
 
 	return 0;
 }
