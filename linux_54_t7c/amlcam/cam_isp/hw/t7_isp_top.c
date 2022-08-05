@@ -42,8 +42,8 @@ static void top_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, cfg->ge_en_1, 2, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_0, cfg->dpc_en_0, 3, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, cfg->dpc_en_1, 3, 1);
-	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_0, cfg->pat_en_0, 4, 1);
-	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, cfg->pat_en_1, 4, 1);
+	//isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_0, cfg->pat_en_0, 4, 1);
+	//isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, cfg->pat_en_1, 4, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_0, cfg->og_en_0, 5, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, cfg->og_en_1, 5, 1);
 

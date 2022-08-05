@@ -23,25 +23,21 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
-#include "../../amlcam/cam_common/aml_misc.h"
+#include <linux/of_gpio.h>
 
-static int mclk_enable(struct device *dev)
+#include "../../amlcam/cam_common/aml_misc.h"
+#include "../../amlcam/cam_common/aml_common.h"
+
+static int mclk_enable(struct device *dev, uint32_t rate)
 {
 	int ret;
 	struct clk *clk = NULL,*clk_pre = NULL,*clk_p = NULL,*clk_x = NULL;
 	int clk_val;
-	uint32_t rate = 0;
 
 	clk = devm_clk_get(dev, "mclk");
 	if (IS_ERR(clk)) {
 		dev_err(dev,"cannot get %s clk\n", "mclk");
 		clk = NULL;
-		return -1;
-	}
-	ret = fwnode_property_read_u32(dev_fwnode(dev), "clock-frequency",
-					&rate);
-	if (ret) {
-		dev_err(dev, "Could not get xclk frequency\n");
 		return -1;
 	}
 
@@ -66,7 +62,6 @@ static int mclk_enable(struct device *dev)
 	ret = clk_prepare_enable(clk);
 	if (ret < 0)
 		dev_err(dev, " clk_prepare_enable failed\n");
-
 	if (IS_ERR(clk_pre) == 0) {
 		clk_disable_unprepare(clk_pre);
 	}
@@ -99,6 +94,28 @@ static int mclk_disable(struct device *dev)
     pr_info("Success disable mclk: %d\n", clk_val);
 
     return 0;
+}
+static int reset_am_enable(struct device *dev, const char* propname, int val)
+{
+	int ret = -1;
+
+	int reset = of_get_named_gpio(dev->of_node, propname, 0);
+	ret = reset;
+
+	if (ret >= 0) {
+		devm_gpio_request(dev, reset, "RESET");
+		if (gpio_is_valid(reset)) {
+			gpio_direction_output(reset, val);
+			pr_info("reset init\n");
+		} else {
+			pr_err("reset_enable: gpio %s is not valid\n", propname);
+			return -1;
+		}
+	} else {
+		pr_err("reset_enable: get_named_gpio %s fail\n", propname);
+	}
+
+	return ret;
 }
 
 #endif

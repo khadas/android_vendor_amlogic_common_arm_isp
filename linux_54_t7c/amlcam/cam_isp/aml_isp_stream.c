@@ -39,8 +39,20 @@ static const struct aml_format img_support_format[] = {
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_NV12, 2, 12},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_NV21, 2, 12},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_GREY, 1, 8},
-	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SRGGB12, 1, 16},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_RGB24, 1, 24},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SBGGR8,  1, 8},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SBGGR10, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SBGGR12, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SGBRG8,  1, 8},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SGBRG10, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SGBRG12, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SRGGB8,  1, 8},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SRGGB10, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SRGGB12, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SGRBG8,  1, 8},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SGRBG10, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SGRBG12, 1, 16},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_RGBX32, 2, 32},
 };
 
 static const struct aml_format data_support_format[] = {
@@ -148,13 +160,20 @@ static int isp_cap_irq_handler(void *video, int status)
 				vd->id == AML_ISP_STREAM_RAW) {
 			vb2_buffer_done(&b_current->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		} else {
+			struct aml_buffer *t_current = NULL;
 			ops->hw_stream_crop(vd);
+			t_current = list_first_entry_or_null(&vd->head, struct aml_buffer, list);
+			if (t_current == NULL) {
+				pr_debug("video%d no next buf\n", vd->id);
+				spin_unlock_irqrestore(&vd->buff_list_lock, flags);
+				return 0;
+			}
 			if (!isp_cap_cur_drop(vd))
 				vb2_buffer_done(&b_current->vb.vb2_buf, VB2_BUF_STATE_DONE);
 			if (isp_cap_next_drop(vd, vd->frm_cnt) > 0) {
-				ops->hw_enable_wrmif(vd, 0);
+				ops->hw_enable_wrmif(vd, 0, 1);
 			} else if (isp_cap_next_drop(vd, vd->frm_cnt) == 0) {
-				ops->hw_enable_wrmif(vd, 1);
+				ops->hw_enable_wrmif(vd, 1, 1);
 			}
 		}
 
@@ -175,6 +194,8 @@ static int isp_cap_irq_handler(void *video, int status)
 
 void isp_drv_convert_format(struct aml_video *vd, struct aml_format *fmt)
 {
+	struct isp_dev_t *isp_dev = vd->priv;
+
 	fmt->width = vd->f_current.fmt.pix.width;
 	fmt->height = vd->f_current.fmt.pix.height;
 	fmt->code = vd->f_current.fmt.pix.pixelformat;
@@ -191,11 +212,6 @@ void isp_drv_convert_format(struct aml_video *vd, struct aml_format *fmt)
 		fmt->nplanes = 1;
 		fmt->fourcc = AML_FMT_YUV400;
 	break;
-	case V4L2_PIX_FMT_SRGGB12:
-		fmt->bpp = 16;
-		fmt->nplanes = 1;
-		fmt->fourcc = AML_FMT_RAW;
-	break;
 	case V4L2_PIX_FMT_RGB24:
 		fmt->bpp = 24;
 		fmt->nplanes = 1;
@@ -205,6 +221,33 @@ void isp_drv_convert_format(struct aml_video *vd, struct aml_format *fmt)
 	case V4L2_META_AML_ISP_STATS:
 		fmt->bpp = 8;
 		fmt->nplanes = 1;
+	break;
+	case V4L2_PIX_FMT_SBGGR10:
+	case V4L2_PIX_FMT_SBGGR12:
+	case V4L2_PIX_FMT_SGBRG10:
+	case V4L2_PIX_FMT_SGBRG12:
+	case V4L2_PIX_FMT_SGRBG10:
+	case V4L2_PIX_FMT_SGRBG12:
+	case V4L2_PIX_FMT_SRGGB10:
+	case V4L2_PIX_FMT_SRGGB12:
+		fmt->bpp = 16;
+		fmt->nplanes = 1;
+		fmt->fourcc = AML_FMT_RAW;
+	break;
+	case V4L2_PIX_FMT_SBGGR8:
+	case V4L2_PIX_FMT_SGBRG8:
+	case V4L2_PIX_FMT_SGRBG8:
+	case V4L2_PIX_FMT_SRGGB8:
+		fmt->bpp = 8;
+		fmt->nplanes = 1;
+		fmt->fourcc = AML_FMT_RAW;
+	break;
+	case V4L2_PIX_FMT_RGBX32:
+		if (isp_dev->enWDRMode == 0)
+			pr_err("Error to support RGBX32 without wdr\n");
+		fmt->bpp = 16;
+		fmt->nplanes = 2;
+		fmt->fourcc = AML_FMT_HDR_RAW;
 	break;
 	default:
 		pr_err("Error to support this format, %x\n", vd->f_current.fmt.pix.pixelformat);
@@ -222,6 +265,11 @@ static int isp_cap_set_format(void *video)
 	const struct isp_dev_ops *ops = isp_dev->ops;
 
 	isp_drv_convert_format(vd, fmt);
+
+	if ((fmt->fourcc == AML_FMT_RAW) || (fmt->fourcc == AML_FMT_HDR_RAW))
+		vd->disp_sel = 2;
+	else
+		vd->disp_sel = 0;
 
 	if (ops && ops->hw_stream_set_fmt)
 		rtn = ops->hw_stream_set_fmt(video, fmt);

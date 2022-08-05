@@ -663,7 +663,7 @@ static void isp_hw_stream_on(struct aml_video *video)
 		isp_disp_enable(video->priv, video->id - 3);
 
 	case AML_ISP_STREAM_RAW:
-		isp_wrmifx3_module_enable(video->priv, video->id - 3, 1);
+		isp_wrmifx3_module_enable(video->priv, video->id - 3, 1, 0);
 	break;
 	}
 
@@ -688,7 +688,7 @@ static void isp_hw_stream_off(struct aml_video *video)
 	case AML_ISP_STREAM_3:
 		isp_disp_disable(video->priv, video->id - 3);
 	case AML_ISP_STREAM_RAW:
-		isp_wrmifx3_module_enable(video->priv, video->id - 3, 0);
+		isp_wrmifx3_module_enable(video->priv, video->id - 3, 0, 0);
 	break;
 	}
 
@@ -711,9 +711,9 @@ static void isp_hw_stop(struct isp_dev_t *isp_dev)
 	pr_info("ISP%u: hw stop\n", isp_dev->index);
 }
 
-static int isp_hw_enable_wrmifx3(struct aml_video *video, int enable)
+static int isp_hw_enable_wrmifx3(struct aml_video *video, int enable, int force)
 {
-	isp_wrmifx3_module_enable(video->priv, video->id - 3, enable);
+	isp_wrmifx3_module_enable(video->priv, video->id - 3, enable, force);
 
 	return 0;
 }

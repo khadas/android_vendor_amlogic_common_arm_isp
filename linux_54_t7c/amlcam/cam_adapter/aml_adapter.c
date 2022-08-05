@@ -26,10 +26,12 @@
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/of_irq.h>
+#include <linux/fs.h>
 
 #include "aml_cam.h"
 
 #define AML_ADAPTER_NAME "isp-adapter"
+//#define ADAPTER_WDR_DUMP_LONG_FRAME
 
 static const struct aml_format adap_support_formats[] = {
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SBGGR8_1X8, 0, 1, 8},
@@ -244,6 +246,44 @@ error_rtn:
 	return rtn;
 }
 
+#ifdef ADAPTER_WDR_DUMP_LONG_FRAME
+static int write_data_to_buf(char *buf, int size)
+{
+	char path[60] = {'\0'};
+	int fd = -1;
+	int ret = 0;
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos = 0;
+	unsigned int r_size = 0;
+	static int num = 0;
+	num ++;
+
+	if (buf == NULL || size == 0) {
+		pr_info("%s:Error input param\n", __func__);
+		return -1;
+	}
+
+	sprintf(path, "/tmp/adapter_long_dump-%d.raw",num);
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	fp = filp_open(path, O_RDWR|O_CREAT, 0);
+	if (IS_ERR(fp)) {
+		pr_info("read error.\n");
+		return -1;
+	}
+
+	r_size = vfs_write(fp, buf, size, &pos);
+
+	vfs_fsync(fp, 0);
+	filp_close(fp, NULL);
+	set_fs(old_fs);
+
+	return ret;
+}
+#endif
+
 static irqreturn_t adap_irq_handler(int irq, void *dev)
 {
 	int status = 0;
@@ -274,6 +314,7 @@ static void adap_irq_tasklet(unsigned long data)
 		if (video->ops->cap_irq_handler)
 			video->ops->cap_irq_handler(video, status);
 	}
+
 }
 
 static int adap_request_irq(struct adapter_dev_t *adap_dev)
@@ -320,6 +361,7 @@ static void adap_subdev_stream_off(void *priv)
 {
 	struct adapter_dev_t *adap_dev = priv;
 
+	adap_dev->enWDRMode = WDR_MODE_NONE;
 	if (adap_dev->ops->hw_stop)
 		adap_dev->ops->hw_stop(adap_dev);
 
@@ -489,19 +531,11 @@ static int adap_subdev_power_on(struct adapter_dev_t *adap_dev)
 	if (rtn)
 		pr_err("Error to enable vapb clk\n");
 #endif
-    clk_set_rate(adap_dev->adap_clk, 666666666);
-    rtn = clk_prepare_enable(adap_dev->adap_clk);
-    if (rtn)
-        dev_err(adap_dev->dev, "Error to enable adap_clk(isp) clk\n");
+	clk_set_rate(adap_dev->adap_clk, 666666666);
+	rtn = clk_prepare_enable(adap_dev->adap_clk);
+	if (rtn)
+		dev_err(adap_dev->dev, "Error to enable adap_clk(isp) clk\n");
 
-/*
-	if (adap_dev->index == AML_CAM_4) {
-		clk_set_rate(adap_dev->wrmif_clk, 500000000);
-		rtn = clk_prepare_enable(adap_dev->wrmif_clk);
-		if (rtn)
-			dev_err(adap_dev->dev, "Error to enable tof clk\n");
-	}
-*/
 	return rtn;
 }
 

@@ -16,7 +16,7 @@ LOCAL_INCLUDES := -I$(M_PATH)/ -I$(M_PATH)/cam_common \
 		-I$(M_PATH)/cam_csiphy -I$(M_PATH)/cam_csiphy/hw/ \
 		-I$(M_PATH)/cam_pattern
 
-ccflags-y += -DT7C_CHIP
+ccflags-y += -DT7C_CHIP -DANDROID_OS
 
 ccflags-y += -Wno-unused-function
 ccflags-y += -Wno-unused-variable

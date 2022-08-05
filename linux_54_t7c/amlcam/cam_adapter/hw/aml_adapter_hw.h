@@ -162,6 +162,7 @@
 #define MIPI_ADAPT_ALIG_CNTL11          (0x4b<<2)
 #define MIPI_ADAPT_ALIG_CNTL12          (0x4c<<2)
 #define MIPI_ADAPT_ALIG_CNTL13          (0x4d<<2)
+#define MIPI_ADAPT_ALIG_CNTL14          (0x4e<<2)
 #define MIPI_ADAPT_ALIG_ST0             (0x5a<<2)
 #define MIPI_ADAPT_ALIG_ST1             (0x5b<<2)
 #define MIPI_ADAPT_ALIG_ST2             (0x5c<<2)
@@ -176,6 +177,7 @@
 #define MIPI_ADAPT_FE_MUX_CTL0          (0x90<<2)
 #define MIPI_ADAPT_FE_MUX_CTL1          (0x91<<2)
 #define MIPI_ADAPT_FE_MUX_CTL2          (0x92<<2)
+#define MIPI_ADAPT_FE_MUX_CTL3          (0xbf<<2)
 
 #define MIPI_ADAPT_FE_MUX0_DLY_STAT0    (0x93<<2)
 #define MIPI_ADAPT_FE_MUX1_DLY_CNTL0    (0x94<<2)

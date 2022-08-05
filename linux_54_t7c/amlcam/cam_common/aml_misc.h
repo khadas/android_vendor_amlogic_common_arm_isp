@@ -20,6 +20,12 @@
 #ifndef __AML_P1_MISC_H__
 #define __AML_P1_MISC_H__
 
+#ifdef ANDROID_OS
+#define VIDEO_NODE    60
+#else
+#define VIDEO_NODE    -1
+#endif
+
 #define V4L2_CID_AML_BASE            (V4L2_CID_BASE + 0x1000)
 #define V4L2_CID_AML_ORIG_FPS        (V4L2_CID_AML_BASE + 0x000)
 #define V4L2_CID_AML_USER_FPS        (V4L2_CID_AML_BASE + 0x001)

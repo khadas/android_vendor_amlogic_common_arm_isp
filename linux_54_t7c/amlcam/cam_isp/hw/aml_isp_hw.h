@@ -169,7 +169,7 @@ void isp_wrmifx3_mirror_enable(struct isp_dev_t *isp_dev, u32 idx, u32 enable);
 void isp_wrmifx3_flip_enable(struct isp_dev_t *isp_dev, u32 idx, u32 enable);
 void isp_wrmifx3_cfg_frm_size(struct isp_dev_t *isp_dev, u32 idx, struct aml_format *fmt);
 void isp_wrmifx3_cfg_frm_buff(struct isp_dev_t *isp_dev, u32 idx, struct aml_buffer *buff);
-void isp_wrmifx3_module_enable(struct isp_dev_t *isp_dev, u32 idx, u32 enbale);
+void isp_wrmifx3_module_enable(struct isp_dev_t *isp_dev, u32 idx, u32 enbale, u32 force);
 void isp_wrmifx3_module_stat(struct isp_dev_t *isp_dev, u32 idx, u32* val);
 void isp_wrmifx3_cfg_slice(struct isp_dev_t *isp_dev, u32 idx, struct aml_slice *param);
 

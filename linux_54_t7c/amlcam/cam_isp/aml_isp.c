@@ -320,11 +320,8 @@ static int isp_subdev_set_format(void *priv, void *s_fmt, void *m_fmt)
 		isp_dev->ops->hw_set_input_fmt(isp_dev, &p_fmt);
 	break;
 	case AML_ISP_PAD_SINK_PATTERN:
-		/*majunwei*/
-		//isp_dev->ops->hw_reset(isp_dev);
-		//isp_dev->ops->hw_init(isp_dev);
-		//isp_dev->ops->hw_cfg_pattern(isp_dev, &p_fmt);
-	return rtn;
+		isp_dev->ops->hw_cfg_pattern(isp_dev, &p_fmt);
+	break;
 	}
 
 	isp_dev->fmt = p_fmt;
@@ -371,6 +368,7 @@ static void isp_subdev_stream_off(void *priv)
 		isp_dev->ops->hw_stop(isp_dev);
 
 	isp_dev->isp_status = STATUS_STOP;
+	isp_dev->enWDRMode = WDR_MODE_NONE;
 
 	isp_dev->ops->hw_enable_ptnr_mif(isp_dev, 0);
 	isp_subdev_ptnr_buf_free(isp_dev);

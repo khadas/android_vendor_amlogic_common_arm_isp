@@ -533,7 +533,7 @@ static int adap_frontend_init(void *a_dev)
 	}
 
 	module_reg_write(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0,
-					1 <<24 |
+					0 << 24 |
 					reg_vfifo_vs_out_pre << 12 |
 					reg_lbuf0_vs_sel << 8);
 
@@ -1009,6 +1009,8 @@ static int adap_align_init(void *a_dev)
 					yuvrgb_mode << 31);
 
 	module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL8, ((1 <<12 ) | (1 <<5)));
+	module_update_bits(a_dev, module, MIPI_ADAPT_ALIG_CNTL10, 0xff, 24, 8);
+	module_update_bits(a_dev, module, MIPI_ADAPT_FE_MUX_CTL1, 0xff, 20, 8);
 
 	return rtn;
 }

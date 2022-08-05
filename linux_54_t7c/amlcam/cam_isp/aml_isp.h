@@ -133,7 +133,7 @@ struct isp_dev_ops {
 	void (*hw_stream_off)(struct aml_video *video);
 	void (*hw_start)(struct isp_dev_t *isp_dev);
 	void (*hw_stop)(struct isp_dev_t *isp_dev);
-	int (*hw_enable_wrmif)(struct aml_video *video, int enable);
+	int (*hw_enable_wrmif)(struct aml_video *video, int enable, int force);
 	int (*hw_get_wrmif_stat)(struct aml_video *video);
 	int (*hw_set_rot)(struct aml_video *video, int enable);
 	u64 (*hw_timestamp)(struct isp_dev_t *isp_dev);

@@ -323,12 +323,15 @@ void isp_wrmifx3_cfg_slice(struct isp_dev_t *isp_dev, u32 idx, struct aml_slice 
 	}
 }
 
-void isp_wrmifx3_module_enable(struct isp_dev_t *isp_dev, u32 idx, u32 enable)
+void isp_wrmifx3_module_enable(struct isp_dev_t *isp_dev, u32 idx, u32 enable, u32 force)
 {
 	if (idx > 3) {
 		pr_err("Error input wmif index\n");
 		return;
 	}
+
+	if (force)
+		isp_hwreg_update_bits(isp_dev, ISP_TOP_PATH_EN, enable & 0x1, idx + 8, 1);
 
 	isp_reg_update_bits(isp_dev, ISP_TOP_PATH_EN, enable & 0x1, idx + 8, 1);
 }

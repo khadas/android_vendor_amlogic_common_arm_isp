@@ -21,6 +21,9 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
+#include <linux/of_platform.h>
+#include <linux/of_graph.h>
+
 #include "../include/mclk_api.h"
 
 #define IMX290_STANDBY    0x3000
@@ -648,9 +651,6 @@ static int imx290_set_register_array(struct imx290 *imx290,
 		ret = imx290_write_reg(imx290, settings->reg, settings->val);
 		if (ret < 0)
 			return ret;
-
-		/* Settle time is 10ms for all registers */
-		msleep(10);
 	}
 
 	return 0;
@@ -713,6 +713,7 @@ static int imx290_set_exposure(struct imx290 *imx290, u32 value)
 static int imx290_stop_streaming(struct imx290 *imx290)
 {
 	int ret;
+	imx290->enWDRMode = WDR_MODE_NONE;
 
 	ret = imx290_write_reg(imx290, IMX290_STANDBY, 0x01);
 	if (ret < 0)
@@ -1082,11 +1083,9 @@ static int imx290_power_on(struct imx290 *imx290)
 {
 	int ret;
 
-	//gpiod_set_value_cansleep(imx290->pwdn_gpio, 0);
+	reset_am_enable(imx290->dev,"reset", 1);
 
-	gpiod_set_value_cansleep(imx290->rst_gpio, 1);
-
-	ret = mclk_enable(imx290->dev);
+	ret = mclk_enable(imx290->dev,37125000);
 	if (ret < 0 )
 		dev_err(imx290->dev, "set mclk fail\n");
 	udelay(30);
@@ -1104,8 +1103,7 @@ static int imx290_power_off(struct imx290 *imx290)
 {
 	mclk_disable(imx290->dev);
 
-	gpiod_set_value_cansleep(imx290->rst_gpio, 0);
-	//gpiod_set_value_cansleep(imx290->pwdn_gpio, 1);
+	reset_am_enable(imx290->dev,"reset", 0);
 
 	return 0;
 }
@@ -1116,8 +1114,7 @@ static int imx290_power_suspend(struct device *dev)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct imx290 *imx290 = to_imx290(sd);
 
-	gpiod_set_value_cansleep(imx290->rst_gpio, 0);
-	//gpiod_set_value_cansleep(imx290->pwdn_gpio, 1);
+	reset_am_enable(imx290->dev,"reset", 0);
 
 	return 0;
 }
@@ -1225,37 +1222,6 @@ static int imx290_ctrls_init(struct imx290 *imx290)
 	return rtn;
 }
 
-static int imx290_parse_mclk(struct imx290 *imx290)
-{
-	int rtn = 0;
-	u32 xclk_freq;
-
-	imx290->xclk = devm_clk_get(imx290->dev, "mclk");
-	if (IS_ERR(imx290->xclk)) {
-		dev_err(imx290->dev, "Could not get xclk");
-		rtn = PTR_ERR(imx290->xclk);
-		goto err_return;
-	}
-
-	rtn = fwnode_property_read_u32(dev_fwnode(imx290->dev), "clock-frequency",
-				       &xclk_freq);
-	if (rtn) {
-		dev_err(imx290->dev, "Could not get xclk frequency\n");
-		goto err_return;
-	}
-
-	/* external clock must be 37.125 MHz */
-	if (xclk_freq != 37125000) {
-		dev_err(imx290->dev, "External clock frequency %u is not supported\n",
-			xclk_freq);
-		rtn = -EINVAL;
-		goto err_return;
-	}
-
-err_return:
-	return rtn;
-}
-
 static int imx290_parse_power(struct imx290 *imx290)
 {
 	int rtn = 0;
@@ -1311,12 +1277,15 @@ static int imx290_parse_endpoint(struct imx290 *imx290)
 {
 	int rtn = 0;
 	s64 fq;
-	struct fwnode_handle *endpoint;
+	struct fwnode_handle *endpoint = NULL;
+	struct device_node *node = NULL;
 
-	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(imx290->dev), NULL);
-	if (!endpoint) {
-		dev_err(imx290->dev, "Endpoint node not found\n");
-		return -EINVAL;
+	//endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(imx415->dev), NULL);
+	for_each_endpoint_of_node(imx290->dev->of_node, node) {
+		if (strstr(node->name, "imx290")) {
+			endpoint = of_fwnode_handle(node);
+			break;
+		}
 	}
 
 	rtn = v4l2_fwnode_endpoint_alloc_parse(endpoint, &imx290->ep);
@@ -1425,14 +1394,6 @@ static int imx290_probe(struct i2c_client *client)
 	if (ret) {
 		dev_err(imx290->dev, "Error parse endpoint\n");
 		goto return_err;
-	}
-
-
-	/* get system clock (xclk) */
-	ret = imx290_parse_mclk(imx290);
-	if (ret) {
-		dev_err(imx290->dev, "Error parse mclk\n");
-		goto free_err;
 	}
 
 	ret = imx290_parse_power(imx290);

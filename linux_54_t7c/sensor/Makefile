@@ -17,11 +17,17 @@ endef
 all:
 	$(call module_func,imx290)
 	$(call module_func,ov9285)
+	$(call module_func,ov08a10)
+	$(call module_func,imx415)
 
 clean:
 	$(call module_clean,imx290)
 	$(call module_clean,ov9285)
+	$(call module_clean,ov08a10)
+	$(call module_clean,imx415)
 
 modules_install:
 	$(call module_install,imx290)
 	$(call module_install,ov9285)
+	$(call module_install,ov08a10)
+	$(call module_install,imx415)

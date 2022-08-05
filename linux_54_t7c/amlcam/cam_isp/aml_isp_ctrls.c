@@ -97,6 +97,8 @@ int isp_v4l2_ctrl_init(struct aml_video *video)
 	v4l2_ctrl_new_custom(hdl_std_ctrl, &v4l2_ctrl_sensor_fps, NULL);
 	v4l2_ctrl_new_custom(hdl_std_ctrl, &v4l2_ctrl_output_fps, NULL);
 
+	video->actrl.fps_sensor = 0;
+	video->actrl.fps_output = 0;
 	video->vdev.ctrl_handler = hdl_std_ctrl;
 	rtn = v4l2_ctrl_handler_setup(video->vdev.ctrl_handler);
 	if (rtn) {

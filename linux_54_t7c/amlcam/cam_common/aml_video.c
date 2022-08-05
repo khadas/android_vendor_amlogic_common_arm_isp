@@ -371,11 +371,17 @@ static int video_buff_init(struct vb2_buffer *vb)
 
 	buff->addr[AML_PLANE_A] = *((u32 *)vb2_plane_cookie(vb, 0));
 	buff->vaddr[AML_PLANE_A] = vb2_plane_vaddr(vb, 0);
+	buff->nplanes = video->afmt.nplanes;
 
-	if (pix->pixelformat == V4L2_PIX_FMT_NV12 ||
-		pix->pixelformat == V4L2_PIX_FMT_NV21) {
-		p_size = pix->width * pix->height;
-		buff->nplanes = 2;
+	if (buff->nplanes > 1) {
+		if (pix->pixelformat == V4L2_PIX_FMT_NV12 ||
+			pix->pixelformat == V4L2_PIX_FMT_NV21) {
+			p_size = pix->width * pix->height;
+		}
+
+		if (video->afmt.fourcc == AML_FMT_HDR_RAW)
+			p_size = pix->width * pix->height * video->afmt.bpp / 8;
+
 		buff->addr[AML_PLANE_B] = buff->addr[AML_PLANE_A] + p_size;
 	}
 
@@ -583,9 +589,9 @@ int aml_video_register(struct aml_video *video)
 	vdev->lock = &video->lock;
 	strncpy(vdev->name, video->name, sizeof(vdev->name));
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
-	rtn = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
+	rtn = video_register_device(vdev, VFL_TYPE_VIDEO, VIDEO_NODE);
 #else
-	rtn = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
+	rtn = video_register_device(vdev, VFL_TYPE_GRABBER, VIDEO_NODE);
 #endif
 	if (rtn < 0) {
 		dev_err(video->dev, "Failed to register video device: %d\n", rtn);
