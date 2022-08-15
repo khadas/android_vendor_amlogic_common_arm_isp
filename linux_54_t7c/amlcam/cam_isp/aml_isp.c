@@ -449,6 +449,9 @@ static irqreturn_t isp_subdev_irq_handler(int irq, void *dev)
 	unsigned long flags;
 	struct isp_dev_t *isp_dev = dev;
 
+	if (isp_dev->isp_status == STATUS_STOP)
+		return IRQ_HANDLED;
+
 	spin_lock_irqsave(&isp_dev->irq_lock, flags);
 
 	status = isp_dev->ops->hw_interrupt_status(isp_dev);

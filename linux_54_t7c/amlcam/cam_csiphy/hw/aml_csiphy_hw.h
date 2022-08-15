@@ -28,6 +28,10 @@
 #define MIPI_CSI_2M_PHY2_CNTL1      (0 << 2)
 #define MIPI_CSI_2M_PHY2_CNTL2      (1 << 2)
 #define MIPI_CSI_2M_PHY2_CNTL3      (2 << 2)
+
+#define MIPI_CSI_2M_PHY2_CNTL4      (4 << 2)
+#define MIPI_CSI_2M_PHY2_CNTL5      (5 << 2)
+#define MIPI_CSI_2M_PHY2_CNTL6      (6 << 2)
 #else
 #define MIPI_BASE_ADDR              0xff918000
 #define MIPI_DPHY_ADDR              0xff919000

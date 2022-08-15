@@ -995,6 +995,18 @@ static int imx415_log_status(struct v4l2_subdev *sd)
 	return 0;
 }
 
+int imx415_sbdev_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
+	struct imx415 *imx415 = to_imx415(sd);
+	imx415_power_on(imx415);
+	return 0;
+}
+
+int imx415_sbdev_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
+	struct imx415 *imx415 = to_imx415(sd);
+	imx415_power_off(imx415);
+	return 0;
+}
+
 static const struct dev_pm_ops imx415_pm_ops = {
 	SET_RUNTIME_PM_OPS(imx415_power_suspend, imx415_power_resume, NULL)
 };
@@ -1014,6 +1026,11 @@ static const struct v4l2_subdev_pad_ops imx415_pad_ops = {
 	.get_selection = imx415_get_selection,
 	.get_fmt = imx415_get_fmt,
 	.set_fmt = imx415_set_fmt,
+};
+
+static struct v4l2_subdev_internal_ops imx415_internal_ops = {
+	.open = imx415_sbdev_open,
+	.close = imx415_sbdev_close,
 };
 
 static const struct v4l2_subdev_ops imx415_subdev_ops = {
@@ -1205,6 +1222,7 @@ static int imx415_register_subdev(struct imx415 *imx415)
 
 	imx415->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	imx415->sd.dev = &imx415->client->dev;
+	imx415->sd.internal_ops = &imx415_internal_ops;
 	imx415->sd.entity.ops = &imx415_subdev_entity_ops;
 	imx415->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 	snprintf(imx415->sd.name, sizeof(imx415->sd.name), AML_SENSOR_NAME, imx415->index);

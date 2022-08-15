@@ -87,6 +87,7 @@ struct ov08a10_pixfmt {
 	u32 max_height;
 	u8 bpp;
 };
+static int ov08a10_power_on(struct ov08a10 *ov08a10);
 
 static const struct ov08a10_pixfmt ov08a10_formats[] = {
 	{ MEDIA_BUS_FMT_SBGGR10_1X10, 720, 3840, 720, 2160, 10 },
@@ -1454,6 +1455,19 @@ static int ov08a10_log_status(struct v4l2_subdev *sd)
 	return 0;
 }
 
+int ov08a10_sbdev_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
+	struct ov08a10 *ov08a10 = to_ov08a10(sd);
+	ov08a10_power_on(ov08a10);
+	return 0;
+}
+
+int ov08a10_sbdev_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
+	struct ov08a10 *ov08a10 = to_ov08a10(sd);
+	ov08a10_power_off(ov08a10);
+	return 0;
+}
+
+
 static const struct dev_pm_ops ov08a10_pm_ops = {
 	SET_RUNTIME_PM_OPS(ov08a10_power_suspend, ov08a10_power_resume, NULL)
 };
@@ -1473,6 +1487,10 @@ static const struct v4l2_subdev_pad_ops ov08a10_pad_ops = {
 	.get_selection = ov08a10_get_selection,
 	.get_fmt = ov08a10_get_fmt,
 	.set_fmt = ov08a10_set_fmt,
+};
+static struct v4l2_subdev_internal_ops ov08a10_internal_ops = {
+	.open = ov08a10_sbdev_open,
+	.close = ov08a10_sbdev_close,
 };
 
 static const struct v4l2_subdev_ops ov08a10_subdev_ops = {
@@ -1656,6 +1674,7 @@ static int ov08a10_register_subdev(struct ov08a10 *ov08a10)
 
 	ov08a10->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov08a10->sd.dev = &ov08a10->client->dev;
+	ov08a10->sd.internal_ops = &ov08a10_internal_ops;
 	ov08a10->sd.entity.ops = &ov08a10_subdev_entity_ops;
 	ov08a10->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 	snprintf(ov08a10->sd.name, sizeof(ov08a10->sd.name), AML_SENSOR_NAME, ov08a10->index);

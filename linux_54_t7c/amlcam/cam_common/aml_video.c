@@ -401,8 +401,9 @@ static int video_get_sensor_fps(struct media_entity *entity, struct aml_video *v
 
 	ctrl = v4l2_ctrl_find(subdev->ctrl_handler, V4L2_CID_AML_USER_FPS);
 	if (!ctrl) {
-		pr_err("Failed to get fps ctrl,set default 30\n");
+		pr_debug("Failed to get fps ctrl,set default 30\n");
 		video->actrl.fps_sensor = 30;
+		video->actrl.fps_output = 30;
 		return -EINVAL;
 	}
 

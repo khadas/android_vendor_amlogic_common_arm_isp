@@ -50,6 +50,15 @@ static void __iomem *module_get_base(void *a_dev, int module)
 	case FRONTEND_MD:
 		m_base = adap_dev->adap + FRONTEND_BASE;
 	break;
+	case FRONTEND1_MD:
+		m_base = adap_dev->adap + FRONTEND1_BASE;
+	break;
+	case FRONTEND2_MD:
+		m_base = adap_dev->adap + FRONTEND2_BASE;
+	break;
+	case FRONTEND3_MD:
+		m_base = adap_dev->adap + FRONTEND3_BASE;
+	break;
 	case READER_MD:
 		m_base = adap_dev->adap + RD_BASE;
 	break;
@@ -300,6 +309,23 @@ static int adap_frontend_init(void *a_dev)
 	struct adapter_dev_t *adap_dev = a_dev;
 	struct adapter_dev_param *param = &adap_dev->param;
 
+	switch (adap_dev->index) {
+	case 0:
+		module = FRONTEND_MD;
+		break;
+	case 1:
+		module = FRONTEND1_MD;
+		break;
+	case 2:
+		module = FRONTEND2_MD;
+		break;
+	case 3:
+		module = FRONTEND3_MD;
+		break;
+	default:
+		break;
+	}
+
 	switch (param->mode) {
 	case MODE_MIPI_RAW_SDR_DDR:
 		cfg_all_to_mem = 1;
@@ -542,8 +568,25 @@ static int adap_frontend_init(void *a_dev)
 
 static void adap_frontend_start(void *a_dev)
 {
-
+	struct adapter_dev_t *adap_dev = a_dev;
 	int module = FRONTEND_MD;
+
+	switch (adap_dev->index) {
+	case 0:
+		module = FRONTEND_MD;
+		break;
+	case 1:
+		module = FRONTEND1_MD;
+		break;
+	case 2:
+		module = FRONTEND2_MD;
+		break;
+	case 3:
+		module = FRONTEND3_MD;
+		break;
+	default:
+		break;
+	}
 
 	adap_frontend_embdec_enable(a_dev, 0);
 
@@ -552,7 +595,25 @@ static void adap_frontend_start(void *a_dev)
 
 static void adap_frontend_stop(void *a_dev)
 {
+	struct adapter_dev_t *adap_dev = a_dev;
 	int module = FRONTEND_MD;
+
+	switch (adap_dev->index) {
+	case 0:
+		module = FRONTEND_MD;
+		break;
+	case 1:
+		module = FRONTEND1_MD;
+		break;
+	case 2:
+		module = FRONTEND2_MD;
+		break;
+	case 3:
+		module = FRONTEND3_MD;
+		break;
+	default:
+		break;
+	}
 
 	module_update_bits(a_dev, module, CSI2_GEN_CTRL0, 0x0, 0, 4);
 }
@@ -1038,9 +1099,29 @@ static void adap_align_start(void *a_dev)
 
 static void adap_module_reset(void *a_dev)
 {
-	module_reg_write(a_dev, FRONTEND_MD, CSI2_GEN_CTRL0, 0x00000000);
+	struct adapter_dev_t *adap_dev = a_dev;
+	int module = FRONTEND_MD;
 
-	module_update_bits(a_dev, FRONTEND_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 0, 1);
+	switch (adap_dev->index) {
+	case 0:
+		module = FRONTEND_MD;
+		break;
+	case 1:
+		module = FRONTEND1_MD;
+		break;
+	case 2:
+		module = FRONTEND2_MD;
+		break;
+	case 3:
+		module = FRONTEND3_MD;
+		break;
+	default:
+		break;
+	}
+
+	module_reg_write(a_dev, module, CSI2_GEN_CTRL0, 0x00000000);
+
+	module_update_bits(a_dev, module, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 0, 1);
 
 	udelay(1000);
 #ifdef T7C_CHIP
@@ -1076,7 +1157,7 @@ static int adap_hw_init(void *a_dev)
 	param->fe_param.fe_mem_line_minbyte =
 		(adap_get_pixel_depth(param) * param->width + 7) >> 3;
 
-	param->fe_param.fe_int_mask = 0x4;
+	param->fe_param.fe_int_mask = 0;
 
 	//cofigure rd
 	param->rd_param.rd_work_mode = param->mode;
@@ -1122,6 +1203,14 @@ static int adap_hw_init(void *a_dev)
 
 	pr_info("ADAP%u: hw init\n", adap_dev->index);
 
+#ifdef T7C_CHIP
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0, adap_dev->index, 24, 4);
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0, adap_dev->index, 0, 2);
+
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL9, adap_dev->index * 6, 2, 19);
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL9, adap_dev->index, 0, 2);
+#endif
+
 	return rtn;
 }
 
@@ -1134,6 +1223,24 @@ static int adap_fe_cfg_buf(struct aml_video *video, struct aml_buffer *buff)
 {
 	int module = FRONTEND_MD;
 	u32 addr = buff->addr[AML_PLANE_A];
+	struct adapter_dev_t *adap_dev = video->priv;
+
+	switch (adap_dev->index) {
+	case 0:
+		module = FRONTEND_MD;
+		break;
+	case 1:
+		module = FRONTEND1_MD;
+		break;
+	case 2:
+		module = FRONTEND2_MD;
+		break;
+	case 3:
+		module = FRONTEND3_MD;
+		break;
+	default:
+		break;
+	}
 
 	module_reg_write(video->priv, module, CSI2_DDR_START_PIX, addr);
 	module_reg_write(video->priv, module, CSI2_DDR_START_PIX_ALT, addr);
@@ -1146,6 +1253,23 @@ static int adap_wdr_cfg_buf(void *a_dev)
 	struct adapter_dev_t *adap_dev = a_dev;
 	struct adapter_dev_param *param = &adap_dev->param;
 	int module = FRONTEND_MD;
+
+	switch (adap_dev->index) {
+	case 0:
+		module = FRONTEND_MD;
+		break;
+	case 1:
+		module = FRONTEND1_MD;
+		break;
+	case 2:
+		module = FRONTEND2_MD;
+		break;
+	case 3:
+		module = FRONTEND3_MD;
+		break;
+	default:
+		break;
+	}
 
 	module_reg_write(a_dev, module, CSI2_DDR_START_PIX, param->ddr_buf[0].addr[0]);
 	module_reg_write(a_dev, module, CSI2_DDR_START_PIX_ALT, param->ddr_buf[0].addr[0]);

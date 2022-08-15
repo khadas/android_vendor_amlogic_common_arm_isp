@@ -24,6 +24,9 @@
 #define ADAPT_BASE                      0xff3b0000
 
 #define FRONTEND_BASE                   0x0
+#define FRONTEND1_BASE                  0x400
+#define FRONTEND2_BASE                  0x800
+#define FRONTEND3_BASE                  0xc00
 #define RD_BASE                         0x1000
 #define PIXEL_BASE                      0x1000
 #define ALIGN_BASE                      0x1000
@@ -178,6 +181,7 @@
 #define MIPI_ADAPT_FE_MUX_CTL1          (0x91<<2)
 #define MIPI_ADAPT_FE_MUX_CTL2          (0x92<<2)
 #define MIPI_ADAPT_FE_MUX_CTL3          (0xbf<<2)
+#define MIPI_ADAPT_FE_MUX_CTL9          (0xc5<<2)
 
 #define MIPI_ADAPT_FE_MUX0_DLY_STAT0    (0x93<<2)
 #define MIPI_ADAPT_FE_MUX1_DLY_CNTL0    (0x94<<2)
@@ -241,6 +245,9 @@
 
 enum {
 	FRONTEND_MD = 0,
+	FRONTEND1_MD,
+	FRONTEND2_MD,
+	FRONTEND3_MD,
 	READER_MD,
 	PIXEL_MD,
 	ALIGN_MD,

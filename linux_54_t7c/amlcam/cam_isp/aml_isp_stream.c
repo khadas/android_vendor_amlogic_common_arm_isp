@@ -104,11 +104,11 @@ static int isp_cap_next_drop(struct aml_video *video, int frm_cnt)
 	u32 fps_sensor = video->actrl.fps_sensor;
 	u32 fps_output = video->actrl.fps_output;
 	if (frm_cnt == 1)
-		return 0;
+		return -1;
 
 	if (video->id == AML_ISP_STREAM_PARAM ||
 			video->id == AML_ISP_STREAM_STATS)
-		return 0;
+		return -1;
 
 	if (fps_sensor <= fps_output || fps_output == 0 || fps_sensor == 0)
 		return -1;

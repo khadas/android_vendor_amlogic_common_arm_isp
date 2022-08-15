@@ -688,7 +688,7 @@ static void isp_hw_stream_off(struct aml_video *video)
 	case AML_ISP_STREAM_3:
 		isp_disp_disable(video->priv, video->id - 3);
 	case AML_ISP_STREAM_RAW:
-		isp_wrmifx3_module_enable(video->priv, video->id - 3, 0, 0);
+		isp_wrmifx3_module_enable(video->priv, video->id - 3, 0, 1);
 	break;
 	}
 
