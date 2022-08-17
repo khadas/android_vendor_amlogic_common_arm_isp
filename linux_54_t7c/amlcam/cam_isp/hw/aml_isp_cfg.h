@@ -68,6 +68,21 @@ typedef struct _isp_awb_stats_pack_t {
 	u32 pack1;
 } isp_awb_stats_pack_t;
 
+typedef struct _isp_awb_stats_mode0_unit_s
+{
+    u16 rg;
+    u16 bg;
+    u32 pix_sum;
+}isp_awb_stats_mode0_unit_t;
+
+typedef struct _isp_awb_stats_mode1_unit_s
+{
+    u16 avg_r;
+    u16 avg_g;
+    u16 avg_b;
+    u16 avg_luma;
+}isp_awb_stats_mode1_unit_t;
+
 /**
   * @struct wb_stats_info_s
   * @brief white balance statistics info
@@ -448,7 +463,8 @@ typedef struct module_info_s{
 
 typedef struct frame_info_s {
 	int frm_cnt;/**< frame number for HW counter */
-	int reserve[3];
+	int slice_num;
+	int reserve[2];
 } frame_info_t;
 
 /**
@@ -731,11 +747,17 @@ typedef struct aisp_ltm_cfg_s{
 	u32 ltm_glbwin_vend;
 	u32 ltm_lo_gm_u6;
 	u32 ltm_hi_gm_u7;
+	u32 ltm_pow_y_u20;
+	u32 ltm_pow_divisor_u23;
 } aisp_ltm_cfg_t;
 
 typedef struct aisp_ltm_enhc_cfg_s{
-	u32 ltm_pow_y_u20;
-	u32 ltm_pow_divisor_u23;
+	u32 ltm_en;
+	u32 ltm_cc_en;
+	u32 ltm_dtl_ehn_en;
+	u32 ltm_vs_gtm_alpha;
+	u32 ltm_lmin_med_en;
+	u32 ltm_lmax_med_en;
 	u32 ltm_satur_lut[63];
 } aisp_ltm_enhc_cfg_t;
 
@@ -744,14 +766,11 @@ typedef struct aisp_wdr_cfg_s {
 	u32 wdr_mdetc_withblc_mode;
 	u32 wdr_mdetc_chksat_mode;
 	u32 wdr_mdetc_motionmap_mode;
-	u32 wdr_mdeci_msk_sat_prct_en;
 	u32 wdr_mdeci_chkstill_mode;
 	u32 wdr_mdeci_addlong;
 	u32 wdr_mdeci_still_thd;
-	u32 wdr_mdeci_fullmot_thd;
 	u32 wdr_forcelong_en;
 	u32 wdr_forcelong_thdmode;
-	u32 wdr_expcomb_maxavg_winsize;
 	u32 wdr_expcomb_maxavg_mode;
 	u32 wdr_expcomb_maxavg_ratio;
 	u32 wdr_stat_flt_en;
@@ -807,6 +826,8 @@ typedef struct aisp_wdr_cfg_s {
 	u32 comb_ir_lsbarrier[4];
 	u32 comb_maxratio;
 	u32 comb_shortexp_mode;
+	u32 wdr_force_exp_en;
+	u32 wdr_force_exp_mode;
 } aisp_wdr_cfg_t;
 
 typedef struct aisp_wdr_blc_cfg_s {
@@ -827,10 +848,29 @@ typedef struct aisp_wb_enhc_cfg_s{
 } aisp_wb_enhc_cfg_t;
 
 typedef struct aisp_lc_cfg_s {
+	u32 lc_histvld_thrd;
+	u32 lc_blackbar_mute_thrd;
+	u32 lc_pk_vld;
+	u32 lc_pk_no_trd_mrgn;
+	u32 lc_pk_1stb_th;
 	u32 ram_lcmap_nodes[96*6];
 } aisp_lc_cfg_t;
 
 typedef struct aisp_lc_enhc_cfg_s {
+	u32 lc_en;
+	u32 lc_cc_en;
+	u32 lc_blkblend_mode;
+	u32 lc_lmtrat_minmax;
+	u32 lc_contrast_low;
+	u32 lc_contrast_hig;
+	u32 lc_cntstscl_low;
+	u32 lc_cntstscl_hig;
+	u32 lc_cntstbvn_low;
+	u32 lc_cntstbvn_hig;
+	u32 lc_ypkbv_slope_lmt_1;
+	u32 lc_ypkbv_slope_lmt_0;
+	u32 lc_ypkbv_ratio_2;
+	u32 lc_ypkbv_ratio_1;
 	u32 lc_satur_lut[63];
 } aisp_lc_enhc_cfg_t;
 
@@ -850,10 +890,21 @@ typedef struct aisp_dhz_cfg_s{
 } aisp_dhz_cfg_t;
 
 typedef struct aisp_dhz_enhc_cfg_s {
+	u32 dhz_en;
+	u32 dhz_dlt_rat;
+	u32 dhz_hig_dlt_rat;
+	u32 dhz_low_dlt_rat;
+	u32 dhz_lmtrat_lowc;
+	u32 dhz_lmtrat_higc;
+	u32 dhz_cc_en;
+	u32 dhz_sky_prot_en;
+	u32 dhz_sky_prot_stre;
 	u32 dhz_sky_prot_lut[64];
 } aisp_dhz_enhc_cfg_t;
 
 typedef struct aisp_peaking_cfg_s{
+	u32 drtlpf_theta_min_idx_replace;
+	u32 pk_motion_adp_en;
 	u32 bp_final_gain;
 	u32 hp_final_gain;
 	u32 pre_flt_strength;
@@ -917,11 +968,32 @@ typedef struct aisp_dpc_cfg_s {
 } aisp_dpc_cfg_t;
 
 typedef struct aisp_tnr_cfg_s {
+	u32 rad_tnr0_en;
+	u32 ma_mix_ratio;
+	u32 ma_mix_th_x0;
+	u32 ma_mix_th_x1;
+	u32 ma_mix_th_x2;
+	u32 ma_mix_h_th_y0;
+	u32 ma_mix_h_th_y1;
+	u32 ma_mix_h_th_y2;
+	u32 ma_mix_l_th_y0;
+	u32 ma_mix_l_th_y1;
+	u32 ma_mix_l_th_y2;
+	u32 ma_sad_pdtl4_x0;
+	u32 ma_sad_pdtl4_x1;
+	u32 ma_sad_pdtl4_x2;
+	u32 ma_sad_pdtl4_y0;
+	u32 ma_sad_pdtl4_y1;
+	u32 ma_sad_pdtl4_y2;
+	u32 ma_adp_dtl_mix_th_nfl;
+	u32 ma_sad_th_mask_gain[4];
+	u32 ma_mix_th_mask_gain[4];
 	u32 ma_np_lut16[16];
 	u32 pst_tnr_alp_lut[8];
 	u32 ma_tnr_sad_cor_np_gain;
 	u32 ma_tnr_sad_cor_np_ofst;
 	u32 me_sad_cor_np_gain;
+	u32 me_sad_cor_np_ofst;
 	u32 ma_mix_h_th_gain[4];
 	u32 lut_meta_sad_2alpha[64];
 	u32 mc_meta2alpha[8][8];
@@ -942,6 +1014,7 @@ typedef struct aisp_snr_cfg_s {
 	u32 snr_sad_meta_ratio[4];
 	u32 snr_wt_luma_gain[8];
 	u32 snr_sad_meta2alp[8];
+	u32 snr_mask_adj[8];
 	u32 snr_meta_adj[8];
 	u32 snr_cur_wt[8];
 	u32 nry_strength;
@@ -965,6 +1038,9 @@ typedef struct aisp_snr_cfg_s {
 } aisp_snr_cfg_t;
 
 typedef struct aisp_rawcnr_cfg_s {
+	u32 rawcnr_totblk_higfrq_en;
+	u32 rawcnr_curblk_higfrq_en;
+	u32 rawcnr_ishigfreq_mode;
 	u32 rawcnr_sad_cor_np_gain;
 	u32 rawcnr_meta_gain_lut[8];
 	u32 rawcnr_higfrq_sublk_sum_dif_thd[2];
@@ -984,6 +1060,9 @@ typedef struct aisp_cnr_cfg_s {
 	u32 cnr2_umargin_dw;
 	u32 cnr2_vmargin_up;
 	u32 cnr2_vmargin_dw;
+	u32 cnr2_luma_osat_thd;
+	u32 cnr2_adp_desat_vrt;
+	u32 cnr2_adp_desat_hrz;
 } aisp_cnr_cfg_t;
 
 typedef struct aisp_dms_cfg_s{

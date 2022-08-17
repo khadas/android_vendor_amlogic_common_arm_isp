@@ -470,6 +470,19 @@ void isp_lens_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 	isp_reg_update_bits(isp_dev, ISP_LSWB_MS_LIMIT, val, 0, 8);
 }
 
+void isp_lens_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
+{
+	u32 val = 0;
+
+	if (param->pos == 0) {
+		val = param->pleft_hsize - param->pleft_ovlp;
+		isp_hwreg_update_bits(isp_dev, ISP_LSWB_RS_CENTER, val, 16, 16);
+	} else if (param->pos == 1) {
+		val = param->pright_ovlp;
+		isp_hwreg_update_bits(isp_dev, ISP_LSWB_RS_CENTER, val, 16, 16);
+	}
+}
+
 void isp_lens_cfg_ofst(struct isp_dev_t *isp_dev)
 {
 	u32 val = 0;

@@ -11,6 +11,7 @@
 #define __MCLK_API__
 #include <linux/version.h>
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
@@ -62,7 +63,7 @@ static int mclk_enable(struct device *dev, uint32_t rate)
 	ret = clk_prepare_enable(clk);
 	if (ret < 0)
 		dev_err(dev, " clk_prepare_enable failed\n");
-	if (IS_ERR(clk_pre) == 0) {
+	if (IS_ERR(clk_pre) == 0 && __clk_is_enabled(clk_pre)) {
 		clk_disable_unprepare(clk_pre);
 	}
 

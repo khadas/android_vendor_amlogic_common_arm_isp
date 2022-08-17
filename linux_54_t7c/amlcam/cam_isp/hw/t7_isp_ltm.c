@@ -89,6 +89,9 @@ static void ltm_cfg_param(struct isp_dev_t *isp_dev, void *ltm)
 
 	isp_reg_update_bits(isp_dev, ISP_LTM_POW_CRTL, ltm_cfg->ltm_lo_gm_u6, 0, 6);
 	isp_reg_update_bits(isp_dev, ISP_LTM_POW_CRTL, ltm_cfg->ltm_hi_gm_u7, 8, 7);
+
+	isp_reg_write(isp_dev, ISP_LTM_HIST_POW_Y, ltm_cfg->ltm_pow_y_u20);
+	isp_reg_write(isp_dev, ISP_LTM_HIST_POW_DIVISOR, ltm_cfg->ltm_pow_divisor_u23);
 }
 
 static void ltm_cfg_enhc(struct isp_dev_t *isp_dev, void *enhc)
@@ -97,8 +100,12 @@ static void ltm_cfg_enhc(struct isp_dev_t *isp_dev, void *enhc)
 	u32 val = 0;
 	aisp_ltm_enhc_cfg_t *e_cfg = enhc;
 
-	isp_reg_write(isp_dev, ISP_LTM_HIST_POW_Y, e_cfg->ltm_pow_y_u20);
-	isp_reg_write(isp_dev, ISP_LTM_HIST_POW_DIVISOR, e_cfg->ltm_pow_divisor_u23);
+	//isp_reg_update_bits(isp_dev, ISP_TOP_BEO_CTRL, e_cfg->ltm_en & 0x1, 1, 1);
+	isp_reg_update_bits(isp_dev, ISP_LTM_FLT_CTRL, e_cfg->ltm_cc_en & 0x1, 28, 1);
+	isp_reg_update_bits(isp_dev, ISP_LTM_SHRP_CRTL, e_cfg->ltm_dtl_ehn_en & 0x1, 0, 1);
+	isp_reg_update_bits(isp_dev, ISP_LTM_FINAL_CTRL, e_cfg->ltm_vs_gtm_alpha & 0x3f, 24, 6);
+	isp_reg_update_bits(isp_dev, ISP_LTM_STA_LPF_CTRL, e_cfg->ltm_lmin_med_en & 0x1, 12, 1);
+	isp_reg_update_bits(isp_dev, ISP_LTM_STA_LPF_CTRL, e_cfg->ltm_lmax_med_en & 0x1, 8, 1);
 
 	isp_reg_write(isp_dev, ISP_LTM_CCRAT_ADDR, 0);
 	for (i = 0; i < 31; i++) {
@@ -221,6 +228,41 @@ void isp_ltm_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 
 	pvidx = ysize;
 	isp_reg_write(isp_dev, ISP_LTM_STA_VIDX_8, pvidx);
+}
+
+void isp_ltm_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
+{
+	int i = 0;
+	u32 addr = 0;
+	u32 val = 0;
+	s32 hsize = 0;
+	s32 hidx = 0;
+	s32 ovlp = 0;
+	s32 slice_size = 0;
+
+	hsize = param->whole_frame_hcenter * 2;
+
+	if (param->pos == 0) {
+		for (i = 0; i < LTM_STA_LEN_H; i++) {
+			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
+			slice_size = param->pleft_hsize - param->pleft_ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4;
+			hidx = MIN(MAX(hidx, 0), slice_size);
+
+			addr = ISP_LTM_STA_HIDX_0_1 + (i /2 * 4);
+			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);
+		}
+	} else if (param->pos == 1) {
+		slice_size = param->pright_hsize;
+		ovlp = param->pright_ovlp;
+
+		for (i = 0; i < LTM_STA_LEN_H; i++) {
+			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
+			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size);
+
+			addr = ISP_LTM_STA_HIDX_0_1 + (i /2 * 4);
+			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);
+		}
+	}
 }
 
 void isp_ltm_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff)
