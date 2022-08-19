@@ -81,6 +81,9 @@ static void ofe_wdr_cfg_mdect(struct isp_dev_t *isp_dev, void *wdr)
 	val = w_cfg->wdr_mdetc_motionmap_mode;
 	isp_reg_update_bits(isp_dev, ISP_WDR_MDETC_MODE, val, 0, 1);
 
+	val = w_cfg->wdr_mdeci_msk_sat_prct_en;
+	isp_reg_update_bits(isp_dev, ISP_WDR_MDECI_PARAM, val, 28, 1);
+
 	val = w_cfg->wdr_mdeci_chkstill_mode;
 	isp_reg_update_bits(isp_dev, ISP_WDR_MDECI_PARAM, val, 25, 1);
 
@@ -89,6 +92,9 @@ static void ofe_wdr_cfg_mdect(struct isp_dev_t *isp_dev, void *wdr)
 
 	val = w_cfg->wdr_mdeci_still_thd;
 	isp_reg_update_bits(isp_dev, ISP_WDR_MDECI_PARAM, val, 8, 8);
+
+	val = w_cfg->wdr_mdeci_fullmot_thd;
+	isp_reg_update_bits(isp_dev, ISP_WDR_MDECI_PARAM, val, 0, 8);
 
 	val = (w_cfg->wdr_mdetc_sat_gr_thd << 16) |
 		(w_cfg->wdr_mdetc_sat_gb_thd << 0);
@@ -182,11 +188,8 @@ static void ofe_wdr_cfg_expcomb(struct isp_dev_t *isp_dev, void *wdr)
 	u32 val = 0;
 	aisp_wdr_cfg_t *w_cfg = wdr;
 
-	val = w_cfg->wdr_force_exp_en;
-	isp_reg_update_bits(isp_dev, ISP_WDR_COM_PARAM0, val, 24, 1);
-
-	val = w_cfg->wdr_force_exp_mode;
-	isp_reg_update_bits(isp_dev, ISP_WDR_COM_PARAM0, val, 26, 3);
+	val = w_cfg->wdr_expcomb_maxavg_winsize;
+	isp_reg_update_bits(isp_dev, ISP_WDR_EXPCOMB_PARAM, val, 21, 1);
 
 	val = w_cfg->wdr_expcomb_maxavg_mode;
 	isp_reg_update_bits(isp_dev, ISP_WDR_EXPCOMB_PARAM, val, 18, 3);

@@ -734,11 +734,11 @@ void isp_3a_flkr_cfg_stat_buff(struct isp_dev_t *isp_dev, struct aml_buffer *buf
 	flkr_dma_addr = af_dma_addr + af_dma_size;
 	post_dma_addr = flkr_dma_addr + flkr_dma_size;
 
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR0, af_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR1, awb_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR2, ae_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR3, flkr_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR4, post_dma_addr >> 4);
+	isp_reg_write(isp_dev, VIU_DMAWR_BADDR0, af_dma_addr >> 4);
+	isp_reg_write(isp_dev, VIU_DMAWR_BADDR1, awb_dma_addr >> 4);
+	isp_reg_write(isp_dev, VIU_DMAWR_BADDR2, ae_dma_addr >> 4);
+	isp_reg_write(isp_dev, VIU_DMAWR_BADDR3, flkr_dma_addr >> 4);
+	isp_reg_write(isp_dev, VIU_DMAWR_BADDR4, post_dma_addr >> 4);
 }
 
 void isp_3a_flkr_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)

@@ -50,16 +50,16 @@ static void post_cm2_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	isp_reg_update_bits(isp_dev, ISP_CM2_EN, cm2_cfg->cm2_global_hue, 12, 12);
 
 	isp_reg_update_bits(isp_dev, ISP_CM2_LUMA_BC, cm2_cfg->cm2_luma_contrast, 0, 12);
-	isp_reg_update_bits(isp_dev, ISP_CM2_LUMA_BC, cm2_cfg->cm2_luma_brightness, 12, 13);
+	isp_reg_update_bits(isp_dev, ISP_CM2_LUMA_BC, cm2_cfg->cm2_luma_brightness, 12, 12);
 
 	for (i = 0; i < 32; i++) {
 		isp_reg_write(isp_dev, ISP_CM2_ADDR_PORT, 256+i*8);
 
-		tmp[0] = data_luma_via_hue_lut[i];
+		tmp[0] = data_luma_via_hue_lut[j];
 		for (j = 0; j < 3; j++) {
 			tmp[1+j] = data_sat_via_hs_lut[j*32+i];
 		}
-		tmp[4] = data_hue_via_h_lut[i];
+		tmp[4] = data_hue_via_h_lut[j];
 		for (j = 0; j < 5; j++) {
 			tmp[5+j] = data_hue_via_y_lut[j*32+i];
 			tmp[10+j] = data_hue_via_s_lut[j*32+i];
@@ -198,59 +198,6 @@ void isp_post_cm2_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 
 	val = (0 << 0) | (ysize << 16);
 	isp_reg_write(isp_dev, ISP_DNLP_GLBWIN_V, val);
-}
-
-void isp_post_cm2_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
-{
-	int i = 0;
-	u32 addr = 0;
-	u32 val = 0;
-	u32 start, end;
-	s32 hidx = 0;
-	s32 hsize = 0;
-	s32 ovlp = 0;
-	s32 slice_size = 0;
-
-	hsize = param->whole_frame_hcenter * 2;
-
-	if (param->pos == 0) {
-		start = 0;
-		end = param->pleft_hsize - param->pleft_ovlp;
-
-		val = (start << 0) | (end << 16);
-		isp_hwreg_write(isp_dev, ISP_PST_GLBWIN_H, val);
-		isp_hwreg_write(isp_dev, ISP_DNLP_GLBWIN_H, val);
-
-		for (i = 0; i < LTM_STA_LEN_H; i++) {
-			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			slice_size = param->pleft_hsize - param->pleft_ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4;
-			hidx = MIN(MAX(hidx, 0), slice_size);
-
-			hidx = MIN(MAX(hidx - 1, 0), param->pleft_hsize - (LTM_STA_LEN_H - i) * 4 - 1);
-
-			addr = ISP_LC_STA_HIDX_0 + (i /2 * 4);
-			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);
-		}
-	} else if (param->pos == 1) {
-		start = param->pright_ovlp;
-		end = param->pright_hsize;
-
-		val = (start << 0) | (end << 16);
-		isp_hwreg_write(isp_dev, ISP_PST_GLBWIN_H, val);
-		isp_hwreg_write(isp_dev, ISP_DNLP_GLBWIN_H, val);
-
-		slice_size = param->pright_hsize;
-		ovlp = param->pright_ovlp;
-		for (i = 0; i < LTM_STA_LEN_H; i++) {
-			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size);
-
-			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size - 1, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size - 1);
-
-			addr = ISP_LC_STA_HIDX_0 + (i /2 * 4);
-			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);
-		}
-	}
 }
 
 void isp_post_cm2_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff)

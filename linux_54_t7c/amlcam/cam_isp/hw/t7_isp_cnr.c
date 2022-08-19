@@ -32,15 +32,6 @@ static void rcnr_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	u32 val = 0;
 	aisp_rawcnr_cfg_t *r_cfg = param;
 
-	val = r_cfg->rawcnr_totblk_higfrq_en;
-	isp_reg_update_bits(isp_dev, ISP_RAWCNR_CTRL, val & 0x1, 1, 1);
-
-	val = r_cfg->rawcnr_curblk_higfrq_en;
-	isp_reg_update_bits(isp_dev, ISP_RAWCNR_CTRL, val & 0x1, 2, 1);
-
-	val = r_cfg->rawcnr_ishigfreq_mode;
-	isp_reg_update_bits(isp_dev, ISP_RAWCNR_CTRL, val & 0x1, 0, 1);
-
 	val = r_cfg->rawcnr_sad_cor_np_gain;
 	isp_reg_update_bits(isp_dev, ISP_RAWCNR_NP_CTRL, val, 16, 6);
 
@@ -139,12 +130,12 @@ static void mcnr_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	u32 val = 0;
 	aisp_tnr_cfg_t *tnr_cfg = param;
 
-	val = ((tnr_cfg->me_sad_cor_np_gain & 0xff)  << 16) | ((tnr_cfg->me_sad_cor_np_ofst & 0xff)  << 8);
-	isp_reg_write(isp_dev, ISP_MCNR_PURE_SAD_NP_GAIN, val);
+	val = tnr_cfg->me_sad_cor_np_gain;
+	isp_reg_update_bits(isp_dev, ISP_MCNR_PURE_SAD_NP_GAIN, val, 16, 8);
 
 	for (j = 0; j < 8; j++) {
 		for (i = 0; i < 8; i++) {
-			val = (tnr_cfg->mc_meta2alpha[j][i] & 0x3f) << 26;
+			val = tnr_cfg->mc_meta2alpha[j][i] << 26;
 			isp_reg_write(isp_dev, ISP_MCNR_ALPHA_0_0 + j * 8 * 4 + i * 4, val);
 		}
 	}

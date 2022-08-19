@@ -170,17 +170,16 @@ void isp_wrmifx3_cfg_frm_size(struct isp_dev_t *isp_dev, u32 idx,
 	val = (0 << 0) | ((height - 1) << 16);
 	isp_reg_write(isp_dev, raddr, val);
 
-	raddr = ISP_WRMIFX3_0_CRP_HSIZE + ((idx * 0x40) << 2);
-	val = (0 << 0) | ((width - 1) << 16);
-	isp_reg_write(isp_dev, raddr, val);
-
-	raddr = ISP_WRMIFX3_0_CRP_VSIZE + ((idx * 0x40) << 2);
-	val = (0 << 0) | ((height - 1) << 16);
-	isp_reg_write(isp_dev, raddr, val);
-
 	stride = (width * bpp + 127) >> 7;
 
 	switch (fmt->nplanes) {
+	case 3:
+		raddr = ISP_WRMIFX3_0_CH2_CTRL0 + ((idx * 0x40) << 2);
+		isp_reg_update_bits(isp_dev, raddr, stride, 16, 13);
+
+		raddr = ISP_WRMIFX3_0_CH2_CTRL1 + ((idx * 0x40) << 2);
+		isp_reg_update_bits(isp_dev, raddr, bits_node, 27, 4);
+		isp_reg_update_bits(isp_dev, raddr, 0, 24, 3);
 	case 2:
 		raddr = ISP_WRMIFX3_0_CH1_CTRL0 + ((idx * 0x40) << 2);
 		isp_reg_update_bits(isp_dev, raddr, stride, 16, 13);
@@ -238,6 +237,10 @@ void isp_wrmifx3_cfg_frm_buff(struct isp_dev_t *isp_dev, u32 idx,
 	}
 
 	switch(buff->nplanes) {
+	case 3:
+		paddr = buff->addr[AML_PLANE_C] >> 4;
+		raddr = ISP_WRMIFX3_0_CH2_BADDR + ((idx * 0x40) << 2);
+		isp_hwreg_write(isp_dev, raddr, paddr);
 	case 2:
 		paddr = buff->addr[AML_PLANE_B] >> 4;
 		raddr = ISP_WRMIFX3_0_CH1_BADDR + ((idx * 0x40) << 2);

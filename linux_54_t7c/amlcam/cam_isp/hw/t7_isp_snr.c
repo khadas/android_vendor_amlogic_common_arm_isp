@@ -173,20 +173,6 @@ static void snr_cfg_param(struct isp_dev_t *isp_dev, void *param)
 		(snr_cfg->snr_sad_meta_ratio[3] << 24);
 	isp_reg_write(isp_dev, ISP_SNR_SAD_META_RATIO, val);
 
-	val = (snr_cfg->snr_mask_adj[0] << 16) |
-		(snr_cfg->snr_mask_adj[1] << 8) |
-		(snr_cfg->snr_mask_adj[2] << 0);
-	isp_reg_write(isp_dev, ISP_SNR_MASK_LUT0, val);
-
-	val = (snr_cfg->snr_mask_adj[3] << 16) |
-		(snr_cfg->snr_mask_adj[4] << 8) |
-		(snr_cfg->snr_mask_adj[5] << 0);
-	isp_reg_write(isp_dev, ISP_SNR_MASK_LUT1, val);
-
-	val = (snr_cfg->snr_mask_adj[6] << 16) |
-		(snr_cfg->snr_mask_adj[7] << 0);
-	isp_reg_write(isp_dev, ISP_SNR_MASK_LUT2, val);
-
 	val = (snr_cfg->snr_meta_adj[0] << 16) |
 		(snr_cfg->snr_meta_adj[1] << 8) |
 		(snr_cfg->snr_meta_adj[2] << 0);

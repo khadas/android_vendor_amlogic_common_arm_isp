@@ -36,50 +36,7 @@ static void tnr_cfg_param(struct isp_dev_t *isp_dev, void *param)
 {
 	int i = 0;
 	u32 val = 0;
-	u32 addr;
 	aisp_tnr_cfg_t *tnr_cfg = param;
-
-	val = tnr_cfg->rad_tnr0_en;
-	isp_reg_update_bits(isp_dev, ISP_CUBIC_RAD_CRTL, val, 26, 1);
-
-	val = tnr_cfg->ma_mix_ratio;
-	isp_reg_update_bits(isp_dev, ISP_CUBICT_ERR_MIX_RATIO, val, 0, 8);
-
-	val = (tnr_cfg->ma_mix_th_x0 << 16) |
-		(tnr_cfg->ma_mix_th_x1 << 8) |
-		(tnr_cfg->ma_mix_th_x2 << 0);
-	isp_reg_write(isp_dev, ISP_CUBICT_MIX_THRD_X, val);
-
-	val = (tnr_cfg->ma_mix_h_th_y0 << 16) |
-		(tnr_cfg->ma_mix_h_th_y1 << 8) |
-		(tnr_cfg->ma_mix_h_th_y2 << 0);
-	isp_reg_write(isp_dev, ISP_CUBICT_HIGH_MIX_THRD_Y, val);
-
-	val = (tnr_cfg->ma_mix_l_th_y0 << 16) |
-		(tnr_cfg->ma_mix_l_th_y1 << 8) |
-		(tnr_cfg->ma_mix_l_th_y2 << 0);
-	isp_reg_write(isp_dev, ISP_CUBICT_LOW_MIX_THRD_Y, val);
-
-	val = (tnr_cfg->ma_sad_pdtl4_x0 << 8) |
-		(tnr_cfg->ma_sad_pdtl4_x1 << 4) |
-		(tnr_cfg->ma_sad_pdtl4_x2 << 0);
-	isp_reg_write(isp_dev, ISP_CUBICT_DETAIL_CURV_X, val);
-
-	val = (tnr_cfg->ma_sad_pdtl4_y0 << 24) |
-		(tnr_cfg->ma_sad_pdtl4_y1 << 15) |
-		(tnr_cfg->ma_sad_pdtl4_y2 << 8);
-	isp_reg_write(isp_dev, ISP_CUBICT_DETAIL_CURV_Y, val);
-
-	val = tnr_cfg->ma_adp_dtl_mix_th_nfl;
-	isp_reg_update_bits(isp_dev, ISP_CUBICT_ADP_DTL_NFL, val, 0, 8);
-
-	for (i = 0; i < 4; i++) {
-		addr = ISP_CUBICT_MASK_GAIN_0 + 4 * i;
-		isp_reg_write(isp_dev, addr, tnr_cfg->ma_sad_th_mask_gain[i]);
-
-		addr = ISP_CUBICT_MIX_THD_MASK_GAIN_0 + 4 * i;
-		isp_reg_write(isp_dev, addr, tnr_cfg->ma_mix_th_mask_gain[i]);
-	}
 
 	val = tnr_cfg->ma_tnr_sad_cor_np_gain;
 	isp_reg_update_bits(isp_dev, ISP_CUBICT_SAD_CORING_NP_CRTL, val, 8, 8);
@@ -112,26 +69,6 @@ static void tnr_cfg_nr(struct isp_dev_t *isp_dev, void *nr)
 
 	if (nr_cfg->pvalid.aisp_tnr)
 		tnr_cfg_param(isp_dev, &nr_cfg->tnr_cfg);
-}
-
-void isp_tnr_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
-{
-	u32 val = 0;
-	u32 start, end;
-
-	if (param->pos == 0) {
-		start = 0;
-		end = param->pleft_hsize - param->pleft_ovlp;
-
-		val = (start << 16) | (end << 0);
-		isp_hwreg_write(isp_dev, ISP_CUBICT_GLOBAL_STAT_WINDOW, val);
-	} else if (param->pos == 1) {
-		start = param->pright_ovlp;
-		end = param->pright_hsize;
-
-		val = (start << 16) | (end << 0);
-		isp_hwreg_write(isp_dev, ISP_CUBICT_GLOBAL_STAT_WINDOW, val);
-	}
 }
 
 void isp_tnr_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff)

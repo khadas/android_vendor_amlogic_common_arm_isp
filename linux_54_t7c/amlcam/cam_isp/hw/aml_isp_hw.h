@@ -121,7 +121,6 @@ void isp_lens_init(struct isp_dev_t *isp_dev);
 void isp_lens_cfg_ofst(struct isp_dev_t *isp_dev);
 void isp_lens_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt);
 void isp_lens_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
-void isp_lens_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
 void isp_lens_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 
 void isp_gtm_init(struct isp_dev_t *isp_dev);
@@ -186,7 +185,6 @@ void isp_intf_top_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
 void isp_intf_top_cfg_buf(struct isp_dev_t *isp_dev, struct aml_format *fmt, struct aml_buffer *buff);
 
 void isp_tnr_init(struct isp_dev_t *isp_dev);
-void isp_tnr_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
 void isp_tnr_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 
 void isp_cnr_init(struct isp_dev_t *isp_dev);
@@ -199,21 +197,18 @@ void isp_pk_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 void isp_ltm_init(struct isp_dev_t *isp_dev);
 void isp_ltm_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt);
 void isp_ltm_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
-void isp_ltm_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
 void isp_ltm_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 void isp_ltm_req_info(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 void isp_ltm_stats(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 
 void isp_post_pg2_ctrst_init(struct isp_dev_t *isp_dev);
 void isp_post_pg2_ctrst_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
-void isp_post_pg2_ctrst_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
 void isp_post_pg2_ctrst_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 void isp_post_pg2_ctrst_stats(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 void isp_post_pg2_ctrst_req_info(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 
 void isp_post_cm2_init(struct isp_dev_t *isp_dev);
 void isp_post_cm2_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
-void isp_post_cm2_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
 void isp_post_cm2_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
 
 void isp_post_pg0_top_init(struct isp_dev_t *isp_dev);

@@ -21,11 +21,10 @@
 #define DISP_CNT    (4)
 #define DISP_INTER  (0x100)
 
-#define SELECT_H_0123(data)    (((data)&(~((1U<<13)-1)))|(2<<10)|(1<<9))
-#define SELECT_H_4567(data)    (((data)&(~((1U<<13)-1)))|(3<<10)|(1<<9))
-#define SELECT_V_0123(data)    (((data)&(~((1U<<13)-1)))|(0<<10)|(1<<9))
-#define SELECT_V_4567(data)    (((data)&(~((1U<<13)-1)))|(1<<10)|(1<<9))
-
+#define SELECT_H_0123(data)    (((data)&(~(3<<10))&(~((1<<7)-1)))|(2<<10)|(1<<9))
+#define SELECT_H_4567(data)    (((data)&(~(3<<10))&(~((1<<7)-1)))|(3<<10)|(1<<9))
+#define SELECT_V_0123(data)    (((data)&(~(3<<10))&(~((1<<7)-1)))|(0<<10)|(1<<9))
+#define SELECT_V_4567(data)    (((data)&(~(3<<10))&(~((1<<7)-1)))|(1<<10)|(1<<9))
 
 static const int pps_lut_tap4_s11[33][4] =  {
 	{0 , 512, 0 , 0},
@@ -61,42 +60,6 @@ static const int pps_lut_tap4_s11[33][4] =  {
 	{-40, 316, 271, -35},
 	{-39, 305, 282, -36},
 	{-37, 293, 293, -37}
-};
-
-static const int pps_lut_tap2_s11[33][2] =  {
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
-	{512, 0},
 };
 
 static const u32 calibration_gamma[] = {
@@ -173,7 +136,6 @@ static void disp_cfg_base_h_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 	val = isp_reg_read(isp_dev, addr);
 	val = SELECT_H_0123(val);
 	isp_reg_write(isp_dev, addr, val);
-
 	for (i = 0; i < 33; i++) {
 		if (0 < h_tap)
 			coef[0] = lut_cfg->pps_h_luma_coef[i * h_tap + 0];
@@ -196,10 +158,10 @@ static void disp_cfg_base_h_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff)<< 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff)<< 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 
@@ -229,10 +191,10 @@ static void disp_cfg_base_h_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 }
@@ -275,10 +237,10 @@ static void disp_cfg_base_v_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 
@@ -308,10 +270,10 @@ static void disp_cfg_base_v_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 }
@@ -354,10 +316,10 @@ static void disp_cfg_base_h_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 
@@ -387,10 +349,10 @@ static void disp_cfg_base_h_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 }
@@ -433,10 +395,10 @@ static void disp_cfg_base_v_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 
@@ -466,10 +428,10 @@ static void disp_cfg_base_v_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 			coef[3] = 0;
 
 		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		val = ((coef[0]&0x7ff) << 16) | ((coef[1]&0x7ff) << 0);
+		val = (coef[0] << 16) | (coef[1] << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
+		val = (coef[2] << 16) | (coef[3] << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
 }
@@ -547,10 +509,9 @@ void isp_disp_set_csc2_fmt(struct isp_dev_t *isp_dev, u32 idx, struct aml_format
 	if (idx != 0)
 		return;
 #endif
-
 	isp_reg_update_bits(isp_dev, DISP0_TOP_TOP_CTRL, 0, 1, 1);
 
-	if (fmt->code != V4L2_PIX_FMT_RGB24) {
+	if (fmt->code != 3) {
 		pr_debug("Error to support disp%u csc2\n", idx);
 		return;
 	}
@@ -681,7 +642,6 @@ void isp_disp_pps_config(struct isp_dev_t *isp_dev, u32 idx,
 	u32 ohsize = output->width;
 	u32 ovsize = output->height;
 	const int (*pps_lut_tap4)[4] = pps_lut_tap4_s11;
-	const int (*pps_lut_tap2)[2] = pps_lut_tap2_s11;
 
 	hsc_en = (ihsize == ohsize) ? 0 : 1;
 	vsc_en = (ivsize == ovsize) ? 0 : 1;
@@ -795,95 +755,52 @@ void isp_disp_pps_config(struct isp_dev_t *isp_dev, u32 idx,
 	val = (0 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
 	isp_reg_write(isp_dev, addr, val);
 
-	if (reg_vsc_tap_num_alt == 4) {
-		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-
-			val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-		}
-
-		addr = ISP_SCALE0_COEF_IDX_LUMA + ((idx * 0x100) << 2);
-		val = (2 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
+	for (i = 0; i < 33; i++) {
+		val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
+		val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
+		isp_reg_write(isp_dev, addr, val);
+	}
 
-			val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-		}
+	addr = ISP_SCALE0_COEF_IDX_LUMA + ((idx * 0x100) << 2);
+	val = (2 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_IDX_CHRO + ((idx * 0x100) << 2);
-		val = (0 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
+	for (i = 0; i < 33; i++) {
+		val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
+		val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
+		isp_reg_write(isp_dev, addr, val);
+	}
 
-			val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-		}
+	addr = ISP_SCALE0_COEF_IDX_CHRO + ((idx * 0x100) << 2);
+	val = (0 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_IDX_CHRO + ((idx * 0x100) << 2);
-		val = (2 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
+	for (i = 0; i < 33; i++) {
+		val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
+		val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
+		isp_reg_write(isp_dev, addr, val);
+	}
 
-			val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-		}
-	} else if (reg_vsc_tap_num_alt == 2) {
-		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap2[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap2[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-			isp_reg_write(isp_dev, addr, 0);
-		}
+	addr = ISP_SCALE0_COEF_IDX_CHRO + ((idx * 0x100) << 2);
+	val = (2 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_IDX_LUMA + ((idx * 0x100) << 2);
-		val = (2 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+	addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
+	for (i = 0; i < 33; i++) {
+		val = ((pps_lut_tap4[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][1] & 0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 
-		addr = ISP_SCALE0_COEF_LUMA + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap2[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap2[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-			isp_reg_write(isp_dev, addr, 0);
-		}
-
-		addr = ISP_SCALE0_COEF_IDX_CHRO + ((idx * 0x100) << 2);
-		val = (0 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
+		val = ((pps_lut_tap4[i][2] << 16 ) & 0x7ff0000) | ((pps_lut_tap4[i][3] & 0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
-
-		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap2[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap2[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-			isp_reg_write(isp_dev, addr, 0);
-		}
-
-		addr = ISP_SCALE0_COEF_IDX_CHRO + ((idx * 0x100) << 2);
-		val = (2 << 10) | (1 << 9) | (0 << 8) | (0 << 7) | (0 << 0);
-		isp_reg_write(isp_dev, addr, val);
-
-		addr = ISP_SCALE0_COEF_CHRO + ((idx * 0x100) << 2);
-		for (i = 0; i < 33; i++) {
-			val = ((pps_lut_tap2[i][0] << 16 ) & 0x7ff0000) | ((pps_lut_tap2[i][1] & 0x7ff) << 0);
-			isp_reg_write(isp_dev, addr, val);
-			isp_reg_write(isp_dev, addr, 0);
-		}
-
 	}
 }
 
@@ -1014,11 +931,6 @@ void isp_disp_calc_slice(struct isp_dev_t *isp_dev, u32 idx, struct aml_slice *p
 
 	whole_frame_hcenter = xsize -reg_stch_ovlp_num;
 	right_frame_hstart = xsize - reg_stch_ovlp_num * 2;
-
-	param->pleft_hsize = left_hsize;
-	param->pleft_ovlp = left_overlap;
-	param->pright_hsize = right_hsize;
-	param->pright_ovlp = right_overlap;
 
 	if (reg_crop_en == 1) {
 		crop_hend = (reg_crop_hstart + reg_crop_hsize) > whole_frame_hcenter ?

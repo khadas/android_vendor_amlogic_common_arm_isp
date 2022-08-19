@@ -254,10 +254,11 @@ static u32 isp_hw_interrupt_status(struct isp_dev_t *isp_dev)
 	return status;
 }
 
-static int isp_hw_set_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
+static int isp_hw_set_input_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 {
 	u32 i = 0;
 
+	isp_top_cfg_fmt(isp_dev, fmt);
 	isp_ofe_cfg_fmt(isp_dev, fmt);
 	isp_dpc_cfg_fmt(isp_dev, fmt);
 	isp_lens_cfg_fmt(isp_dev, fmt);
@@ -298,17 +299,6 @@ static int isp_hw_set_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 		isp_disp_set_input_size(isp_dev, i - 3, fmt);
 		isp_disp_set_crop_size(isp_dev, i - 3, &isp_dev->video[i].acrop);
 	}
-
-	return 0;
-}
-
-static int isp_hw_set_input_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
-{
-	u32 i = 0;
-
-	isp_top_cfg_fmt(isp_dev, fmt);
-
-	isp_hw_set_fmt(isp_dev, fmt);
 
 	pr_info("ISP%u: set input fmt\n", isp_dev->index);
 
@@ -379,9 +369,47 @@ static int isp_hw_set_slice_fmt(struct isp_dev_t *isp_dev, struct aml_format *fm
 
 	fmt->width = hsize_isp;
 
-	isp_hw_set_fmt(isp_dev, fmt);
+	isp_ofe_cfg_fmt(isp_dev, fmt);
+	isp_dpc_cfg_fmt(isp_dev, fmt);
+	isp_lens_cfg_fmt(isp_dev, fmt);
+	isp_fed_cfg_fmt(isp_dev, fmt);
+	isp_3a_flkr_cfg_fmt(isp_dev, fmt);
+	isp_nr_cac_cfg_fmt(isp_dev, fmt);
+	isp_cnr_cfg_fmt(isp_dev, fmt);
+	isp_dms_cfg_fmt(isp_dev, fmt);
+	isp_snr_cfg_fmt(isp_dev, fmt);
+	isp_ltm_cfg_fmt(isp_dev, fmt);
+	isp_ofe_wdr_cfg_fmt(isp_dev, fmt);
+
+	isp_3a_flkr_cfg_size(isp_dev, fmt);
+	isp_nr_cac_cfg_size(isp_dev, fmt);
+	isp_ofe_cfg_size(isp_dev, fmt);
+	isp_lens_cfg_size(isp_dev, fmt);
+
+	isp_post_cm2_cfg_size(isp_dev, fmt);
+	isp_ltm_cfg_size(isp_dev, fmt);
+	isp_post_pg2_ctrst_cfg_size(isp_dev, fmt);
+	isp_intf_top_cfg_size(isp_dev, fmt);
+	isp_ptnr_mif_cfg_size(isp_dev, fmt);
+
+	isp_dms_cfg_size(isp_dev, fmt);
+
+	isp_lens_cfg_ofst(isp_dev);
+	isp_fed_cfg_ofst(isp_dev);
 
 	isp_disp_set_overlap(isp_dev, ovlp);
+
+	isp_patgen_disable(isp_dev);
+
+	for (i = AML_ISP_STREAM_0; i < AML_ISP_STREAM_RAW; i++) {
+		isp_dev->video[i].acrop.hstart = 0;
+		isp_dev->video[i].acrop.vstart = 0;
+		isp_dev->video[i].acrop.hsize = fmt->width;
+		isp_dev->video[i].acrop.vsize = fmt->height;
+
+		isp_disp_set_input_size(isp_dev, i - 3, fmt);
+		isp_disp_set_crop_size(isp_dev, i - 3, &isp_dev->video[i].acrop);
+	}
 
 	pr_info("ISP%u: set slice input fmt: %u-%u\n", isp_dev->index, fmt->width, fmt->height);
 
@@ -431,16 +459,6 @@ static int isp_hw_cfg_slice(struct isp_dev_t *isp_dev, int pos)
 		isp_disp_cfg_slice(isp_dev, i, &isp_dev->aslice[i]);
 		isp_wrmifx3_cfg_slice(isp_dev, i, &isp_dev->aslice[i]);
 	}
-
-	isp_lens_cfg_slice(isp_dev, &isp_dev->aslice[0]);
-
-	isp_tnr_cfg_slice(isp_dev, &isp_dev->aslice[0]);
-
-	isp_post_pg2_ctrst_cfg_slice(isp_dev, &isp_dev->aslice[0]);
-
-	isp_post_cm2_cfg_slice(isp_dev, &isp_dev->aslice[0]);
-
-	isp_ltm_cfg_slice(isp_dev, &isp_dev->aslice[0]);
 
 	return 0;
 }
@@ -759,8 +777,8 @@ static int isp_hw_enable_rot(struct aml_video *video, int enable)
 			isp_wrmifx3_flip_enable(video->priv, video->id - 3, enable);
 		break;
 		default:
-			pr_err("Failed to support rot type %d\n", video->rot_type);
-			return -1;
+			pr_err("ISP Enable Rotation Error.\n");
+		break;
 	}
 
 	return 0;

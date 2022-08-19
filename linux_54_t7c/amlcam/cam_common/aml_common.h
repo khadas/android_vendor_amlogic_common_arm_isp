@@ -120,10 +120,6 @@ struct aml_control {
 struct aml_slice {
 	int pos;
 	int xsize;
-	int pleft_hsize;
-	int pright_hsize;
-	int pleft_ovlp;
-	int pright_ovlp;
 	int left_hsize;
 	int right_hsize;
 	int left_ovlp;
