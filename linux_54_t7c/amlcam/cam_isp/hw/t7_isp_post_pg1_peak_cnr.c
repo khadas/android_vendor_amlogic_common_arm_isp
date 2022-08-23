@@ -60,6 +60,15 @@ static void pk_cfg_cnr(struct isp_dev_t *isp_dev, void *cnr)
 	val = (c_cfg->cnr2_vmargin_up << 16) |
 		(c_cfg->cnr2_vmargin_dw << 0);
 	isp_reg_write(isp_dev, CNR_VMARGIN, val);
+
+	val = c_cfg->cnr2_luma_osat_thd;
+	isp_reg_update_bits(isp_dev, CNR_CTRST_FRG_ALP, val, 8, 8);
+
+	val = c_cfg->cnr2_adp_desat_vrt;
+	isp_reg_update_bits(isp_dev, CNR_HS_DBG_MISC, val, 20, 2);
+
+	val = c_cfg->cnr2_adp_desat_hrz;
+	isp_reg_update_bits(isp_dev, CNR_HS_DBG_MISC, val, 24, 2);
 }
 
 static void pk_cfg_pst_nr(struct isp_dev_t *isp_dev, void *param)
@@ -89,6 +98,9 @@ static void pk_cfg_peaking(struct isp_dev_t *isp_dev, void *peaking)
 {
 	u32 val = 0;
 	aisp_peaking_cfg_t *p_cfg = peaking;
+
+	isp_reg_update_bits(isp_dev, ISP_POST_DRT_EN_CTL, p_cfg->drtlpf_theta_min_idx_replace, 16, 1);
+	isp_reg_update_bits(isp_dev, ISP_PK_MOTION_ADP_CTRL, p_cfg->pk_motion_adp_en, 0, 1);
 
 	isp_reg_update_bits(isp_dev, ISP_POST_PK_FINAL_GAIN, p_cfg->bp_final_gain, 0, 8);
 	isp_reg_update_bits(isp_dev, ISP_POST_PK_FINAL_GAIN, p_cfg->hp_final_gain, 8, 15);
