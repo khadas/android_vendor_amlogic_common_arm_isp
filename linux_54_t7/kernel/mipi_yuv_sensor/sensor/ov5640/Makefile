@@ -15,7 +15,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-obj-m += ov5640.o
+obj-m += ov5640_auto.o
 
 M_PATH := $(shell dirname $(lastword $(MAKEFILE_LIST)))
 
@@ -25,7 +25,7 @@ M_DRV_SRC := $(DRV_SRC:$(M_PATH)/%=%)
 
 DRV_SRC_OBJ := $(M_DRV_SRC:.c=.o)
 
-ov5640-objs += $(DRV_SRC_OBJ)
+ov5640_auto-objs += $(DRV_SRC_OBJ)
 
 
 all:

@@ -1,7 +1,7 @@
 M_PATH     := $(shell dirname $(lastword $(MAKEFILE_LIST)))
 LOCAL_PATH := $(shell dirname $(lastword $(MAKEFILE_LIST)))
 
-obj-m += amlcam.o
+obj-m += amlcam_auto.o
 
 DRV_SRC := $(wildcard $(LOCAL_PATH)/*.c) \
 			$(wildcard $(LOCAL_PATH)/cam_common/*.c) \
@@ -19,7 +19,7 @@ ccflags-y += -Wno-unused-function
 ccflags-y += -Wno-unused-variable
 ccflags-y += -Wno-declaration-after-statement
 
-amlcam-objs := $(DRV_SRC_OBJ)
+amlcam_auto-objs := $(DRV_SRC_OBJ)
 
 all:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M)  modules

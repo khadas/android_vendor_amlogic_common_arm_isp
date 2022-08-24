@@ -15,7 +15,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
-obj-m += imx290.o
+obj-m += imx290_auto.o
 
 M_PATH := $(shell dirname $(lastword $(MAKEFILE_LIST)))
 
@@ -25,7 +25,7 @@ M_DRV_SRC := $(DRV_SRC:$(M_PATH)/%=%)
 
 DRV_SRC_OBJ := $(M_DRV_SRC:.c=.o)
 
-imx290-objs += $(DRV_SRC_OBJ)
+imx290_auto-objs += $(DRV_SRC_OBJ)
 
 
 all:
