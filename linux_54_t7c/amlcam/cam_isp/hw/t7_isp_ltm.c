@@ -391,7 +391,8 @@ void isp_ltm_init(struct isp_dev_t *isp_dev)
 	isp_reg_update_bits(isp_dev, ISP_LTM_SHRP_CRTL, 32, 8, 6);
 	isp_reg_update_bits(isp_dev, ISP_LTM_SHRP_CRTL, 16, 16, 8);
 
-	isp_reg_update_bits(isp_dev, ISP_LTM_STAT_BIN, 16, 0, 7);
+	isp_reg_update_bits(isp_dev, ISP_LTM_STAT_BIN, 0, 0, 7);
+	isp_reg_update_bits(isp_dev, ISP_LTM_STAT_BIN, 16, 8, 7);
 	isp_reg_update_bits(isp_dev, ISP_LTM_FINAL_CTRL, 50, 24, 6);
 	isp_reg_update_bits(isp_dev, ISP_LTM_POW_CRTL, 32, 0, 6);
 	isp_reg_update_bits(isp_dev, ISP_LTM_POW_CRTL, 40, 8, 7);

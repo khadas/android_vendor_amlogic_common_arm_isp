@@ -151,19 +151,13 @@ u32 isp_top_irq_stat(struct isp_dev_t *isp_dev)
 void isp_top_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 {
 	u32 val = 0;
-	int isp_fmt = 0;
 	u32 raw_mode = 1;
 	int *raw_phslut = NULL;
 	int mono_phs[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-	int grbg_phs[] = {3,2,3,2,1,0,1,0,3,2,3,2,1,0,1,0};
-	int rggb_phs[] = {0,1,0,1,2,3,2,3,0,1,0,1,2,3,2,3};
-	int bggr_phs[] = {1,0,1,0,3,2,3,2,1,0,1,0,3,2,3,2};
-	int gbrg_phs[] = {2,3,2,3,0,1,0,1,2,3,2,3,0,1,0,1};
+	int grbg_phs[] = {0,1,0,1,2,3,2,3,0,1,0,1,2,3,2,3};
 	int irbg_phs[] = {4,1,4,1,2,3,2,3,4,1,4,1,2,3,2,3};
 	int grbi_phs[] = {0,1,0,1,2,4,2,4,0,1,0,1,2,4,2,4};
 	int grig_4x4_phs[] = {0,1,0,2,4,3,4,3,0,2,0,1,4,3,4,3};
-	int *bayer_phs[ISP_FMT_MAX] = {grbg_phs, rggb_phs,
-			bggr_phs, gbrg_phs, grig_4x4_phs};
 
 	val = ((fmt->width & 0xffff) << 16) | (fmt->height & 0xffff);
 	isp_reg_write(isp_dev, ISP_TOP_INPUT_SIZE, val);
@@ -181,9 +175,6 @@ void isp_top_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 			(raw_mode == 1) ? grbg_phs:
 			(raw_mode == 2) ? irbg_phs:
 			(raw_mode == 3) ? grbi_phs: grig_4x4_phs;
-
-	isp_fmt = isp_hw_convert_fmt(fmt);
-	raw_phslut = bayer_phs[isp_fmt];
 
 	val = raw_phslut[0] | (raw_phslut[1] << 4) |
 		(raw_phslut[2] << 8) | (raw_phslut[3] << 12) |

@@ -965,6 +965,10 @@ typedef struct aisp_dpc_cfg_s {
 	u32 dpc_avg_gain_l2[2];
 	u32 dpc_avg_gain_h2[2];
 	u32 dpc_cond_en[2];
+	u32 dpc_max_min_bias_thd[2];
+	u32 dpc_std_diff_gain[2];
+	u32 dpc_std_gain[2];
+	u32 dpc_avg_dev_offset[2];
 } aisp_dpc_cfg_t;
 
 typedef struct aisp_tnr_cfg_s {

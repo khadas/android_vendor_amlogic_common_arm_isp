@@ -35,6 +35,14 @@ static void dpc_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	val = dpc_cfg->dpc_cond_en[0];
 	isp_reg_update_bits(isp_dev, ISP_DPC0_VAR_THD, val, 24, 8);
 
+	val = (dpc_cfg->dpc_max_min_bias_thd[0]) |
+		(dpc_cfg->dpc_std_diff_gain[0] << 8) |
+		(dpc_cfg->dpc_std_gain[0] << 20);
+	isp_reg_write(isp_dev, ISP_DPC0_STD_GAIN, val);
+
+	val = dpc_cfg->dpc_avg_dev_offset[0];
+	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_DEV, val, 16, 8);
+
 	val = (dpc_cfg->dpc_avg_gain_h0[1] << 16) | (dpc_cfg->dpc_avg_gain_l0[1] << 0);
 	isp_reg_write(isp_dev, ISP_DPC1_AVG_GAIN0, val);
 
@@ -46,6 +54,14 @@ static void dpc_cfg_param(struct isp_dev_t *isp_dev, void *param)
 
 	val = dpc_cfg->dpc_cond_en[1];
 	isp_reg_update_bits(isp_dev, ISP_DPC1_VAR_THD, val, 24, 8);
+
+	val = (dpc_cfg->dpc_max_min_bias_thd[1]) |
+		(dpc_cfg->dpc_std_diff_gain[1] << 8) |
+		(dpc_cfg->dpc_std_gain[1] << 20);
+	isp_reg_write(isp_dev, ISP_DPC1_STD_GAIN, val);
+
+	val = dpc_cfg->dpc_avg_dev_offset[1];
+	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_DEV, val, 16, 8);
 }
 
 void isp_dpc_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
@@ -99,8 +115,8 @@ void isp_dpc_init(struct isp_dev_t *isp_dev)
 	val = (332 << 16) | (196 << 0);
 	isp_reg_write(isp_dev, ISP_DPC0_AVG_GAIN2, val);
 
-	isp_reg_update_bits(isp_dev, ISP_DPC0_STD_GAIN, 55, 0, 8);
-	isp_reg_update_bits(isp_dev, ISP_DPC0_STD_GAIN, 22, 8, 5);
+	//isp_reg_update_bits(isp_dev, ISP_DPC0_STD_GAIN, 55, 0, 8);
+	//isp_reg_update_bits(isp_dev, ISP_DPC0_STD_GAIN, 22, 8, 5);
 
 	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_MOD, 40, 0, 8);
 	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_MOD, 0, 8, 2);
@@ -108,7 +124,7 @@ void isp_dpc_init(struct isp_dev_t *isp_dev)
 
 	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_DEV, 2, 28, 2);
 	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_DEV, 1, 24, 1);
-	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_DEV, 0, 16, 8);
+	//isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_DEV, 0, 16, 8);
 	isp_reg_update_bits(isp_dev, ISP_DPC0_AVG_DEV, 4095, 0, 12);
 
 	val = (33 << 16) | (2129 << 0);
@@ -140,8 +156,8 @@ void isp_dpc_init(struct isp_dev_t *isp_dev)
 	val = (332 << 16) | (196 << 0);
 	isp_reg_write(isp_dev, ISP_DPC1_AVG_GAIN2, val);
 
-	isp_reg_update_bits(isp_dev, ISP_DPC1_STD_GAIN, 55, 0, 8);
-	isp_reg_update_bits(isp_dev, ISP_DPC1_STD_GAIN, 22, 8, 5);
+	//isp_reg_update_bits(isp_dev, ISP_DPC1_STD_GAIN, 55, 0, 8);
+	//isp_reg_update_bits(isp_dev, ISP_DPC1_STD_GAIN, 22, 8, 5);
 
 	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_MOD, 40, 0, 8);
 	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_MOD, 0, 8, 2);
@@ -149,7 +165,7 @@ void isp_dpc_init(struct isp_dev_t *isp_dev)
 
 	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_DEV, 2, 28, 2);
 	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_DEV, 1, 24, 1);
-	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_DEV, 0, 16, 8);
+	//isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_DEV, 0, 16, 8);
 	isp_reg_update_bits(isp_dev, ISP_DPC1_AVG_DEV, 4095, 0, 12);
 
 	val = (33 << 16) | (2129 << 0);
