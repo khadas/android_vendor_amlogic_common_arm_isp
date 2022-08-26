@@ -663,7 +663,7 @@ void isp_post_pg2_ctrst_init(struct isp_dev_t *isp_dev)
 	isp_reg_write(isp_dev, ISP_CNTRST_PK_CLR_PRCT_LUT_13, val);
 	isp_reg_write(isp_dev, ISP_CNTRST_PK_CLR_PRCT_GAIN, 128);
 
-	isp_reg_update_bits(isp_dev, ISP_CNTRST_SAT_PRT_CRTL, 1, 0, 1);
+	isp_reg_update_bits(isp_dev, ISP_CNTRST_SAT_PRT_CRTL, 0, 0, 1);
 	isp_reg_write(isp_dev, ISP_CNTRST_SAT_PRT_LMT_0_1, (4095 << 16) | 4095);
 	isp_reg_write(isp_dev, ISP_CNTRST_SAT_PRT_LMT_2, 4095);
 
