@@ -18,6 +18,7 @@
 */
 #include "aml_isp_ctrls.h"
 #include "aml_isp.h"
+#include <linux/delay.h>
 
 #define AML_ISP_VIDEO_NAME	"aml-cap%d"
 
@@ -357,6 +358,7 @@ static void isp_cap_flush_buffer(void *video)
 	vd->b_current = NULL;
 
 	spin_unlock_irqrestore(&vd->buff_list_lock, flags);
+	mdelay(33);
 }
 
 static const struct aml_cap_ops isp_cap_ops = {

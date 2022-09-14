@@ -155,6 +155,7 @@ static int adap_alloc_raw_buffs(struct adapter_dev_t *a_dev)
 		fsize = param->width * param->height * 10 / 8;
 	break;
 	}
+	fsize = ISP_SIZE_ALIGN(fsize, 1 << 12);
 
 	fcnt = sizeof(param->ddr_buf) /sizeof(param->ddr_buf[0]);
 

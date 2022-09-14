@@ -15,6 +15,7 @@
 *
 */
 #include "aml_isp_hw.h"
+#include "aml_isp_reg.h"
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
@@ -27,7 +28,7 @@ u32 isp_reg_read(struct isp_dev_t *isp_dev, u32 addr)
 	if (isp_dev->apb_dma == 0)
 		val = isp_hwreg_read(isp_dev, addr);
 	else if (isp_dev->apb_dma == 1)
-		val = rregs[addr >> 2].val;
+		val = rregs[(addr - ISP_BASE) >> 2].val;
 
 	return val;
 }
@@ -43,7 +44,7 @@ void isp_reg_write(struct isp_dev_t *isp_dev, u32 addr, u32 val)
 	} else if (isp_dev->apb_dma == 1) {
 		spin_lock_irqsave(&isp_dev->wreg_lock, flags);
 
-		rregs[addr >> 2].val = val;
+		rregs[(addr - ISP_BASE) >> 2].val = val;
 
 		wregs[isp_dev->wreg_cnt].addr = isp_dev->phy_base + addr;
 		wregs[isp_dev->wreg_cnt].val = val;

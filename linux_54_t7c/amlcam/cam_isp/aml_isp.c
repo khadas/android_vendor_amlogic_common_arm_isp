@@ -72,7 +72,7 @@ static int isp_subdrv_reg_buf_alloc(struct isp_dev_t *isp_dev)
 	isp_dev->rreg_buff.addr[AML_PLANE_A] = paddr + wsize;
 	isp_dev->rreg_buff.vaddr[AML_PLANE_A] = virtaddr + wsize;
 
-	pr_debug("reg alloc\n");
+	pr_debug("reg alloc start %x, end %x\n", paddr, paddr+bsize);
 
 	return 0;
 }
@@ -89,6 +89,7 @@ static int isp_subdrv_reg_buf_free(struct isp_dev_t *isp_dev)
 
 	if (vaddr)
 		dma_free_coherent(isp_dev->dev, bsize, vaddr, (dma_addr_t)paddr);
+	pr_debug("reg free start %x, end %x\n", paddr, paddr + bsize);
 
 	isp_dev->wreg_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->wreg_buff.vaddr[AML_PLANE_A] = NULL;
@@ -96,7 +97,6 @@ static int isp_subdrv_reg_buf_free(struct isp_dev_t *isp_dev)
 	isp_dev->rreg_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->rreg_buff.vaddr[AML_PLANE_A] = NULL;
 
-	pr_debug("reg free\n");
 
 	return 0;
 }
@@ -115,6 +115,7 @@ static int isp_subdev_ptnr_buf_alloc(struct isp_dev_t *isp_dev, struct aml_forma
 	stride = (width * 10 + 127) >> 7;
 
 	bsize = (128 >> 3) * stride * height;
+	bsize = ISP_SIZE_ALIGN(bsize, 1 << 12);
 
 	rtn = aml_subdev_cma_alloc(isp_dev->pdev, &paddr, virtaddr, bsize);
 	if (rtn != 0) {
@@ -129,7 +130,7 @@ static int isp_subdev_ptnr_buf_alloc(struct isp_dev_t *isp_dev, struct aml_forma
 
 	isp_dev->ops->hw_cfg_ptnr_mif_buf(isp_dev, &isp_dev->ptnr_buff);
 
-	pr_info("ptnr alloc\n");
+	pr_debug("ptnr alloc paddr start %x, end %x\n", paddr, paddr+bsize);
 
 	return 0;
 }
@@ -147,10 +148,11 @@ static int isp_subdev_ptnr_buf_free(struct isp_dev_t *isp_dev)
 
 	aml_subdev_unmap_vaddr(isp_dev->ptnr_buff.vaddr[AML_PLANE_A]);
 
+	pr_debug("ptnr free start %x, end %x\n", paddr, paddr + isp_dev->ptnr_buff.bsize);
+
 	isp_dev->ptnr_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->ptnr_buff.vaddr[AML_PLANE_A] = NULL;
 
-	pr_info("ptnr free\n");
 
 	return 0;
 }
@@ -220,7 +222,7 @@ static int isp_subdev_mcnr_buf_alloc(struct isp_dev_t *isp_dev, struct aml_forma
 
 	isp_dev->ops->hw_cfg_mcnr_mif_buf(isp_dev, fmt, &isp_dev->mcnr_buff);
 
-	pr_debug("mcnr alloc %x, %p, %x\n", paddr, isp_dev->mcnr_buff.vaddr[AML_PLANE_A], bsize);
+	pr_debug("mcnr alloc start %x, end %x\n", paddr, paddr+bsize);
 
 	return 0;
 }
@@ -241,7 +243,7 @@ static int isp_subdev_mcnr_buf_free(struct isp_dev_t *isp_dev)
 	isp_dev->mcnr_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->mcnr_buff.vaddr[AML_PLANE_A] = NULL;
 
-	pr_info("mcnr free\n");
+	pr_debug("mcnr free start %x, end %x\n", paddr, paddr+isp_dev->mcnr_buff.bsize);
 
 	return 0;
 }

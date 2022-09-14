@@ -372,6 +372,7 @@ static int video_buff_init(struct vb2_buffer *vb)
 	buff->addr[AML_PLANE_A] = *((u32 *)vb2_plane_cookie(vb, 0));
 	buff->vaddr[AML_PLANE_A] = vb2_plane_vaddr(vb, 0);
 	buff->nplanes = video->afmt.nplanes;
+	buff->bsize = pix->width * pix->height * video->afmt.bpp / 8;
 
 	if (buff->nplanes > 1) {
 		if (pix->pixelformat == V4L2_PIX_FMT_NV12 ||
@@ -383,6 +384,7 @@ static int video_buff_init(struct vb2_buffer *vb)
 			p_size = pix->width * pix->height * video->afmt.bpp / 8;
 
 		buff->addr[AML_PLANE_B] = buff->addr[AML_PLANE_A] + p_size;
+		buff->bsize = pix->width * pix->height * 12 / 8;
 	}
 
 	return 0;
@@ -481,6 +483,27 @@ static void video_stop_streaming(struct vb2_queue *queue)
 
 	media_pipeline_stop(entity);
 
+	while (1) {
+		pad = &entity->pads[0];
+		pad = media_entity_remote_pad(pad);
+		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
+			break;
+
+		if (pad->flags & MEDIA_PAD_FL_SINK)
+			break;
+
+		entity = pad->entity;
+		if (entity->stream_count)
+			continue;
+
+		subdev = media_entity_to_v4l2_subdev(entity);
+	}
+
+	if (subdev && video)
+		v4l2_subdev_call(subdev, video, s_stream, 0);
+
+	msleep(100);
+	entity = &video->vdev.entity;
 	while (1) {
 		pad = &entity->pads[0];
 		pad = media_entity_remote_pad(pad);

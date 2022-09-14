@@ -2692,6 +2692,7 @@
 #define ISP_LOSSD_MIX_RO_BIT_LEN_H_3         ((0x22b7 << 2) + ISP_BASE)
 #define ISP_LOSSD_MIX_RO_BIT_LEN_L_3         ((0x22b8 << 2) + ISP_BASE)
 #else
+#define ISP_BASE                 0
 #define ISP_TOP_INPUT_SIZE       (0x0 << 2)
 #define ISP_TOP_FRM_SIZE         (0x1 << 2)
 #define ISP_TOP_HOLD_SIZE        (0x2 << 2)

@@ -70,13 +70,13 @@ void isp_apb_dma_manual_trigger(struct isp_dev_t *isp_dev)
 void isp_apb_dma_fill_rreg_buff(struct isp_dev_t *isp_dev)
 {
 	u32 i = 0;
-	u32 base_reg = (ISP_TOP_INPUT_SIZE >> 2);
-	u32 max_reg = (ISP_LOSSD_MIX_RO_BIT_LEN_L_3 >> 2);
+	u32 base_reg = ((ISP_TOP_INPUT_SIZE - ISP_BASE) >> 2);
+	u32 max_reg = ((ISP_LOSSD_MIX_RO_BIT_LEN_L_3 - ISP_BASE) >> 2);
 	struct aml_reg *rreg = isp_dev->rreg_buff.vaddr[AML_PLANE_A];
 
 	for (i = base_reg; i <= max_reg; i++) {
 		rreg[i].addr = i;
-		rreg[i].val = isp_hwreg_read(isp_dev, i << 2);
+		rreg[i].val = isp_hwreg_read(isp_dev, ((i << 2) + ISP_BASE));
 	}
 }
 
