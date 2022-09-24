@@ -644,7 +644,7 @@ static int imx415_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_HBLANK:
 		break;
-	case V4L2_CID_AML_WDR:
+	case V4L2_CID_AML_MODE:
 		imx415->enWDRMode = ctrl->val;
 		break;
 	default:
@@ -1003,6 +1003,7 @@ int imx415_sbdev_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
 
 int imx415_sbdev_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
 	struct imx415 *imx415 = to_imx415(sd);
+	imx415_stop_streaming(imx415);
 	imx415_power_off(imx415);
 	return 0;
 }
@@ -1045,7 +1046,7 @@ static const struct media_entity_operations imx415_subdev_entity_ops = {
 
 static struct v4l2_ctrl_config wdr_cfg = {
 	.ops = &imx415_ctrl_ops,
-	.id = V4L2_CID_AML_WDR,
+	.id = V4L2_CID_AML_MODE,
 	.name = "wdr mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,

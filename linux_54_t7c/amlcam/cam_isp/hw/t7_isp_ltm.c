@@ -37,6 +37,8 @@ static void ltm_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, LTM_LUT_CFG);
+
 	isp_reg_write(isp_dev, ISP_LTM_STA_THD_ADDR, 0);
 	for (i = 0; i < 79; i++) {
 		val = lut_cfg->ltm_histxptsbuf_blk[i];
@@ -66,6 +68,8 @@ static void ltm_cfg_base(struct isp_dev_t *isp_dev, void *base)
 			(lut_cfg->ltm_ccalp_lut[i * 8 + 7] << 28);
 		isp_reg_write(isp_dev, ISP_LTM_CCALP_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void ltm_cfg_param(struct isp_dev_t *isp_dev, void *ltm)
@@ -100,6 +104,8 @@ static void ltm_cfg_enhc(struct isp_dev_t *isp_dev, void *enhc)
 	u32 val = 0;
 	aisp_ltm_enhc_cfg_t *e_cfg = enhc;
 
+	isp_hw_lut_wstart(isp_dev, LTM_ENHC_LUT_CFG);
+
 	//isp_reg_update_bits(isp_dev, ISP_TOP_BEO_CTRL, e_cfg->ltm_en & 0x1, 1, 1);
 	isp_reg_update_bits(isp_dev, ISP_LTM_FLT_CTRL, e_cfg->ltm_cc_en & 0x1, 28, 1);
 	isp_reg_update_bits(isp_dev, ISP_LTM_SHRP_CRTL, e_cfg->ltm_dtl_ehn_en & 0x1, 0, 1);
@@ -115,6 +121,8 @@ static void ltm_cfg_enhc(struct isp_dev_t *isp_dev, void *enhc)
 	}
 	val = e_cfg->ltm_satur_lut[62];
 	isp_reg_write(isp_dev, ISP_LTM_CCRAT_DATA, val);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 void isp_ltm_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
@@ -243,9 +251,17 @@ void isp_ltm_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
 	hsize = param->whole_frame_hcenter * 2;
 
 	if (param->pos == 0) {
+		isp_hwreg_update_bits(isp_dev, ISP_LTM_GLBWIN_H, 0, 0, 16);
+
+		val = param->left_hsize - param->left_ovlp;
+		isp_hwreg_update_bits(isp_dev, ISP_LTM_GLBWIN_H, val, 16, 16);
+
 		for (i = 0; i < LTM_STA_LEN_H; i++) {
 			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			slice_size = param->pleft_hsize - param->pleft_ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4;
+			slice_size = (param->pleft_hsize) +
+				hsize / (LTM_STA_LEN_H-1) -
+				(param->pleft_ovlp) +
+				(i - (LTM_STA_LEN_H - 1) / 2 - 1) * 4;
 			hidx = MIN(MAX(hidx, 0), slice_size);
 
 			addr = ISP_LTM_STA_HIDX_0_1 + (i /2 * 4);
@@ -255,9 +271,14 @@ void isp_ltm_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
 		slice_size = param->pright_hsize;
 		ovlp = param->pright_ovlp;
 
+		isp_hwreg_update_bits(isp_dev, ISP_LTM_GLBWIN_H, ovlp, 0, 16);
+		isp_hwreg_update_bits(isp_dev, ISP_LTM_GLBWIN_H, slice_size, 16, 16);
+
 		for (i = 0; i < LTM_STA_LEN_H; i++) {
 			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size);
+			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size,
+				(ovlp -hsize /(LTM_STA_LEN_H - 1) +
+				(i - (LTM_STA_LEN_H - 1) / 2 + 1) * 4)), slice_size);
 
 			addr = ISP_LTM_STA_HIDX_0_1 + (i /2 * 4);
 			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);

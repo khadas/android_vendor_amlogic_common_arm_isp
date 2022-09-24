@@ -69,6 +69,8 @@ enum {
 	WDR_MODE_NONE,
 	WDR_MODE_2To1_LINE,
 	WDR_MODE_2To1_FRAME,
+	SDR_DDR_MODE,
+	ISP_SDR_DCAM_MODE,
 };
 
 struct aml_format {
@@ -103,12 +105,13 @@ struct aml_dbuffer {
 
 struct aml_buffer {
 	struct vb2_v4l2_buffer vb;
+	u32 nplanes;
+	u32 bsize;
+	u32 devno;
 	void *vaddr[AML_PLANE_MAX];
 	dma_addr_t addr[AML_PLANE_MAX];
 	struct aml_dbuffer dbuffer;
 	struct list_head list;
-	u32 nplanes;
-	u32 bsize;
 };
 
 struct aml_control {

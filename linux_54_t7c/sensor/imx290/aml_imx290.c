@@ -384,7 +384,7 @@ static const struct imx290_regval imx290_1080p_settings[] = {
 	{ 0x3414, 0x0a },
 	{ 0x3472, 0x80 },
 	{ 0x3473, 0x07 },
-	{ 0x3418, 0x58 },// vmax
+	{ 0x3418, 0x38 },// vmax
 	{ 0x3419, 0x04 },// vmax
 	{ 0x3012, 0x64 },
 	{ 0x3013, 0x00 },
@@ -743,7 +743,7 @@ static int imx290_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_HBLANK:
 		break;
-	case V4L2_CID_AML_WDR:
+	case V4L2_CID_AML_MODE:
 		imx290->enWDRMode = ctrl->val;
 		break;
 	default:
@@ -1146,6 +1146,7 @@ int imx290_sbdev_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
 }
 int imx290_sbdev_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
 	struct imx290 *imx290 = to_imx290(sd);
+	imx290_stop_streaming(imx290);
 	imx290_power_off(imx290);
 	return 0;
 }
@@ -1188,7 +1189,7 @@ static const struct media_entity_operations imx290_subdev_entity_ops = {
 
 static struct v4l2_ctrl_config wdr_cfg = {
 	.ops = &imx290_ctrl_ops,
-	.id = V4L2_CID_AML_WDR,
+	.id = V4L2_CID_AML_MODE,
 	.name = "wdr mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,

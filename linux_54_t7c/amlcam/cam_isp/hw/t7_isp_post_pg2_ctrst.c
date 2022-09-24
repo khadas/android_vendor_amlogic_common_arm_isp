@@ -37,6 +37,8 @@ static void post_pg2_ctrst_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_setting_fixed_cfg_t *fixed_cfg = &base_cfg->fxset_cfg;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, PST_PG2_CTRST_LUT_CFG);
+
 	isp_reg_update_bits(isp_dev, ISP_LC_CURVE_CTRL, fixed_cfg->curve_lc_en, 0, 1);
 	isp_reg_update_bits(isp_dev, ISP_LC_CURVE_CTRL, fixed_cfg->curve_dhz_en, 1, 1);
 
@@ -88,6 +90,8 @@ static void post_pg2_ctrst_cfg_base(struct isp_dev_t *isp_dev, void *base)
 		isp_reg_write(isp_dev, ISP_LC_MAP_RAM_DATA, val);
 	}
 	isp_reg_write(isp_dev, ISP_LC_MAP_RAM_CTRL, 0);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_pg2_ctrst_cfg_lc(struct isp_dev_t *isp_dev, void *lc)
@@ -96,8 +100,10 @@ static void post_pg2_ctrst_cfg_lc(struct isp_dev_t *isp_dev, void *lc)
 	u32 val = 0;
 	aisp_lc_cfg_t *l_cfg = lc;
 
+	isp_hw_lut_wstart(isp_dev, PST_PG2_CTRST_LC_LUT_CFG);
+
 	val = l_cfg->lc_histvld_thrd;
-	isp_reg_write(isp_dev, ISP_LC_MAP_RAM_CTRL, val);
+	isp_reg_write(isp_dev, ISP_LC_CURVE_HISTVLD_THRD, val);
 
 	val = l_cfg->lc_blackbar_mute_thrd;
 	isp_reg_write(isp_dev, ISP_LC_CURVE_BB_MUTE_THRD, val);
@@ -125,6 +131,8 @@ static void post_pg2_ctrst_cfg_lc(struct isp_dev_t *isp_dev, void *lc)
 		isp_reg_write(isp_dev, ISP_LC_MAP_RAM_DATA, val);
 	}
 	isp_reg_write(isp_dev, ISP_LC_MAP_RAM_CTRL, 0);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_pg2_ctrst_cfg_lc_enhc(struct isp_dev_t *isp_dev, void *lc_enhc)
@@ -132,6 +140,8 @@ static void post_pg2_ctrst_cfg_lc_enhc(struct isp_dev_t *isp_dev, void *lc_enhc)
 	int i = 0;
 	u32 val = 0;
 	aisp_lc_enhc_cfg_t *enhc = lc_enhc;
+
+	isp_hw_lut_wstart(isp_dev, PST_PG2_CTRST_LC_ENHC_LUT_CFG);
 
 	//isp_reg_update_bits(isp_dev, ISP_TOP_BED_CTRL, enhc->lc_en & 0x1, 8, 1);
 	isp_reg_update_bits(isp_dev, ISP_LC_TOP_CTRL, enhc->lc_cc_en & 0x1, 0, 1);
@@ -161,6 +171,8 @@ static void post_pg2_ctrst_cfg_lc_enhc(struct isp_dev_t *isp_dev, void *lc_enhc)
 	}
 	val = enhc->lc_satur_lut[62];
 	isp_reg_write(isp_dev, ISP_LC_SAT_LUT_DATA, val);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_pg2_ctrst_lc_stats(struct isp_dev_t *isp_dev, void *lc)
@@ -328,6 +340,8 @@ static void post_pg2_ctrst_cfg_dhz(struct isp_dev_t *isp_dev, void *dhz)
 	u32 val = 0;
 	aisp_dhz_cfg_t *d_cfg = dhz;
 
+	isp_hw_lut_wstart(isp_dev, PST_PG2_CTRST_DHZ_LUT_CFG);
+
 	isp_reg_write(isp_dev, ISP_LC_MAP_RAM_CTRL, 1);
 	isp_reg_write(isp_dev, ISP_LC_MAP_RAM_ADDR, 1 << 7);
 	for (i = 0; i < 96; i++) {
@@ -356,6 +370,8 @@ static void post_pg2_ctrst_cfg_dhz(struct isp_dev_t *isp_dev, void *dhz)
 
 	val = d_cfg->dhz_satura_ratio_sky;
 	isp_reg_update_bits(isp_dev, ISP_LC_DHZ_SKY_TRANS_COEF, val, 24, 8);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_pg2_ctrst_dhz_stats(struct isp_dev_t *isp_dev, void *dhz)
@@ -392,6 +408,8 @@ static void post_pg2_ctrst_cfg_dhz_enhc(struct isp_dev_t *isp_dev, void *enhc)
 	u32 val = 0;
 	aisp_dhz_enhc_cfg_t *e_cfg = enhc;
 
+	isp_hw_lut_wstart(isp_dev, PST_PG2_CTRST_DHZ_ENHC_LUT_CFG);
+
 	//isp_reg_update_bits(isp_dev, ISP_TOP_BED_CTRL, e_cfg->dhz_en & 0x1, 7, 1);
 	isp_reg_update_bits(isp_dev, ISP_DHZ_CURVE_RAT, e_cfg->dhz_dlt_rat & 0x7fff, 0, 15);
 
@@ -411,6 +429,8 @@ static void post_pg2_ctrst_cfg_dhz_enhc(struct isp_dev_t *isp_dev, void *enhc)
 			(e_cfg->dhz_sky_prot_lut[i * 2 + 1] << 16);
 		isp_reg_write(isp_dev, ISP_LC_DHZ_SKY_PROT_LUT_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_pg2_ctrst_dhz_info(struct isp_dev_t *isp_dev, void *info)
@@ -539,7 +559,10 @@ void isp_post_pg2_ctrst_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *p
 	if (param->pos == 0) {
 		for (i = 0; i < LTM_STA_LEN_H; i++) {
 			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			slice_size = param->pleft_hsize - param->pleft_ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4;
+			slice_size = (param->pleft_hsize) +
+				hsize / (LTM_STA_LEN_H - 1) -
+				(param->pleft_ovlp) +
+				(i - (LTM_STA_LEN_H - 1) / 2 - 1) * 4;
 			hidx = MIN(MAX(hidx, 0), slice_size);
 
 			addr = ISP_LC_CURVE_BLK_HIDX_0 + (i /2 * 4);
@@ -551,7 +574,10 @@ void isp_post_pg2_ctrst_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *p
 
 		for (i = 0; i < LTM_STA_LEN_H; i++) {
 			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size);
+			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size,
+					(ovlp -hsize /(LTM_STA_LEN_H - 1) +
+					(i - (LTM_STA_LEN_H - 1) / 2 + 1) * 4)),
+					slice_size);
 
 			addr = ISP_LC_CURVE_BLK_HIDX_0 + (i /2 * 4);
 			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);

@@ -143,6 +143,8 @@ static void lswb_eotf_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_setting_fixed_cfg_t *fixed_cfg = &base_cfg->fxset_cfg;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, LSWB_EOTF_LUT_CFG);
+
 	isp_reg_update_bits(isp_dev, ISP_LSWB_EOTF_PARAM, fixed_cfg->eotf1_mode, 0, 1);
 
 	isp_reg_write(isp_dev, ISP_LNS_EOTF0_LUT_ADDR, 0);
@@ -154,6 +156,8 @@ static void lswb_eotf_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	for (i = 0; i < ISP_ARRAY_SIZE(lut_cfg->eotf1_lut); i++) {
 		isp_reg_write(isp_dev, ISP_LNS_EOTF1_LUT_DATA, lut_cfg->eotf1_lut[i]);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void lswb_eotf_cfg_ofst(struct isp_dev_t *isp_dev, void *blc)
@@ -270,6 +274,8 @@ static void lswb_rad_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, LSWB_RAD_LUT_CFG);
+
 	isp_reg_write(isp_dev, ISP_LNS_RAD_LUT_ADDR, 0);
 	for (j = 0; j < 4; j++) {
 		for (i = 0; i < 64; i++) {
@@ -284,6 +290,8 @@ static void lswb_rad_cfg_base(struct isp_dev_t *isp_dev, void *base)
 		val = lut_cfg->lns_rad_lut129[idx0];
 		isp_reg_write(isp_dev, ISP_LNS_RAD_LUT_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void lswb_rad_cfg_strength(struct isp_dev_t *isp_dev, void *lns)
@@ -361,6 +369,8 @@ static void lswb_mesh_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, LSWB_MESH_LUT_CFG);
+
 	cnt = ISP_ARRAY_SIZE(lut_cfg->lns_mesh_lut) / 4;
 
 	isp_reg_write(isp_dev, ISP_LNS_MESH_LUT_ADDR, 0);
@@ -372,6 +382,8 @@ static void lswb_mesh_cfg_base(struct isp_dev_t *isp_dev, void *base)
 
 		isp_reg_write(isp_dev, ISP_LNS_MESH_LUT_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void lswb_mesh_cfg_strength(struct isp_dev_t *isp_dev, void *lns)
@@ -387,6 +399,8 @@ static void lswb_mesh_cfg_crt(struct isp_dev_t *isp_dev, void *crt)
 {
 	u32 val = 0, i = 0;
 	aisp_mesh_crt_cfg_t *crt_cfg = crt;
+
+	isp_hw_lut_wstart(isp_dev, LSWB_MESH_CRT_LUT_CFG);
 
 	val = (crt_cfg->lns_mesh_alp[0] << 24) |
 		(crt_cfg->lns_mesh_alp[1] << 16) |
@@ -405,6 +419,8 @@ static void lswb_mesh_cfg_crt(struct isp_dev_t *isp_dev, void *crt)
 
 	val = crt_cfg->rad_lut65[64];
 	isp_reg_write(isp_dev, ISP_CUBIC_LUT65_DATA, val);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 void isp_lens_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
@@ -473,13 +489,38 @@ void isp_lens_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 void isp_lens_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
 {
 	u32 val = 0;
+	u32 hsize, vsize;
+	u32 hnum, vnum;
+
+	hsize = param->whole_frame_hcenter * 2;
+
+	val = isp_hwreg_read(isp_dev, ISP_CROP_SIZE);
+	vsize = val & 0xffff;
+
+	val = isp_reg_read(isp_dev, ISP_LSWB_MS_NUM);
+	hnum = (val >> 16) & 0x7f;
+	vnum = val & 0x7f;
+
+	val = (hnum - 1) * 4096 * 1024 / MAX(hsize, 256);
+	isp_hwreg_update_bits(isp_dev, ISP_LSWB_MS_XSCALE, val, 0, 20);
+
+	val = (vnum - 1) * 4096 * 1024 / MAX(vsize, 256);
+	isp_hwreg_update_bits(isp_dev, ISP_LSWB_MS_YSCALE, val, 0, 20);
 
 	if (param->pos == 0) {
 		val = param->pleft_hsize - param->pleft_ovlp;
 		isp_hwreg_update_bits(isp_dev, ISP_LSWB_RS_CENTER, val, 16, 16);
+		isp_hwreg_update_bits(isp_dev, ISP_CUBIC_RAD_CENTER, val, 16, 16);
+		isp_hwreg_update_bits(isp_dev, ISP_LSWB_MS_XSHIFT, 0, 0, 18);
 	} else if (param->pos == 1) {
 		val = param->pright_ovlp;
 		isp_hwreg_update_bits(isp_dev, ISP_LSWB_RS_CENTER, val, 16, 16);
+		isp_hwreg_update_bits(isp_dev, ISP_CUBIC_RAD_CENTER, val, 16, 16);
+
+		val = isp_reg_read(isp_dev, ISP_LSWB_MS_NUM);
+		val = (val >> 16) & 0x7f;
+		val = ((val - 1) << 12) / 2;
+		isp_hwreg_update_bits(isp_dev, ISP_LSWB_MS_XSHIFT, val, 0, 18);
 	}
 }
 

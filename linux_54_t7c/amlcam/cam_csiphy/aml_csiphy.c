@@ -83,8 +83,9 @@ static int csiphy_of_parse_ports(struct csiphy_dev_t *csiphy_dev)
 	struct v4l2_async_subdev *asd = NULL;
 	struct v4l2_async_notifier *notifier = csiphy_dev->notifier;
 	struct device *dev = csiphy_dev->dev;
+#ifdef SENSOR_SEARCH
 	struct device *sensor_dev = NULL;
-
+#endif
 	v4l2_async_notifier_init(notifier);
 
 	for_each_endpoint_of_node(dev->of_node, node) {
@@ -98,11 +99,13 @@ static int csiphy_of_parse_ports(struct csiphy_dev_t *csiphy_dev)
 			return -EINVAL;
 		}
 
+#ifdef SENSOR_SEARCH
 		sensor_dev = of_fwnode_handle(remote)->dev;
 		if ( sensor_dev->driver && strstr(node->name, sensor_dev->driver->name) ) {
 			dev_err(dev, "subdev driver name %s \n", sensor_dev->driver->name);
 		} else
 			continue;
+#endif
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 		asd = v4l2_async_notifier_add_fwnode_subdev(notifier,
 				of_fwnode_handle(remote),
@@ -125,8 +128,10 @@ static int csiphy_of_parse_ports(struct csiphy_dev_t *csiphy_dev)
 			of_node_put(node);
 			return rtn;
 		}
+#ifdef SENSOR_SEARCH
 		of_node_put(node);
 		return rtn;//only one sensor supported
+#endif
 	}
 
 	of_node_put(node);

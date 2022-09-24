@@ -259,6 +259,8 @@ static void ofe_decmp_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, OFE_DECMPR_LUT_CFG);
+
 	isp_reg_write(isp_dev, ISP_DECOMP_CTRL, 0x1);
 
 	isp_reg_write(isp_dev, ISP_OFE_DECMP0_LUT_ADDR, 0);
@@ -271,6 +273,7 @@ static void ofe_decmp_cfg_base(struct isp_dev_t *isp_dev, void *base)
 		isp_reg_write(isp_dev, ISP_OFE_DECMP1_LUT_DATA, lut_cfg->decmp1_lut[i]);
 	}
 
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void ofe_bac_cfg_base(struct isp_dev_t *isp_dev, void *base)
@@ -296,6 +299,8 @@ static void ofe_fpnr_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 	u32 *lut00, *lut01, *lut02, *lut03, *lut04;
 	u32 *lut10, *lut11, *lut12, *lut13, *lut14;
+
+	isp_hw_lut_wstart(isp_dev, OFE_FPNR_LUT_CFG);
 
 	lut00 = &lut_cfg->fpnr_corr_val[0][0];
 	lut01 = &lut_cfg->fpnr_corr_val[0][2048];
@@ -339,6 +344,8 @@ static void ofe_fpnr_cfg_base(struct isp_dev_t *isp_dev, void *base)
 		val = lut14[i];
 		isp_reg_write(isp_dev, ISP_FPNR1_LUT_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 void isp_ofe_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)
@@ -387,13 +394,13 @@ void isp_ofe_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 	u32 ysize = fmt->height;
 
 	val = (fmt->xstart << 16) | (fmt->ystart << 0);
-	isp_hwreg_write(isp_dev, ISP_CROP_START, val);
+	isp_reg_write(isp_dev, ISP_CROP_START, val);
 
 	val = (xsize << 16) | (ysize & 0xffff);
-	isp_hwreg_write(isp_dev, ISP_CROP_SIZE, val);
+	isp_reg_write(isp_dev, ISP_CROP_SIZE, val);
 
-	isp_hwreg_update_bits(isp_dev, ISP_BIN_BAC_CTRL, 0, 16, 2);
-	isp_hwreg_update_bits(isp_dev, ISP_INPFMT_SPLT, 0, 4, 2);
+	isp_reg_update_bits(isp_dev, ISP_BIN_BAC_CTRL, 0, 16, 2);
+	isp_reg_update_bits(isp_dev, ISP_INPFMT_SPLT, 0, 4, 2);
 }
 
 void isp_ofe_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff)

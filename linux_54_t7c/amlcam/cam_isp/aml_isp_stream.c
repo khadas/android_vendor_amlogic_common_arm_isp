@@ -18,7 +18,6 @@
 */
 #include "aml_isp_ctrls.h"
 #include "aml_isp.h"
-#include <linux/delay.h>
 
 #define AML_ISP_VIDEO_NAME	"aml-cap%d"
 
@@ -41,6 +40,7 @@ static const struct aml_format img_support_format[] = {
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_NV21, 2, 12},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_GREY, 1, 8},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_RGB24, 1, 24},
+	{0, 0, 0, 0, 0, V4L2_PIX_FMT_YUYV, 1, 16},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SBGGR8,  1, 8},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SBGGR10, 1, 16},
 	{0, 0, 0, 0, 0, V4L2_PIX_FMT_SBGGR12, 1, 16},
@@ -141,6 +141,7 @@ static int isp_cap_irq_handler(void *video, int status)
 	struct aml_buffer *b_current = vd->b_current;
 	struct isp_dev_t *isp_dev = vd->priv;
 	const struct isp_dev_ops *ops = isp_dev->ops;
+	struct aml_buffer *t_current = NULL;
 
 	spin_lock_irqsave(&vd->buff_list_lock, flags);
 
@@ -151,9 +152,17 @@ static int isp_cap_irq_handler(void *video, int status)
 
 	if (b_current) {
 		vd->frm_cnt++;
-		isp_cap_stream_bilateral_cfg(vd, b_current);
+		if (vd->id != AML_ISP_STREAM_PARAM)
+			isp_cap_stream_bilateral_cfg(vd, b_current);
+		t_current = list_first_entry_or_null(&vd->head, struct aml_buffer, list);
+		if ((t_current == NULL) && (vd->id > AML_ISP_STREAM_PARAM)) {
+			pr_err("ISP%d video%d no buf %x %x\n", isp_dev->index, vd->id, b_current->addr[0], b_current->bsize);
+			ops->hw_stream_cfg_buf(vd, b_current);
+			spin_unlock_irqrestore(&vd->buff_list_lock, flags);
+			return 0;
+		}
 		b_current->vb.sequence = vd->frm_cnt;
-		//b_current->vb.vb2_buf.timestamp = ops->hw_timestamp(isp_dev);
+		b_current->vb.vb2_buf.timestamp = ktime_get_ns();
 		b_current->vb.field = V4L2_FIELD_NONE;
 		if (vd->id == AML_ISP_STREAM_PARAM ||
 				vd->id == AML_ISP_STREAM_STATS ||
@@ -161,14 +170,7 @@ static int isp_cap_irq_handler(void *video, int status)
 				vd->id == AML_ISP_STREAM_RAW) {
 			vb2_buffer_done(&b_current->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		} else {
-			struct aml_buffer *t_current = NULL;
 			ops->hw_stream_crop(vd);
-			t_current = list_first_entry_or_null(&vd->head, struct aml_buffer, list);
-			if (t_current == NULL) {
-				pr_debug("video%d no next buf\n", vd->id);
-				spin_unlock_irqrestore(&vd->buff_list_lock, flags);
-				return 0;
-			}
 			if (!isp_cap_cur_drop(vd))
 				vb2_buffer_done(&b_current->vb.vb2_buf, VB2_BUF_STATE_DONE);
 			if (isp_cap_next_drop(vd, vd->frm_cnt) > 0) {
@@ -217,6 +219,11 @@ void isp_drv_convert_format(struct aml_video *vd, struct aml_format *fmt)
 		fmt->bpp = 24;
 		fmt->nplanes = 1;
 		fmt->fourcc = AML_FMT_YUV444;
+	break;
+	case V4L2_PIX_FMT_YUYV:
+		fmt->bpp = 16;
+		fmt->nplanes = 1;
+		fmt->fourcc = AML_FMT_YUV422;
 	break;
 	case V4L2_META_AML_ISP_CONFIG:
 	case V4L2_META_AML_ISP_STATS:
@@ -301,8 +308,10 @@ static int isp_cap_cfg_buffer(void *video, void *buff)
 	}
 
 	if (ops && ops->hw_stream_bilateral_cfg) {
-		rtn = ops->hw_stream_bilateral_cfg(video, buff);
-		vd->b_current = buff;
+		if (vd->id == AML_ISP_STREAM_PARAM) {
+			isp_cap_stream_bilateral_cfg(video, buff);
+			vd->b_current = buff;
+		}
 	}
 
 	spin_unlock_irqrestore(&vd->buff_list_lock, flags);

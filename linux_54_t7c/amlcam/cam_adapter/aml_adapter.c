@@ -33,6 +33,8 @@
 #define AML_ADAPTER_NAME "isp-adapter"
 //#define ADAPTER_WDR_DUMP_LONG_FRAME
 
+static struct adapter_dev_t *g_adap_dev[4];
+
 static const struct aml_format adap_support_formats[] = {
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SBGGR8_1X8, 0, 1, 8},
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SGBRG8_1X8, 0, 1, 8},
@@ -51,6 +53,51 @@ static const struct aml_format adap_support_formats[] = {
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SGRBG14_1X14, 0, 1, 14},
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SRGGB14_1X14, 0, 1, 14},
 };
+
+int write_data_to_buf(char *buf, int size)
+{
+	char path[60] = {'\0'};
+	int fd = -1;
+	int ret = 0;
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos = 0;
+	unsigned int r_size = 0;
+	static int num = 0;
+	num ++;
+
+	if (buf == NULL || size == 0) {
+		pr_info("%s:Error input param\n", __func__);
+		return -1;
+	}
+
+	sprintf(path, "/sdcard/DCIM/adapter_long_dump-%d.raw",num);
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+	fp = filp_open(path, O_RDWR|O_CREAT, 0);
+	if (IS_ERR(fp)) {
+		pr_info("read error.\n");
+		return -1;
+	}
+
+	r_size = vfs_write(fp, buf, size, &pos);
+
+	vfs_fsync(fp, 0);
+	filp_close(fp, NULL);
+	set_fs(old_fs);
+
+	return ret;
+}
+
+struct adapter_dev_t *adap_get_dev(int index)
+{
+	if (index >= 4) {
+		pr_err("err adap index num\n");
+	}
+
+	return g_adap_dev[index];
+}
 
 static void __iomem *adap_ioremap_resource(void *a_dev, char *name)
 {
@@ -131,15 +178,17 @@ static int adap_alloc_raw_buffs(struct adapter_dev_t *a_dev)
 {
 	int i = 0;
 	int rtn = 0;
+	unsigned long flags;
 	u32 paddr = 0x0000;
 	void *virtaddr = NULL;
 	unsigned int bsize = 0;
 	unsigned int fsize = 0;
 	unsigned int fcnt = 0;
 	struct adapter_dev_param *param = &a_dev->param;
+	struct adapter_global_info *g_info = aml_adap_global_get_info();
 
 	if ((param->mode == MODE_MIPI_RAW_SDR_DDR) ||
-			(param->mode == MODE_MIPI_RAW_HDR_DDR_DIRCT))
+		(param->mode == MODE_MIPI_RAW_HDR_DDR_DIRCT))
 		pr_info("ddr mode, alloc buffer.\n");
 	else
 		return rtn;
@@ -155,11 +204,12 @@ static int adap_alloc_raw_buffs(struct adapter_dev_t *a_dev)
 		fsize = param->width * param->height * 10 / 8;
 	break;
 	}
+
 	fsize = ISP_SIZE_ALIGN(fsize, 1 << 12);
 
 	fcnt = sizeof(param->ddr_buf) /sizeof(param->ddr_buf[0]);
 
-	bsize = fcnt * fsize;
+	bsize = fcnt * fsize + fsize;
 
 	rtn = aml_subdev_cma_alloc(a_dev->pdev, &paddr, virtaddr, bsize);
 	if (rtn != 0) {
@@ -169,12 +219,31 @@ static int adap_alloc_raw_buffs(struct adapter_dev_t *a_dev)
 
 	virtaddr = aml_subdev_map_vaddr(paddr, bsize);
 
+	INIT_LIST_HEAD(&param->free_list);
+
+	param->done_list = &g_info->done_list;
+
+	spin_lock_init(&param->ddr_lock);
+
+	spin_lock_irqsave(&param->ddr_lock, flags);
+
 	for (i = 0; i < fcnt; i++) {
 		param->ddr_buf[i].bsize = fsize;
+		param->ddr_buf[i].devno = a_dev->index;
 		param->ddr_buf[i].addr[AML_PLANE_A] = paddr + i * fsize;
 		param->ddr_buf[i].vaddr[AML_PLANE_A] = virtaddr + i * fsize;
 		param->ddr_buf[i].nplanes = 1;
+
+		list_add_tail(&param->ddr_buf[i].list, &param->free_list);
 	}
+
+	param->rsvd_buf.bsize = fsize;
+	param->rsvd_buf.devno = a_dev->index;
+	param->rsvd_buf.addr[AML_PLANE_A] = paddr + fcnt * fsize;
+	param->rsvd_buf.vaddr[AML_PLANE_A] = virtaddr + fcnt * fsize;
+	param->rsvd_buf.nplanes = 1;
+
+	spin_unlock_irqrestore(&param->ddr_lock, flags);
 
 	return rtn;
 }
@@ -188,10 +257,12 @@ static void adap_free_raw_buffs(struct adapter_dev_t *a_dev)
 	void *page = NULL;
 
 	if ((param->mode == MODE_MIPI_RAW_SDR_DDR) ||
-			(param->mode == MODE_MIPI_RAW_HDR_DDR_DIRCT))
+		(param->mode == MODE_MIPI_RAW_HDR_DDR_DIRCT))
 		pr_info("ddr mode, free buffer\n");
 	else
 		return;
+
+	INIT_LIST_HEAD(&param->free_list);
 
 	paddr = a_dev->param.ddr_buf[0].addr[AML_PLANE_A];
 	page = phys_to_page(paddr);
@@ -199,7 +270,7 @@ static void adap_free_raw_buffs(struct adapter_dev_t *a_dev)
 	fcnt = sizeof(param->ddr_buf) /sizeof(param->ddr_buf[0]);
 
 	if (paddr)
-		aml_subdev_cma_free(a_dev->pdev, page, a_dev->param.ddr_buf[0].bsize * fcnt);
+		aml_subdev_cma_free(a_dev->pdev, page, a_dev->param.ddr_buf[0].bsize * (fcnt + 1));
 
 	aml_subdev_unmap_vaddr(a_dev->param.ddr_buf[0].vaddr[AML_PLANE_A]);
 
@@ -208,6 +279,8 @@ static void adap_free_raw_buffs(struct adapter_dev_t *a_dev)
 			param->ddr_buf[i].addr[AML_PLANE_A] = 0;
 			param->ddr_buf[i].vaddr[AML_PLANE_A] = NULL;
 		}
+		param->rsvd_buf.addr[AML_PLANE_A] = 0;
+		param->rsvd_buf.vaddr[AML_PLANE_A] = NULL;
 	}
 }
 
@@ -221,6 +294,74 @@ int adap_wdr_cfg_buf(struct adapter_dev_t *a_dev)
 			(param->mode == MODE_MIPI_RAW_HDR_DDR_DIRCT)) {
 		a_dev->ops->hw_wdr_cfg_buf(a_dev);
 	}
+
+	return 0;
+}
+
+int adap_fe_cfg_buf(struct adapter_dev_t *a_dev)
+{
+	unsigned long flags;
+	struct aml_video video;
+	struct adapter_dev_param *param = &a_dev->param;
+
+	if (a_dev->wstatus != STATUS_START)
+		return -1;
+
+	if (param->mode != MODE_MIPI_RAW_SDR_DDR)
+		return -1;
+
+	spin_lock_irqsave(&param->ddr_lock, flags);
+
+	param->cur_buf = list_first_entry_or_null(&param->free_list, struct aml_buffer, list);
+	if (param->cur_buf) {
+		list_del(&param->cur_buf->list);
+	} else {
+		video.id = MODE_MIPI_RAW_SDR_DDR;
+		video.priv = a_dev;
+		a_dev->ops->hw_fe_cfg_buf(&video, &param->rsvd_buf);
+
+		spin_unlock_irqrestore(&param->ddr_lock, flags);
+
+		pr_err("ADAP%d:Error free list empty\n", a_dev->index);
+
+		return -1;
+	}
+
+	video.id = MODE_MIPI_RAW_SDR_DDR;
+	video.priv = a_dev;
+
+	a_dev->ops->hw_fe_cfg_buf(&video, param->cur_buf);
+
+	spin_unlock_irqrestore(&param->ddr_lock, flags);
+
+	return 0;
+}
+
+int adap_fe_done_buf(struct adapter_dev_t *a_dev)
+{
+	unsigned long flags;
+	struct adapter_dev_param *param = &a_dev->param;
+	struct adapter_global_info *g_info = aml_adap_global_get_info();
+
+	if (a_dev->wstatus != STATUS_START)
+		return -1;
+
+	if (param->mode != MODE_MIPI_RAW_SDR_DDR)
+		return -1;
+
+	spin_lock_irqsave(&g_info->list_lock, flags);
+
+	if (param->cur_buf == NULL) {
+		spin_unlock_irqrestore(&g_info->list_lock, flags);
+
+		pr_debug("Error current buffer is NULL\n");
+
+		return -1;
+	}
+
+	list_add_tail(&param->cur_buf->list, param->done_list);
+
+	spin_unlock_irqrestore(&g_info->list_lock, flags);
 
 	return 0;
 }
@@ -246,44 +387,6 @@ static int adap_of_parse_dev(struct adapter_dev_t *adap_dev)
 error_rtn:
 	return rtn;
 }
-
-#ifdef ADAPTER_WDR_DUMP_LONG_FRAME
-static int write_data_to_buf(char *buf, int size)
-{
-	char path[60] = {'\0'};
-	int fd = -1;
-	int ret = 0;
-	struct file *fp = NULL;
-	mm_segment_t old_fs;
-	loff_t pos = 0;
-	unsigned int r_size = 0;
-	static int num = 0;
-	num ++;
-
-	if (buf == NULL || size == 0) {
-		pr_info("%s:Error input param\n", __func__);
-		return -1;
-	}
-
-	sprintf(path, "/tmp/adapter_long_dump-%d.raw",num);
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	fp = filp_open(path, O_RDWR|O_CREAT, 0);
-	if (IS_ERR(fp)) {
-		pr_info("read error.\n");
-		return -1;
-	}
-
-	r_size = vfs_write(fp, buf, size, &pos);
-
-	vfs_fsync(fp, 0);
-	filp_close(fp, NULL);
-	set_fs(old_fs);
-
-	return ret;
-}
-#endif
 
 static irqreturn_t adap_irq_handler(int irq, void *dev)
 {
@@ -315,7 +418,6 @@ static void adap_irq_tasklet(unsigned long data)
 		if (video->ops->cap_irq_handler)
 			video->ops->cap_irq_handler(video, status);
 	}
-
 }
 
 static int adap_request_irq(struct adapter_dev_t *adap_dev)
@@ -345,15 +447,82 @@ static int adap_request_irq(struct adapter_dev_t *adap_dev)
 	return rtn;
 }
 
+static irqreturn_t adap_irq_handler_offline(int irq, void *dev)
+{
+	int status = 0;
+	unsigned long flags;
+	struct adapter_dev_t *adap_dev = dev;
+
+	if (adap_dev->wstatus != STATUS_START)
+		return IRQ_HANDLED;
+
+	spin_lock_irqsave(&adap_dev->irq_lock, flags);
+
+	status = adap_dev->ops->hw_interrupt_status(adap_dev);
+	if (status & (1 << 18)) {
+		tasklet_schedule(&adap_dev->irq_tasklet);
+	}
+
+	spin_unlock_irqrestore(&adap_dev->irq_lock, flags);
+
+	return IRQ_HANDLED;
+}
+
+static void adap_irq_tasklet_offline(unsigned long data)
+{
+	int id = 0;
+	int status = 0xff001234;
+	struct aml_video *video;
+	struct adapter_dev_t *adap_dev = (struct adapter_dev_t *)data;
+
+	adap_fe_done_buf(adap_dev);
+	adap_fe_cfg_buf(adap_dev);
+}
+
+static int adap_request_irq_offline(struct adapter_dev_t *adap_dev)
+{
+	int rtn = 0;
+	struct adapter_dev_param *param = &adap_dev->param;
+
+	adap_dev->irq = irq_of_parse_and_map(adap_dev->dev->of_node, adap_dev->index);
+	if (!adap_dev->irq) {
+		dev_err(adap_dev->dev, "Error to parse irq\n");
+		return -EINVAL;
+	}
+
+	rtn = devm_request_irq(adap_dev->dev, adap_dev->irq,
+				adap_irq_handler_offline, IRQF_SHARED,
+				dev_driver_string(adap_dev->dev), adap_dev);
+	if (rtn) {
+		dev_err(adap_dev->dev, "Error to request irq: rtn %d\n", rtn);
+		return rtn;
+	}
+
+	spin_lock_init(&adap_dev->irq_lock);
+	tasklet_init(&adap_dev->irq_tasklet, adap_irq_tasklet_offline, (unsigned long)adap_dev);
+
+	return rtn;
+}
+
 static int adap_subdev_stream_on(void *priv)
 {
 	struct adapter_dev_t *adap_dev = priv;
 
+	adap_dev->wstatus = STATUS_START;
+
 	adap_alloc_raw_buffs(adap_dev);
+
 	adap_wdr_cfg_buf(adap_dev);
+
+	adap_fe_cfg_buf(adap_dev);
+
+	aml_adap_global_create_thread();
 
 	if (adap_dev->ops->hw_start)
 		adap_dev->ops->hw_start(adap_dev);
+
+	if (adap_dev->ops->hw_irq_en)
+		adap_dev->ops->hw_irq_en(adap_dev);
 
 	return 0;
 }
@@ -362,11 +531,18 @@ static void adap_subdev_stream_off(void *priv)
 {
 	struct adapter_dev_t *adap_dev = priv;
 
+	aml_adap_global_destroy_thread();
+
 	adap_dev->enWDRMode = WDR_MODE_NONE;
 	if (adap_dev->ops->hw_stop)
 		adap_dev->ops->hw_stop(adap_dev);
 
+	if (adap_dev->ops->hw_irq_dis)
+		adap_dev->ops->hw_irq_dis(adap_dev);
+
 	adap_free_raw_buffs(adap_dev);
+
+	adap_dev->wstatus = STATUS_STOP;
 }
 
 static int adap_subdev_convert_fmt(struct adapter_dev_t *adap_dev,
@@ -425,17 +601,28 @@ static int adap_subdev_hw_init(struct adapter_dev_t *adap_dev,
 	if (adap_dev->enWDRMode == WDR_MODE_2To1_LINE) {
 		param->mode = MODE_MIPI_RAW_HDR_DDR_DIRCT;
 		param->dol_type = ADAP_DOL_LINEINFO;
-	} else if(adap_dev->enWDRMode == WDR_MODE_2To1_FRAME) {
+	} else if (adap_dev->enWDRMode == WDR_MODE_2To1_FRAME) {
 		param->mode = MODE_MIPI_RAW_HDR_DDR_DIRCT;
 		param->dol_type = ADAP_DOL_VC;
+	} else if (adap_dev->enWDRMode == SDR_DDR_MODE) {
+		param->mode = MODE_MIPI_RAW_SDR_DDR;
+		param->dol_type = ADAP_DOL_NONE;
+		aml_adap_global_mode(MODE_MIPI_RAW_SDR_DDR);
+	} else if (adap_dev->enWDRMode == ISP_SDR_DCAM_MODE) {
+		param->mode = MODE_MIPI_RAW_SDR_DDR;
+		param->dol_type = ADAP_DOL_NONE;
+		aml_adap_global_mode(MODE_MIPI_RAW_SDR_DDR);
+		pr_err("dcam mode\n");
 	} else {
 		param->mode = MODE_MIPI_RAW_SDR_DIRCT;
 		param->dol_type = ADAP_DOL_NONE;
 	}
-	param->offset.offset_x = 12;
+	param->offset.offset_x = 0;
 	param->offset.offset_y = 0;
 	param->offset.long_offset = 0x8;
 	param->offset.short_offset = 0x8;
+
+	aml_adap_global_devno(adap_dev->index);
 
 	if (adap_dev->ops->hw_reset)
 		adap_dev->ops->hw_reset(adap_dev);
@@ -480,7 +667,7 @@ static int adap_subdev_set_ctrl(struct v4l2_ctrl *ctrl)
 	int ret = 0;
 
 	switch (ctrl->id) {
-	case V4L2_CID_AML_WDR:
+	case V4L2_CID_AML_MODE:
 		pr_info("adap_subdev_set_ctrl:%d\n", ctrl->val);
 		adap_dev->enWDRMode = ctrl->val;
 		break;
@@ -496,13 +683,13 @@ static const struct v4l2_ctrl_ops adap_ctrl_ops = {
 	.s_ctrl = adap_subdev_set_ctrl,
 };
 
-static struct v4l2_ctrl_config wdr_cfg = {
+static struct v4l2_ctrl_config mode_cfg = {
 	.ops = &adap_ctrl_ops,
-	.id = V4L2_CID_AML_WDR,
-	.name = "wdr mode",
+	.id = V4L2_CID_AML_MODE,
+	.name = "adap mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 2,
+	.max = 5,
 	.step = 1,
 	.def = 0,
 };
@@ -513,7 +700,7 @@ static int adap_subdev_ctrls_init(struct adapter_dev_t *adap_dev)
 
 	v4l2_ctrl_handler_init(&adap_dev->ctrls, 1);
 
-	adap_dev->wdr = v4l2_ctrl_new_custom(&adap_dev->ctrls, &wdr_cfg, NULL);
+	adap_dev->wdr = v4l2_ctrl_new_custom(&adap_dev->ctrls, &mode_cfg, NULL);
 
 	adap_dev->sd.ctrl_handler = &adap_dev->ctrls;
 
@@ -639,11 +826,15 @@ int aml_adap_subdev_init(void *c_dev)
 		return rtn;
 	}
 
-	rtn = adap_request_irq(adap_dev);
+	aml_adap_global_init();
+
+	rtn = adap_request_irq_offline(adap_dev);
 	if (rtn)
 		adap_iounmap_resource(adap_dev);
 
 	dev_info(adap_dev->dev, "ADAP%u: subdev init\n", adap_dev->index);
+
+	g_adap_dev[cam_dev->index] = adap_dev;
 
 	return rtn;
 }
@@ -660,11 +851,11 @@ void aml_adap_subdev_deinit(void *c_dev)
 
 	adap_iounmap_resource(adap_dev);
 
-	if (adap_dev->index == AML_CAM_4) {
-		tasklet_kill(&adap_dev->irq_tasklet);
-		devm_free_irq(adap_dev->dev, adap_dev->irq, adap_dev);
+	tasklet_kill(&adap_dev->irq_tasklet);
+	devm_free_irq(adap_dev->dev, adap_dev->irq, adap_dev);
+
+	if (adap_dev->index == AML_CAM_4)
 		devm_clk_put(adap_dev->dev, adap_dev->wrmif_clk);
-	}
 
 	dev_info(adap_dev->dev, "ADAP%u: subdev deinit\n", adap_dev->index);
 }

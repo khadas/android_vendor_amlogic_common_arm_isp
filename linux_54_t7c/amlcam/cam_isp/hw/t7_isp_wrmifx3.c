@@ -148,6 +148,8 @@ void isp_wrmifx3_cfg_frm_size(struct isp_dev_t *isp_dev, u32 idx,
 
 	raddr = ISP_WRMIFX3_0_FMT_CTRL + ((idx * 0x40) << 2);
 	isp_reg_update_bits(isp_dev, raddr, fmt->fourcc, 16, 3);
+	if (fmt->fourcc == AML_FMT_YUV422)
+		isp_reg_update_bits(isp_dev, raddr, 1, 3, 1);
 
 	isp_reg_update_bits(isp_dev, raddr, fmt->nplanes - 1, 4, 2);
 
@@ -231,6 +233,7 @@ void isp_wrmifx3_cfg_frm_buff(struct isp_dev_t *isp_dev, u32 idx,
 {
 	u32 paddr = 0;
 	u32 raddr = 0;
+	struct isp_global_info *g_info = isp_global_get_info();
 
 	if (idx > 3) {
 		pr_err("Error input wmif index\n");
@@ -241,11 +244,17 @@ void isp_wrmifx3_cfg_frm_buff(struct isp_dev_t *isp_dev, u32 idx,
 	case 2:
 		paddr = buff->addr[AML_PLANE_B] >> 4;
 		raddr = ISP_WRMIFX3_0_CH1_BADDR + ((idx * 0x40) << 2);
-		isp_hwreg_write(isp_dev, raddr, paddr);
+		if (g_info->mode == AML_ISP_SCAM)
+			isp_hwreg_write(isp_dev, raddr, paddr);
+		else
+			isp_reg_write(isp_dev, raddr, paddr);
 	case 1:
 		paddr = buff->addr[AML_PLANE_A] >> 4;
 		raddr = ISP_WRMIFX3_0_CH0_BADDR + ((idx * 0x40) << 2);
-		isp_hwreg_write(isp_dev, raddr, paddr);
+		if (g_info->mode == AML_ISP_SCAM)
+			isp_hwreg_write(isp_dev, raddr, paddr);
+		else
+			isp_reg_write(isp_dev, raddr, paddr);
 	break;
 	default:
 		pr_err("Error input stream index\n");

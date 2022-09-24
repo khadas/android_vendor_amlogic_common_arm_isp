@@ -25,6 +25,8 @@ static void snr_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, SNR_LUT_CFG);
+
 	isp_reg_write(isp_dev, ISP_SNR_PHS_SEL_ADDR, 0);
 	for (i = 0; i < 8; i++) {
 		val = (lut_cfg->snr_lpf_phs_sel[i * 12 + 0] << 0) |
@@ -42,6 +44,8 @@ static void snr_cfg_base(struct isp_dev_t *isp_dev, void *base)
 
 		isp_reg_write(isp_dev, ISP_SNR_PHS_SEL_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void snr_cfg_noise_profile(struct isp_dev_t *isp_dev, void *param)

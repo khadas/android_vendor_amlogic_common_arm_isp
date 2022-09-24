@@ -31,6 +31,8 @@ static void post_cm2_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	uint32_t *data_hue_via_s_lut = (uint32_t *)(cm2_cfg->cm2_adj_hue_via_s);
 	uint32_t *data_satgain_via_y_lut = (uint32_t *)(cm2_cfg->cm2_adj_satgain_via_y);
 
+	isp_hw_lut_wstart(isp_dev, PST_CM2_LUT_CFG);
+
 	val = ((cm2_cfg->cm2_adj_satglbgain_via_y[0] << 0) & 0xFF) |
 		((cm2_cfg->cm2_adj_satglbgain_via_y[1] << 8) & 0xFF00) |
 		((cm2_cfg->cm2_adj_satglbgain_via_y[2] << 16) & 0xFF0000) |
@@ -71,6 +73,8 @@ static void post_cm2_cfg_param(struct isp_dev_t *isp_dev, void *param)
 			isp_reg_write(isp_dev, ISP_CM2_DATA_PORT, val);
 		}
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 void isp_post_cm2_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
@@ -200,6 +204,7 @@ void isp_post_cm2_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt)
 	isp_reg_write(isp_dev, ISP_DNLP_GLBWIN_V, val);
 }
 
+/* When lc_sta_hidx are configured, the processing speed of isp hardware will slow down */
 void isp_post_cm2_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
 {
 	int i = 0;
@@ -223,11 +228,10 @@ void isp_post_cm2_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
 
 		for (i = 0; i < LTM_STA_LEN_H; i++) {
 			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			slice_size = param->pleft_hsize - param->pleft_ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4;
+			slice_size = (param->pleft_hsize) + hsize / (LTM_STA_LEN_H-1) - (param->pleft_ovlp) + (i-(LTM_STA_LEN_H-1)/2-1)*4;
 			hidx = MIN(MAX(hidx, 0), slice_size);
 
-			hidx = MIN(MAX(hidx - 1, 0), param->pleft_hsize - (LTM_STA_LEN_H - i) * 4 - 1);
-
+			hidx = MIN(MAX(hidx -1, 0), param->left_hsize - 1);
 			addr = ISP_LC_STA_HIDX_0 + (i /2 * 4);
 			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);
 		}
@@ -243,10 +247,9 @@ void isp_post_cm2_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
 		ovlp = param->pright_ovlp;
 		for (i = 0; i < LTM_STA_LEN_H; i++) {
 			hidx = (i == (LTM_STA_LEN_H - 1)) ? hsize : (i * hsize / MAX(1, LTM_STA_LEN_H - 1));
-			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size);
+			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size, (ovlp -hsize /(LTM_STA_LEN_H - 1) + (i - (LTM_STA_LEN_H - 1) / 2 + 1) * 4)), slice_size);
 
-			hidx = MIN(MAX(hidx + ovlp * 2 - slice_size - 1, ovlp + (i - (LTM_STA_LEN_H - 1) / 2) * 4), slice_size - 1);
-
+			hidx = MIN(MAX(hidx -1, 0), slice_size - 1);
 			addr = ISP_LC_STA_HIDX_0 + (i /2 * 4);
 			isp_hwreg_update_bits(isp_dev, addr, hidx, (i % 2) * 16, 16);
 		}

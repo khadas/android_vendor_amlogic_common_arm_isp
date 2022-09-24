@@ -68,6 +68,8 @@ static void fed_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_setting_fixed_cfg_t *fixed_cfg = &base_cfg->fxset_cfg;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, FED_LUT_CFG);
+
 	isp_reg_update_bits(isp_dev, ISP_FED_SQRT_EN_MODE, fixed_cfg->sqrt1_mode, 8, 1);
 
 	isp_reg_write(isp_dev, ISP_FED_SQRT0_ADDR, 0);
@@ -79,6 +81,8 @@ static void fed_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	for (i = 0; i < ISP_ARRAY_SIZE(lut_cfg->sqrt1_lut); i++) {
 		isp_reg_write(isp_dev, ISP_FED_SQRT1_DATA, lut_cfg->sqrt1_lut[i]);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void fed_cfg_blc(struct isp_dev_t *isp_dev, void *blc)

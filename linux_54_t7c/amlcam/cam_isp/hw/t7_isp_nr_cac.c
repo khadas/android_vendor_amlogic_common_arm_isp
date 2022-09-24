@@ -148,6 +148,27 @@ void isp_nr_cac_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff)
 		cubic_cfg_base(isp_dev, &param->base_cfg);
 }
 
+void isp_nr_cac_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param)
+{
+	u32 val = 0;
+
+	if (param->pos == 0) {
+		isp_hwreg_update_bits(isp_dev, ISP_CAC_COL_OFFSET, 0, 0, 5);
+		isp_hwreg_update_bits(isp_dev, ISP_CAC_COL_OFFSET, 0, 8, 12);
+	} else if (param->pos == 1) {
+		val = (CAC_TABLE_XSIZE - 1) / 2;
+		isp_hwreg_update_bits(isp_dev, ISP_CAC_COL_OFFSET, val, 0, 5);
+
+		if ((CAC_TABLE_XSIZE - 1) & 0x1) {
+			val = isp_reg_read(isp_dev, ISP_CAC_CNTL);
+			val = (val >> 12) & 0xfff;
+			isp_hwreg_update_bits(isp_dev, ISP_CAC_COL_OFFSET, val / 2, 8, 12);
+		} else {
+			isp_hwreg_update_bits(isp_dev, ISP_CAC_COL_OFFSET, 0, 8, 12);
+		}
+	}
+}
+
 void isp_nr_cac_init(struct isp_dev_t *isp_dev)
 {
 	u32 val = 0;

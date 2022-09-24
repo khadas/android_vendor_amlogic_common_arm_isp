@@ -464,7 +464,8 @@ typedef struct module_info_s{
 typedef struct frame_info_s {
 	int frm_cnt;/**< frame number for HW counter */
 	int slice_num;
-	int reserve[2];
+	int slice_ovlp;
+	int reserved[1];
 } frame_info_t;
 
 /**

@@ -61,6 +61,8 @@ static inline void isp_hwreg_write(struct isp_dev_t *isp_dev, u32 addr, u32 val)
 	writel(val, isp_dev->base + addr);
 }
 
+void isp_hw_lut_wstart(struct isp_dev_t *isp_dev, u32 type);
+void isp_hw_lut_wend(struct isp_dev_t *isp_dev);
 u32 isp_reg_read(struct isp_dev_t *isp_dev, u32 addr);
 void isp_reg_write(struct isp_dev_t *isp_dev, u32 addr, u32 val);
 int isp_reg_update_bits(struct isp_dev_t *isp_dev, u32 addr, u32 val, u32 start, u32 len);
@@ -112,6 +114,7 @@ void isp_nr_cac_init(struct isp_dev_t *isp_dev);
 void isp_nr_cac_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt);
 void isp_nr_cac_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
 void isp_nr_cac_cfg_param(struct isp_dev_t *isp_dev, struct aml_buffer *buff);
+void isp_nr_cac_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
 
 void isp_snr_init(struct isp_dev_t *isp_dev);
 void isp_snr_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt);
@@ -184,6 +187,7 @@ void isp_rdmif0_module_enable(struct isp_dev_t *isp_dev, u32 enbale);
 void isp_intf_top_init(struct isp_dev_t *isp_dev);
 void isp_intf_top_cfg_size(struct isp_dev_t *isp_dev, struct aml_format *fmt);
 void isp_intf_top_cfg_buf(struct isp_dev_t *isp_dev, struct aml_format *fmt, struct aml_buffer *buff);
+void isp_intf_top_loss_index(struct isp_dev_t *isp_dev);
 
 void isp_tnr_init(struct isp_dev_t *isp_dev);
 void isp_tnr_cfg_slice(struct isp_dev_t *isp_dev, struct aml_slice *param);
@@ -239,8 +243,12 @@ void isp_mcnr_mif_cfg_buf(struct isp_dev_t *isp_dev, struct aml_format *fmt, str
 
 void isp_apb_dma_init(struct isp_dev_t *isp_dev);
 void isp_apb_dma_start(struct isp_dev_t *isp_dev);
+void isp_apb_dma_stop(struct isp_dev_t *isp_dev);
 void isp_apb_dma_check_done(struct isp_dev_t *isp_dev);
 void isp_apb_dma_manual_trigger(struct isp_dev_t *isp_dev);
 void isp_apb_dma_fill_rreg_buff(struct isp_dev_t *isp_dev);
+void isp_apb_dma_auto_trigger(struct isp_dev_t *isp_dev);
+void isp_apb_dma_fill_gisp_rreg_buff(struct isp_global_info *g_isp);
+void isp_apb_dma_start_dwreg(struct isp_dev_t *isp_dev);
 
 #endif

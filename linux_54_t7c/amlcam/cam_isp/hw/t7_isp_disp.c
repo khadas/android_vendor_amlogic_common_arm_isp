@@ -166,6 +166,8 @@ static void disp_cfg_base_h_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 	u32 h_tap;
 	aisp_lut_fixed_cfg_t *lut_cfg = lut;
 
+	isp_hw_lut_wstart(isp_dev, DISP_HLUMA_LUT_CFG);
+
 	addr = DISP0_PPS_SCALE_EN + ((idx * 0x100) << 2);
 	isp_reg_read_bits(isp_dev, addr, &h_tap, 4, 4);
 
@@ -235,6 +237,8 @@ static void disp_cfg_base_h_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void disp_cfg_base_v_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
@@ -245,6 +249,8 @@ static void disp_cfg_base_v_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 	u32 coef[4];
 	u32 v_tap;
 	aisp_lut_fixed_cfg_t *lut_cfg = lut;
+
+	isp_hw_lut_wstart(isp_dev, DISP_VLUMA_LUT_CFG);
 
 	addr = DISP0_PPS_SCALE_EN + ((idx * 0x100) << 2);
 	isp_reg_read_bits(isp_dev, addr, &v_tap, 0, 4);
@@ -314,6 +320,8 @@ static void disp_cfg_base_v_luma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
 		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void disp_cfg_base_h_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
@@ -324,6 +332,8 @@ static void disp_cfg_base_h_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 	u32 coef[4];
 	u32 h_tap;
 	aisp_lut_fixed_cfg_t *lut_cfg = lut;
+
+	isp_hw_lut_wstart(isp_dev, DISP_HCHROMA_LUT_CFG);
 
 	addr = DISP0_PPS_SCALE_EN + ((idx * 0x100) << 2);
 	isp_reg_read_bits(isp_dev, addr, &h_tap, 4, 4);
@@ -393,6 +403,8 @@ static void disp_cfg_base_h_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void disp_cfg_base_v_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut)
@@ -403,6 +415,8 @@ static void disp_cfg_base_v_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 	u32 coef[4];
 	u32 v_tap;
 	aisp_lut_fixed_cfg_t *lut_cfg = lut;
+
+	isp_hw_lut_wstart(isp_dev, DISP_VCHROMA_LUT_CFG);
 
 	addr = DISP0_PPS_SCALE_EN + ((idx * 0x100) << 2);
 	isp_reg_read_bits(isp_dev, addr, &v_tap, 0, 4);
@@ -472,6 +486,8 @@ static void disp_cfg_base_v_chroma(struct isp_dev_t *isp_dev, u32 idx, void *lut
 		val = ((coef[2]&0x7ff) << 16) | ((coef[3]&0x7ff) << 0);
 		isp_reg_write(isp_dev, addr, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void disp_cfg_base_fxlut(struct isp_dev_t *isp_dev, u32 idx, void *base)
@@ -622,6 +638,7 @@ void isp_disp_enable(struct isp_dev_t *isp_dev, u32 idx)
 void isp_disp_disable(struct isp_dev_t *isp_dev, u32 idx)
 {
 	u32 addr;
+	struct isp_global_info *g_info = isp_global_get_info();
 
 	addr = DISP0_TOP_TOP_CTRL + ((idx * 0x100) << 2);
 	isp_reg_update_bits(isp_dev, addr, 0x0, 5, 1);
@@ -635,7 +652,9 @@ void isp_disp_disable(struct isp_dev_t *isp_dev, u32 idx)
 
 	addr = ISP_TOP_PATH_EN;
 	isp_reg_update_bits(isp_dev, addr, 0x0, idx, 1);
-	isp_hwreg_update_bits(isp_dev, addr, 0x0, idx, 1);
+
+	if (g_info->mode == AML_ISP_SCAM)
+		isp_hwreg_update_bits(isp_dev, addr, 0x0, idx, 1);
 }
 
 void isp_disp_set_input_size(struct isp_dev_t *isp_dev, u32 idx, struct aml_format *fmt)

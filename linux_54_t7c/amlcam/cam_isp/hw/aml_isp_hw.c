@@ -20,6 +20,23 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 
+void isp_hw_lut_wstart(struct isp_dev_t *isp_dev, u32 type)
+{
+	isp_dev->lutWr.lutSeq = LUT_WSTART;
+
+	if (isp_dev->lutWr.lutRegW[type] == 0) {
+		isp_dev->lutWr.lutRegW[type] = 1;
+		isp_dev->lutWr.lutRegAddr[type] = isp_dev->wreg_cnt;
+	} else {
+		isp_dev->wreg_cnt = isp_dev->lutWr.lutRegAddr[type];
+	}
+}
+
+void isp_hw_lut_wend(struct isp_dev_t *isp_dev)
+{
+	isp_dev->lutWr.lutSeq = LUT_WEND;
+}
+
 u32 isp_reg_read(struct isp_dev_t *isp_dev, u32 addr)
 {
 	u32 val = 0;
@@ -35,9 +52,11 @@ u32 isp_reg_read(struct isp_dev_t *isp_dev, u32 addr)
 
 void isp_reg_write(struct isp_dev_t *isp_dev, u32 addr, u32 val)
 {
+	u32 i = 0;
 	unsigned long flags = 0;
 	struct aml_reg *wregs = isp_dev->wreg_buff.vaddr[AML_PLANE_A];
 	struct aml_reg *rregs = isp_dev->rreg_buff.vaddr[AML_PLANE_A];
+	struct isp_global_info *g_info = isp_global_get_info();
 
 	if (isp_dev->apb_dma == 0) {
 		isp_hwreg_write(isp_dev, addr, val);
@@ -46,10 +65,46 @@ void isp_reg_write(struct isp_dev_t *isp_dev, u32 addr, u32 val)
 
 		rregs[(addr - ISP_BASE) >> 2].val = val;
 
-		wregs[isp_dev->wreg_cnt].addr = isp_dev->phy_base + addr;
-		wregs[isp_dev->wreg_cnt].val = val;
+		if (g_info->mode == AML_ISP_SCAM) {
+			wregs[isp_dev->twreg_cnt].addr = isp_dev->phy_base + addr;
+			wregs[isp_dev->twreg_cnt].val = val;
+			isp_dev->wreg_cnt ++;
+			isp_dev->twreg_cnt ++;
+		} else {
+			if (isp_dev->isp_status == STATUS_STOP) {
+				wregs[isp_dev->wreg_cnt].addr = isp_dev->phy_base + addr;
+				wregs[isp_dev->wreg_cnt].val = val;
+				isp_dev->wreg_cnt ++;
+				isp_dev->fwreg_cnt ++;
+				isp_dev->twreg_cnt ++;
+			} else {
+				if (isp_dev->lutWr.lutSeq == LUT_WSTART) {
+					wregs[isp_dev->wreg_cnt].addr = isp_dev->phy_base + addr;
+					wregs[isp_dev->wreg_cnt].val = val;
+					isp_dev->wreg_cnt ++;
 
-		isp_dev->wreg_cnt++;
+					if (isp_dev->wreg_cnt > isp_dev->twreg_cnt)
+						isp_dev->twreg_cnt ++;
+
+					spin_unlock_irqrestore(&isp_dev->wreg_lock, flags);
+					return;
+				}
+
+				for (i = isp_dev->fwreg_cnt; i < isp_dev->twreg_cnt; i ++) {
+					if (wregs[i].addr == (isp_dev->phy_base + addr)) {
+						wregs[i].addr = isp_dev->phy_base + addr;
+						wregs[i].val = val;
+						break;
+					}
+				}
+
+				if (i == isp_dev->twreg_cnt) {
+					wregs[isp_dev->twreg_cnt].addr = isp_dev->phy_base + addr;
+					wregs[isp_dev->twreg_cnt].val = val;
+					isp_dev->twreg_cnt ++;
+				}
+			}
+		}
 
 		spin_unlock_irqrestore(&isp_dev->wreg_lock, flags);
 	}
@@ -79,8 +134,7 @@ int isp_reg_update_bits(struct isp_dev_t *isp_dev, u32 addr, u32 val, u32 start,
 	temp = orig & (~mask);
 	temp |= val & mask;
 
-	if (temp != orig)
-		isp_reg_write(isp_dev, addr, temp);
+	isp_reg_write(isp_dev, addr, temp);
 
 	return 0;
 }
@@ -109,8 +163,7 @@ int isp_hwreg_update_bits(struct isp_dev_t *isp_dev, u32 addr, u32 val, u32 star
 	temp = orig & (~mask);
 	temp |= val & mask;
 
-	if (temp != orig)
-		isp_hwreg_write(isp_dev, addr, temp);
+	isp_hwreg_write(isp_dev, addr, temp);
 
 	return 0;
 }
@@ -437,6 +490,8 @@ static int isp_hw_cfg_slice(struct isp_dev_t *isp_dev, int pos)
 
 	isp_tnr_cfg_slice(isp_dev, &isp_dev->aslice[0]);
 
+	isp_nr_cac_cfg_slice(isp_dev, &isp_dev->aslice[0]);
+
 	isp_post_pg2_ctrst_cfg_slice(isp_dev, &isp_dev->aslice[0]);
 
 	isp_post_cm2_cfg_slice(isp_dev, &isp_dev->aslice[0]);
@@ -601,6 +656,7 @@ static int isp_stream_bilateral_cfg(struct aml_video *video, struct aml_buffer *
 		isp_ltm_req_info(video->priv, buff);
 		isp_post_pg2_ctrst_req_info(video->priv, buff);
 		isp_ofe_req_info(video->priv, buff);
+		isp_intf_top_loss_index(video->priv);
 	break;
 	}
 
@@ -671,7 +727,7 @@ static void isp_hw_stream_off(struct aml_video *video)
 	case AML_ISP_STREAM_3:
 		isp_disp_disable(video->priv, video->id - 3);
 	case AML_ISP_STREAM_RAW:
-		isp_wrmifx3_module_enable(video->priv, video->id - 3, 0, 1);
+		isp_wrmifx3_module_enable(video->priv, video->id - 3, 0, 0);
 	break;
 	}
 
@@ -696,6 +752,11 @@ static void isp_hw_stop(struct isp_dev_t *isp_dev)
 
 static int isp_hw_enable_wrmifx3(struct aml_video *video, int enable, int force)
 {
+	struct isp_global_info *g_info = isp_global_get_info();
+
+	if (g_info->mode != AML_ISP_SCAM)
+		force = 0;
+
 	isp_wrmifx3_module_enable(video->priv, video->id - 3, enable, force);
 
 	return 0;
@@ -777,9 +838,26 @@ static int isp_hw_fill_rreg_buff(struct isp_dev_t *isp_dev)
 	return 0;
 }
 
+static int isp_hw_fill_gisp_rreg_buff(struct isp_global_info *g_isp_info)
+{
+	if (g_isp_info->isp_dev->apb_dma == 0)
+		return 0;
+
+	isp_apb_dma_fill_gisp_rreg_buff(g_isp_info);
+
+	return 0;
+}
+
 static int isp_hw_start_apb_dma(struct isp_dev_t *isp_dev)
 {
 	isp_apb_dma_start(isp_dev);
+
+	return 0;
+}
+
+static int isp_hw_stop_apb_dma(struct isp_dev_t *isp_dev)
+{
+	isp_apb_dma_stop(isp_dev);
 
 	return 0;
 }
@@ -794,6 +872,13 @@ static int isp_hw_check_done_apb_dma(struct isp_dev_t *isp_dev)
 static int isp_hw_manual_trigger_apb_dma(struct isp_dev_t *isp_dev)
 {
 	isp_apb_dma_manual_trigger(isp_dev);
+
+	return 0;
+}
+
+static int isp_hw_auto_trigger_apb_dma(struct isp_dev_t *isp_dev)
+{
+	isp_apb_dma_auto_trigger(isp_dev);
 
 	return 0;
 }
@@ -824,8 +909,11 @@ const struct isp_dev_ops isp_hw_ops = {
 	.hw_cfg_mcnr_mif_buf = isp_hw_cfg_mcnr_mif_buf,
 	.hw_enable_mcnr_mif = isp_hw_enable_mcnr_mif,
 	.hw_start_apb_dma = isp_hw_start_apb_dma,
+	.hw_stop_apb_dma = isp_hw_stop_apb_dma,
 	.hw_check_done_apb_dma = isp_hw_check_done_apb_dma,
 	.hw_manual_trigger_apb_dma = isp_hw_manual_trigger_apb_dma,
+	.hw_auto_trigger_apb_dma = isp_hw_auto_trigger_apb_dma,
 	.hw_fill_rreg_buff = isp_hw_fill_rreg_buff,
+	.hw_fill_gisp_rreg_buff = isp_hw_fill_gisp_rreg_buff,
 };
 EXPORT_SYMBOL(isp_hw_ops);

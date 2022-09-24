@@ -23,6 +23,7 @@
 #include <linux/interrupt.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-device.h>
+#include <linux/delay.h>
 
 #include "aml_common.h"
 #include "aml_misc.h"
@@ -68,6 +69,60 @@ enum {
 	AML_ISP_RAW_BGGR,
 };
 
+enum {
+	AML_ISP_SCAM = 0,
+	AML_ISP_MCAM,
+};
+
+enum {
+	LUT_WEND = 0,
+	LUT_WSTART,
+};
+
+enum {
+	FED_LUT_CFG = 0,
+	LSWB_EOTF_LUT_CFG,
+	LSWB_RAD_LUT_CFG,
+	LSWB_MESH_LUT_CFG,
+	LSWB_MESH_CRT_LUT_CFG,
+	SNR_LUT_CFG,
+	TNR_LUT_CFG,
+	OFE_FPNR_LUT_CFG,
+	OFE_DECMPR_LUT_CFG,
+	GTM_LUT_CFG,
+	DISP_HLUMA_LUT_CFG,
+	DISP_VLUMA_LUT_CFG,
+	DISP_HCHROMA_LUT_CFG,
+	DISP_VCHROMA_LUT_CFG,
+	PST_PG2_CTRST_LUT_CFG,
+	PST_PG2_CTRST_LC_LUT_CFG,
+	PST_PG2_CTRST_LC_ENHC_LUT_CFG,
+	PST_PG2_CTRST_DHZ_LUT_CFG,
+	PST_PG2_CTRST_DHZ_ENHC_LUT_CFG,
+	LTM_LUT_CFG,
+	LTM_ENHC_LUT_CFG,
+	PST_GAMMA_LUT_CFG,
+	PST_CM2_LUT_CFG,
+	PST_TNR_LUT_CFG,
+	PK_CNR_LUT_CFG,
+	MAX_LUT_CFG,
+};
+
+struct aml_isp_lut {
+	u32 lutSeq;
+	u32 lutRegW[MAX_LUT_CFG];
+	u32 lutRegAddr[MAX_LUT_CFG];
+};
+
+struct isp_global_info {
+	u32 mode;
+	u32 status;
+	u32 user;
+	struct aml_buffer rreg_buff;
+
+	struct isp_dev_t *isp_dev;
+};
+
 struct isp_dev_t {
 	u32 index;
 	u32 irq;
@@ -86,10 +141,13 @@ struct isp_dev_t {
 	struct aml_format lfmt;
 	struct aml_format rfmt;
 	u32 wreg_cnt;
+	u32 fwreg_cnt;
+	u32 twreg_cnt;
 	u32 frm_cnt;
 	u32 irq_status;
 	u32 isp_status;
 	u32 enWDRMode;
+	struct aml_isp_lut lutWr;
 
 	char *bus_info;
 	struct media_pipeline pipe;
@@ -142,14 +200,17 @@ struct isp_dev_ops {
 	int (*hw_cfg_mcnr_mif_buf)(struct isp_dev_t *isp_dev, struct aml_format *fmt, struct aml_buffer *buff);
 	int (*hw_enable_mcnr_mif)(struct isp_dev_t *isp_dev, int enable);
 	int (*hw_start_apb_dma)(struct isp_dev_t *isp_dev);
+	int (*hw_stop_apb_dma)(struct isp_dev_t *isp_dev);
 	int (*hw_check_done_apb_dma)(struct isp_dev_t *isp_dev);
 	int (*hw_manual_trigger_apb_dma)(struct isp_dev_t *isp_dev);
+	int (*hw_auto_trigger_apb_dma)(struct isp_dev_t *isp_dev);
 	int (*hw_fill_rreg_buff)(struct isp_dev_t *isp_dev);
+	int (*hw_fill_gisp_rreg_buff)(struct isp_global_info *g_isp_info);
 };
-
 
 int isp_subdev_resume(struct isp_dev_t *isp_dev);
 void isp_subdev_suspend(struct isp_dev_t *isp_dev);
+struct isp_dev_t *isp_subdrv_get_dev(int index);
 
 int aml_isp_subdev_init(void *c_dev);
 void aml_isp_subdev_deinit(void *c_dev);
@@ -159,6 +220,14 @@ void aml_isp_video_unregister(struct isp_dev_t *isp_dev);
 
 int aml_isp_subdev_register(struct isp_dev_t *isp_dev);
 void aml_isp_subdev_unregister(struct isp_dev_t *isp_dev);
+
+struct isp_global_info *isp_global_get_info(void);
+int isp_global_manual_apb_dma(int vdev);
+int isp_global_reset(struct isp_dev_t *isp_dev);
+void isp_global_stream_on(void);
+void isp_global_stream_off(void);
+int isp_global_init(struct isp_dev_t *isp_dev);
+int isp_global_deinit(struct isp_dev_t *isp_dev);
 
 extern const struct isp_dev_ops isp_hw_ops;
 extern const struct emb_ops_t emb_hw_ops;

@@ -36,7 +36,7 @@ static void top_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL0, cfg->decmp_en, 7, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL0, cfg->inp_fmt_en, 8, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL0, cfg->bac_en, 9, 1);
-	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL0, cfg->fpnr_en,10, 1);
+	//isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL0, cfg->fpnr_en,10, 1);
 
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_0, cfg->ge_en_0, 2, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, cfg->ge_en_1, 2, 1);
@@ -268,7 +268,7 @@ void isp_top_init(struct isp_dev_t *isp_dev)
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, 1, 5, 1);
 	isp_reg_update_bits(isp_dev, ISP_TOP_FEO_CTRL1_1, 1, 0, 2);
 
-	val = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) |
+	val = (1 << 0) | (1 << 1) | (1 << 2) | (0 << 3) | (1 << 4) |
 		(1 << 5) | (2 << 7) | (1 << 9) | (0 << 10) | (0 << 11) |
 		(1 << 12) | (1 << 13) | (1 << 14) | (1 << 15) | (1 << 16) | (1 << 17);
 	isp_reg_write(isp_dev, ISP_TOP_FED_CTRL, val);

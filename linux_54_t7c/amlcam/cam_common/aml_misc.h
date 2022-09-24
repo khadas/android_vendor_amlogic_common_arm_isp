@@ -31,7 +31,7 @@
 #define V4L2_CID_AML_USER_FPS        (V4L2_CID_AML_BASE + 0x001)
 #define V4L2_CID_AML_ROLE            (V4L2_CID_AML_BASE + 0x002)
 #define V4L2_CID_AML_STROBE          (V4L2_CID_AML_BASE + 0x003)
-#define V4L2_CID_AML_WDR             (V4L2_CID_AML_BASE + 0x004)
+#define V4L2_CID_AML_MODE            (V4L2_CID_AML_BASE + 0x004)
 
 struct emb_ops_t {
 	void (*emb_cfg_buf)(void *edev, u32 eaddr);

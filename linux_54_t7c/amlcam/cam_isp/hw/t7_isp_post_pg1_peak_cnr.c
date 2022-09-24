@@ -24,6 +24,8 @@ static void pk_cfg_cnr(struct isp_dev_t *isp_dev, void *cnr)
 	u32 val = 0;
 	aisp_cnr_cfg_t *c_cfg = cnr;
 
+	isp_hw_lut_wstart(isp_dev, PK_CNR_LUT_CFG);
+
 	isp_reg_write(isp_dev, CNR_SATUR_BLK_LUT_IDX, 0);
 	for (i = 0; i < 128; i++) {
 		val = (c_cfg->cnr2_satur_blk[i * 8 + 0] << 0) |
@@ -69,6 +71,8 @@ static void pk_cfg_cnr(struct isp_dev_t *isp_dev, void *cnr)
 
 	val = c_cfg->cnr2_adp_desat_hrz;
 	isp_reg_update_bits(isp_dev, CNR_HS_DBG_MISC, val, 24, 2);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void pk_cfg_pst_nr(struct isp_dev_t *isp_dev, void *param)

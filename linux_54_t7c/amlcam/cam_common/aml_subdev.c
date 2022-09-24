@@ -270,6 +270,8 @@ int aml_subdev_cma_alloc(struct platform_device *pdev, u32 *paddr, void *addr, u
 {
 	struct page *cma_pages = NULL;
 
+	size = ISP_SIZE_ALIGN(size, 1 << 12);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 	struct device *dev = &(pdev->dev);
 	struct cma *cma_area;
@@ -301,6 +303,8 @@ void aml_subdev_cma_free(struct platform_device *pdev, void *paddr, unsigned lon
 {
 	struct page *cma_pages = NULL;
 	bool rc = false;
+
+	size = ISP_SIZE_ALIGN(size, 1 << 12);
 
 	cma_pages = paddr;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))

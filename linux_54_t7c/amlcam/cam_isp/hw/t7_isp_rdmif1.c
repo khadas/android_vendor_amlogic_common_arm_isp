@@ -61,13 +61,13 @@ static void rdmif1_cfg_reg_param(struct isp_dev_t *isp_dev, struct rdmif1_param_
 
 	val = (xend0 << 16) | (0 << 0);
 	isp_reg_write(isp_dev, ISP_RDMIF1_LUMA_X0, val);
-	
+
 	val = (yend0 << 16) | (0 << 0);
 	isp_reg_write(isp_dev, ISP_RDMIF1_LUMA_Y0, val);
-	
+
 	val = (xend1 << 16) | (0 << 0);
 	isp_reg_write(isp_dev, ISP_RDMIF1_CHROMA_X0, val);
-	
+
 	val = (yend1 << 16) | (0 << 0);
 	isp_reg_write(isp_dev, ISP_RDMIF1_CHROMA_Y0, val);
 

@@ -39,6 +39,8 @@ static void tnr_cfg_param(struct isp_dev_t *isp_dev, void *param)
 	u32 addr;
 	aisp_tnr_cfg_t *tnr_cfg = param;
 
+	isp_hw_lut_wstart(isp_dev, TNR_LUT_CFG);
+
 	val = tnr_cfg->rad_tnr0_en;
 	isp_reg_update_bits(isp_dev, ISP_CUBIC_RAD_CRTL, val, 26, 1);
 
@@ -101,6 +103,8 @@ static void tnr_cfg_param(struct isp_dev_t *isp_dev, void *param)
 		(tnr_cfg->ma_mix_h_th_gain[2] << 6) |
 		(tnr_cfg->ma_mix_h_th_gain[3] << 0);
 	isp_reg_write(isp_dev, ISP_CUBICT_MIX_H_GAIN, val);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void tnr_cfg_nr(struct isp_dev_t *isp_dev, void *nr)

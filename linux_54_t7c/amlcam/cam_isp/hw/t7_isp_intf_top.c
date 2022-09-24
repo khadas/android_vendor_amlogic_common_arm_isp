@@ -64,6 +64,7 @@ void isp_intf_top_cfg_buf(struct isp_dev_t *isp_dev, struct aml_format *fmt, str
 	void * mix_link_vaddr = NULL;
 	u32 *alink_vaddr = NULL;
 	u32 *blink_vaddr = NULL;
+	struct isp_global_info *g_info = isp_global_get_info();
 
 	iir_body_size = (((fmt->width  + 15) / 16) * 16) * fmt->height * 2;
 	iir_body_size = ISP_ALIGN(iir_body_size, 1 << 12);
@@ -129,14 +130,30 @@ void isp_intf_top_cfg_buf(struct isp_dev_t *isp_dev, struct aml_format *fmt, str
 		*(blink_vaddr + i) = mix_body_addr + mix_body_size + (i << 12);
 	}
 
-	isp_reg_update_bits(isp_dev, ISP_INTF_TOP_CTRL, 1, 0, 1);
-	isp_reg_update_bits(isp_dev, ISP_MCNR_HW_CTRL0, 1, 31, 1);
-	isp_reg_update_bits(isp_dev, ISP_INTF_TOP_CTRL, 0, 0, 1);
-	isp_reg_update_bits(isp_dev, ISP_MCNR_HW_CTRL0, 0, 31, 1);
+	if (g_info->mode == AML_ISP_SCAM) {
+		isp_hwreg_update_bits(isp_dev, ISP_INTF_TOP_CTRL, 1, 0, 1);
+		isp_hwreg_update_bits(isp_dev, ISP_MCNR_HW_CTRL0, 1, 31, 1);
+		isp_hwreg_update_bits(isp_dev, ISP_INTF_TOP_CTRL, 0, 0, 1);
+		isp_hwreg_update_bits(isp_dev, ISP_MCNR_HW_CTRL0, 0, 31, 1);
+	}
+}
+
+void isp_intf_top_loss_index(struct isp_dev_t *isp_dev)
+{
+	struct isp_global_info *g_info = isp_global_get_info();
+
+	if (g_info->mode == AML_ISP_SCAM)
+		return;
+
+	isp_reg_update_bits(isp_dev, ISP_INTF_LOSS_LOOP0_SW, isp_dev->frm_cnt % 2, 8, 4);
+	isp_reg_update_bits(isp_dev, ISP_INTF_LOSS_LOOP0_SW, (isp_dev->frm_cnt + 1) % 2, 12, 4);
+	isp_reg_update_bits(isp_dev, ISP_INTF_LOSS_LOOP1_SW, isp_dev->frm_cnt % 2, 8, 4);
+	isp_reg_update_bits(isp_dev, ISP_INTF_LOSS_LOOP1_SW, (isp_dev->frm_cnt + 1)% 2, 12, 4);
 }
 
 void isp_intf_top_init(struct isp_dev_t *isp_dev)
 {
+	struct isp_global_info *g_info = isp_global_get_info();
 	u32 val = 0;
 
 	isp_reg_update_bits(isp_dev, ISP_INTF_CHECKSUM_CTRL, 1, 0, 1);
@@ -153,4 +170,9 @@ void isp_intf_top_init(struct isp_dev_t *isp_dev)
 
 	isp_reg_update_bits(isp_dev, ISP_INTF_LOSSD_CTRL, 1, 25, 1);
 	isp_reg_update_bits(isp_dev, ISP_INTF_LOSSD_CTRL, 1, 16, 9);
+
+	if (g_info->mode != AML_ISP_SCAM) {
+		isp_reg_update_bits(isp_dev, ISP_INTF_LOSS_LOOP0_SW, 3, 0, 2);
+		isp_reg_update_bits(isp_dev, ISP_INTF_LOSS_LOOP1_SW, 3, 0, 2);
+	}
 }

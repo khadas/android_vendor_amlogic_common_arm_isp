@@ -1097,7 +1097,7 @@ static int ov08a10_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_HBLANK:
 		break;
-	case V4L2_CID_AML_WDR:
+	case V4L2_CID_AML_MODE:
 		ov08a10->enWDRMode = ctrl->val;
 		break;
 	default:
@@ -1463,6 +1463,7 @@ int ov08a10_sbdev_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
 
 int ov08a10_sbdev_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh) {
 	struct ov08a10 *ov08a10 = to_ov08a10(sd);
+	ov08a10_stop_streaming(ov08a10);
 	ov08a10_power_off(ov08a10);
 	return 0;
 }
@@ -1505,7 +1506,7 @@ static const struct media_entity_operations ov08a10_subdev_entity_ops = {
 
 static struct v4l2_ctrl_config wdr_cfg = {
 	.ops = &ov08a10_ctrl_ops,
-	.id = V4L2_CID_AML_WDR,
+	.id = V4L2_CID_AML_MODE,
 	.name = "wdr mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,

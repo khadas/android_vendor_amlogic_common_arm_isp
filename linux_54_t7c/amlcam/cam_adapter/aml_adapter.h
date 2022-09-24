@@ -179,6 +179,7 @@ struct adapter_dev_param {
 	struct adap_exp_offset offset;
 
 	struct aml_buffer ddr_buf[2];
+	struct aml_buffer rsvd_buf;
 	struct aml_buffer *cur_buf;
 	struct aml_buffer *done_buf;
 	struct list_head free_list;
@@ -186,6 +187,18 @@ struct adapter_dev_param {
 	struct spinlock ddr_lock;
 };
 
+struct adapter_global_info {
+	int mode;
+	int devno;
+	u32 task_status;
+	u32 user;
+	struct task_struct *task;
+	struct aml_buffer *done_buf;
+	struct completion g_cmpt;
+	struct completion complete;
+	spinlock_t list_lock;
+	struct list_head done_list;
+};
 
 struct adapter_dev_ops {
 	int (*hw_init)(void *a_dev);
@@ -204,6 +217,9 @@ struct adapter_dev_ops {
 	int (*hw_interrupt_status)(void *a_dev);
 	u64 (*hw_timestamp)(void *a_dev);
 	int (*hw_wdr_cfg_buf)(void *a_dev);
+	void (*hw_irq_en)(void *a_dev);
+	void (*hw_irq_dis)(void *a_dev);
+	void (*hw_offline_mode)(void *a_dev);
 };
 
 struct adapter_dev_t {
@@ -222,6 +238,7 @@ struct adapter_dev_t {
 	void __iomem *adap;
 	void __iomem *wrmif;
 	u32 enWDRMode;
+	u32 wstatus;
 
 	struct v4l2_subdev sd;
 	struct media_pad pads[AML_ADAP_PAD_MAX];
@@ -248,5 +265,17 @@ int aml_adap_subdev_register(struct adapter_dev_t *adap_dev);
 void aml_adap_subdev_unregister(struct adapter_dev_t *adap_dev);
 
 extern const struct adapter_dev_ops adap_dev_hw_ops;
+
+struct adapter_dev_t *adap_get_dev(int index);
+int write_data_to_buf(char *buf, int size);
+
+struct adapter_global_info *aml_adap_global_get_info(void);
+int aml_adap_global_init(void);
+int aml_adap_global_create_thread(void);
+int aml_adap_global_done_completion(void);
+void aml_adap_global_destroy_thread(void);
+void aml_adap_global_mode(int mode);
+void aml_adap_global_devno(int devno);
+int aml_adap_global_get_vdev(void);
 
 #endif /* __AML_ADAPTER_H__ */

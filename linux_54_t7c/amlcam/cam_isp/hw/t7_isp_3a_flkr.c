@@ -703,8 +703,17 @@ void isp_3a_flkr_cfg_dmawr_size(struct isp_dev_t *isp_dev, struct aml_format *fm
 void isp_3a_flkr_req_info(struct isp_dev_t *isp_dev, struct aml_buffer *buff)
 {
 	aisp_stats_info_t *stats = buff->vaddr[AML_PLANE_A];
+	frame_info_t *frm_info = &stats->frame_info;
 
-	stats->frame_info.frm_cnt = isp_dev->frm_cnt;
+	frm_info->frm_cnt = isp_dev->frm_cnt;
+
+	if (isp_dev->slice) {
+		frm_info->slice_num = 2;
+		isp_disp_get_overlap(isp_dev, &frm_info->slice_ovlp);
+	} else {
+		frm_info->slice_num = 1;
+		frm_info->slice_ovlp = 0;
+	}
 
 	awb_req_info(isp_dev, &stats->module_info.awb_req_info);
 	ae_req_info(isp_dev, &stats->module_info.ae_req_info);
@@ -720,6 +729,7 @@ void isp_3a_flkr_cfg_stat_buff(struct isp_dev_t *isp_dev, struct aml_buffer *buf
 	u32 base_addr, af_dma_addr, awb_dma_addr;
 	u32 ae_dma_addr, flkr_dma_addr, post_dma_addr;
 	aisp_stats_info_t *stats = buff->vaddr[AML_PLANE_A];
+	struct isp_global_info *g_info = isp_global_get_info();
 
 	base_size = sizeof(stats->frame_info);
 	awb_dma_size = sizeof(stats->wb_stats);
@@ -734,11 +744,19 @@ void isp_3a_flkr_cfg_stat_buff(struct isp_dev_t *isp_dev, struct aml_buffer *buf
 	flkr_dma_addr = af_dma_addr + af_dma_size;
 	post_dma_addr = flkr_dma_addr + flkr_dma_size;
 
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR0, af_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR1, awb_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR2, ae_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR3, flkr_dma_addr >> 4);
-	isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR4, post_dma_addr >> 4);
+	if (g_info->mode == AML_ISP_SCAM) {
+		isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR0, af_dma_addr >> 4);
+		isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR1, awb_dma_addr >> 4);
+		isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR2, ae_dma_addr >> 4);
+		isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR3, flkr_dma_addr >> 4);
+		isp_hwreg_write(isp_dev, VIU_DMAWR_BADDR4, post_dma_addr >> 4);
+	} else {
+		isp_reg_write(isp_dev, VIU_DMAWR_BADDR0, af_dma_addr >> 4);
+		isp_reg_write(isp_dev, VIU_DMAWR_BADDR1, awb_dma_addr >> 4);
+		isp_reg_write(isp_dev, VIU_DMAWR_BADDR2, ae_dma_addr >> 4);
+		isp_reg_write(isp_dev, VIU_DMAWR_BADDR3, flkr_dma_addr >> 4);
+		isp_reg_write(isp_dev, VIU_DMAWR_BADDR4, post_dma_addr >> 4);
+	}
 }
 
 void isp_3a_flkr_cfg_fmt(struct isp_dev_t *isp_dev, struct aml_format *fmt)

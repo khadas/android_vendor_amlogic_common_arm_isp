@@ -25,6 +25,8 @@ static void gtm_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, GTM_LUT_CFG);
+
 	isp_reg_write(isp_dev, ISP_GTM_LUT129_ADDR, 0);
 	for (i = 0; i < 64; i++) {
 		val = (lut_cfg->gtm_lut[i * 2 + 0] << 0) | (lut_cfg->gtm_lut[i * 2 + 1] << 12);
@@ -33,6 +35,8 @@ static void gtm_cfg_base(struct isp_dev_t *isp_dev, void *base)
 
 	val = lut_cfg->gtm_lut[128];
 	isp_reg_write(isp_dev, ISP_GTM_LUT129_DATA, val);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 void isp_gtm_req_info(struct isp_dev_t *isp_dev, u32 idx, struct aml_buffer *buff)

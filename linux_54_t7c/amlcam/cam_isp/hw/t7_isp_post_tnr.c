@@ -23,6 +23,8 @@ static void post_tnr_cfg_lut(struct isp_dev_t *isp_dev, void *param)
 	u32 val = 0 ;
 	aisp_tnr_cfg_t *tnr_cfg = param;
 
+	isp_hw_lut_wstart(isp_dev, PST_TNR_LUT_CFG);
+
 	val = (tnr_cfg->pst_tnr_alp_lut[0] << 0) |
 		(tnr_cfg->pst_tnr_alp_lut[1] << 8) |
 		(tnr_cfg->pst_tnr_alp_lut[2] << 16) |
@@ -34,6 +36,8 @@ static void post_tnr_cfg_lut(struct isp_dev_t *isp_dev, void *param)
 		(tnr_cfg->pst_tnr_alp_lut[6] << 16) |
 		(tnr_cfg->pst_tnr_alp_lut[7] << 24);
 	isp_reg_write(isp_dev, ISP_PST_TNR_ALP_LUT_1, val);
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_tnr_cfg_nr(struct isp_dev_t *isp_dev, void *nr)

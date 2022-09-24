@@ -30,7 +30,11 @@
 #include "aml_isp.h"
 #include "aml_cam.h"
 
+#include "aml_adapter.h"
+
 #define AML_ISP_NAME	"isp-core"
+
+static struct isp_dev_t *g_isp_dev[4];
 
 static const struct aml_format isp_subdev_formats[] = {
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SBGGR8_1X8, 0, 1, 8},
@@ -51,6 +55,15 @@ static const struct aml_format isp_subdev_formats[] = {
 	{0, 0, 0, 0, MEDIA_BUS_FMT_SRGGB14_1X14, 0, 1, 14},
 };
 
+struct isp_dev_t *isp_subdrv_get_dev(int index)
+{
+	if (index >= 4) {
+		pr_err("err isp index num\n");
+	}
+
+	return g_isp_dev[index];
+}
+
 static int isp_subdrv_reg_buf_alloc(struct isp_dev_t *isp_dev)
 {
 	u32 wsize, rsize;
@@ -65,6 +78,7 @@ static int isp_subdrv_reg_buf_alloc(struct isp_dev_t *isp_dev)
 	virtaddr = dma_alloc_coherent(isp_dev->dev, bsize, &paddr, GFP_KERNEL);
 
 	isp_dev->wreg_buff.nplanes = 1;
+	isp_dev->wreg_buff.bsize = wsize;
 	isp_dev->wreg_buff.addr[AML_PLANE_A] = paddr;
 	isp_dev->wreg_buff.vaddr[AML_PLANE_A] = virtaddr;
 
@@ -72,7 +86,7 @@ static int isp_subdrv_reg_buf_alloc(struct isp_dev_t *isp_dev)
 	isp_dev->rreg_buff.addr[AML_PLANE_A] = paddr + wsize;
 	isp_dev->rreg_buff.vaddr[AML_PLANE_A] = virtaddr + wsize;
 
-	pr_debug("reg alloc start %x, end %x\n", paddr, paddr+bsize);
+	pr_debug("reg alloc\n");
 
 	return 0;
 }
@@ -89,7 +103,6 @@ static int isp_subdrv_reg_buf_free(struct isp_dev_t *isp_dev)
 
 	if (vaddr)
 		dma_free_coherent(isp_dev->dev, bsize, vaddr, (dma_addr_t)paddr);
-	pr_debug("reg free start %x, end %x\n", paddr, paddr + bsize);
 
 	isp_dev->wreg_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->wreg_buff.vaddr[AML_PLANE_A] = NULL;
@@ -97,6 +110,7 @@ static int isp_subdrv_reg_buf_free(struct isp_dev_t *isp_dev)
 	isp_dev->rreg_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->rreg_buff.vaddr[AML_PLANE_A] = NULL;
 
+	pr_debug("reg free\n");
 
 	return 0;
 }
@@ -130,7 +144,7 @@ static int isp_subdev_ptnr_buf_alloc(struct isp_dev_t *isp_dev, struct aml_forma
 
 	isp_dev->ops->hw_cfg_ptnr_mif_buf(isp_dev, &isp_dev->ptnr_buff);
 
-	pr_debug("ptnr alloc paddr start %x, end %x\n", paddr, paddr+bsize);
+	pr_info("ptnr alloc\n");
 
 	return 0;
 }
@@ -148,11 +162,10 @@ static int isp_subdev_ptnr_buf_free(struct isp_dev_t *isp_dev)
 
 	aml_subdev_unmap_vaddr(isp_dev->ptnr_buff.vaddr[AML_PLANE_A]);
 
-	pr_debug("ptnr free start %x, end %x\n", paddr, paddr + isp_dev->ptnr_buff.bsize);
-
 	isp_dev->ptnr_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->ptnr_buff.vaddr[AML_PLANE_A] = NULL;
 
+	pr_info("ptnr free\n");
 
 	return 0;
 }
@@ -222,7 +235,7 @@ static int isp_subdev_mcnr_buf_alloc(struct isp_dev_t *isp_dev, struct aml_forma
 
 	isp_dev->ops->hw_cfg_mcnr_mif_buf(isp_dev, fmt, &isp_dev->mcnr_buff);
 
-	pr_debug("mcnr alloc start %x, end %x\n", paddr, paddr+bsize);
+	pr_debug("mcnr alloc %x, %p, %x\n", paddr, isp_dev->mcnr_buff.vaddr[AML_PLANE_A], bsize);
 
 	return 0;
 }
@@ -243,33 +256,66 @@ static int isp_subdev_mcnr_buf_free(struct isp_dev_t *isp_dev)
 	isp_dev->mcnr_buff.addr[AML_PLANE_A] = 0x0000;
 	isp_dev->mcnr_buff.vaddr[AML_PLANE_A] = NULL;
 
-	pr_debug("mcnr free start %x, end %x\n", paddr, paddr+isp_dev->mcnr_buff.bsize);
+	pr_info("mcnr free\n");
 
 	return 0;
 }
 
-int isp_subdev_start_apb_dma(struct isp_dev_t *isp_dev)
+int isp_subdev_start_manual_dma(struct isp_dev_t *isp_dev)
 {
-	if (isp_dev->apb_dma == 0)
+	struct isp_global_info *g_info = isp_global_get_info();
+
+	if ((isp_dev->apb_dma == 0) ||
+		(g_info->user > 1))
 		return 0;
+
+	dma_sync_single_for_device(isp_dev->dev,isp_dev->wreg_buff.addr[AML_PLANE_A], isp_dev->wreg_buff.bsize, DMA_TO_DEVICE);
 
 	isp_dev->ops->hw_start_apb_dma(isp_dev);
 	isp_dev->ops->hw_manual_trigger_apb_dma(isp_dev);
 	isp_dev->ops->hw_check_done_apb_dma(isp_dev);
+	isp_dev->ops->hw_stop_apb_dma(isp_dev);
 
-	isp_dev->wreg_cnt = 0;
+	pr_info("manual dma count:%d-%d\n", isp_dev->fwreg_cnt, isp_dev->twreg_cnt);
 
 	return 0;
 }
 
-int isp_subdev_update_apb_dma(struct isp_dev_t *isp_dev)
+int isp_subdev_start_auto_dma(struct isp_dev_t *isp_dev)
 {
 	if (isp_dev->apb_dma == 0)
 		return 0;
 
 	isp_dev->ops->hw_start_apb_dma(isp_dev);
+	isp_dev->ops->hw_auto_trigger_apb_dma(isp_dev);
+	isp_dev->ops->hw_check_done_apb_dma(isp_dev);
+
+	pr_info("auto dma count:%d-%d\n", isp_dev->wreg_cnt, isp_dev->twreg_cnt);
 
 	isp_dev->wreg_cnt = 0;
+	isp_dev->twreg_cnt = 0;
+
+	return 0;
+}
+
+int isp_subdev_update_auto_dma(struct isp_dev_t *isp_dev)
+{
+	struct isp_global_info *g_info = isp_global_get_info();
+
+	if (g_info->mode != AML_ISP_SCAM)
+		return 0;
+
+	if (isp_dev->apb_dma == 0)
+		return 0;
+
+	dma_sync_single_for_device(isp_dev->dev,isp_dev->wreg_buff.addr[AML_PLANE_A], isp_dev->wreg_buff.bsize, DMA_TO_DEVICE);
+
+	isp_dev->ops->hw_start_apb_dma(isp_dev);
+
+	pr_debug("dma count:%d-%d\n", isp_dev->wreg_cnt, isp_dev->twreg_cnt);
+
+	isp_dev->wreg_cnt = 0;
+	isp_dev->twreg_cnt = 0;
 
 	return 0;
 }
@@ -314,9 +360,7 @@ static int isp_subdev_set_format(void *priv, void *s_fmt, void *m_fmt)
 
 	switch (fmt->pad) {
 	case AML_ISP_PAD_SINK_VIDEO:
-		isp_dev->frm_cnt = 0;
-		isp_dev->wreg_cnt = 0;
-		isp_dev->ops->hw_reset(isp_dev);
+		isp_global_reset(isp_dev);
 		isp_dev->ops->hw_fill_rreg_buff(isp_dev);
 		isp_dev->ops->hw_init(isp_dev);
 		isp_dev->ops->hw_set_input_fmt(isp_dev, &p_fmt);
@@ -340,6 +384,7 @@ static int isp_subdev_set_format(void *priv, void *s_fmt, void *m_fmt)
 static int isp_subdev_stream_on(void *priv)
 {
 	struct isp_dev_t *isp_dev = priv;
+	struct isp_global_info *g_info = isp_global_get_info();
 	int rtn = 0;
 
 	rtn = isp_subdev_mcnr_buf_alloc(isp_dev, &isp_dev->fmt);
@@ -357,7 +402,12 @@ static int isp_subdev_stream_on(void *priv)
 
 	isp_dev->isp_status = STATUS_START;
 
-	isp_subdev_start_apb_dma(isp_dev);
+	isp_global_stream_on();
+
+	if (g_info->mode == AML_ISP_SCAM)
+		isp_subdev_start_auto_dma(isp_dev);
+	else
+		isp_subdev_start_manual_dma(isp_dev);
 
 	return 0;
 }
@@ -366,16 +416,18 @@ static void isp_subdev_stream_off(void *priv)
 {
 	struct isp_dev_t *isp_dev = priv;
 
-	if (isp_dev->ops->hw_stop)
-		isp_dev->ops->hw_stop(isp_dev);
-
 	isp_dev->isp_status = STATUS_STOP;
 	isp_dev->enWDRMode = WDR_MODE_NONE;
 
-	isp_dev->ops->hw_enable_ptnr_mif(isp_dev, 0);
-	isp_subdev_ptnr_buf_free(isp_dev);
+	isp_global_stream_off();
 
+	if (isp_dev->ops->hw_stop)
+		isp_dev->ops->hw_stop(isp_dev);
+
+	isp_dev->ops->hw_enable_ptnr_mif(isp_dev, 0);
 	isp_dev->ops->hw_enable_mcnr_mif(isp_dev, 0);
+
+	isp_subdev_ptnr_buf_free(isp_dev);
 	isp_subdev_mcnr_buf_free(isp_dev);
 }
 
@@ -397,12 +449,16 @@ static int isp_subdev_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct isp_dev_t *isp_dev = container_of(ctrl->handler,
 					     struct isp_dev_t, ctrls);
+	struct isp_global_info *g_info = isp_global_get_info();
 	int ret = 0;
 
 	switch (ctrl->id) {
-	case V4L2_CID_AML_WDR:
-		pr_info("isp_subdev_set_ctrl:%d\n", ctrl->val);
+	case V4L2_CID_AML_MODE:
+		pr_err("isp_subdev_set_ctrl:%d\n", ctrl->val);
 		isp_dev->enWDRMode = ctrl->val;
+		g_info->mode = AML_ISP_SCAM;
+		if (isp_dev->enWDRMode == ISP_SDR_DCAM_MODE)
+			g_info->mode = AML_ISP_MCAM;
 		break;
 	default:
 		pr_err( "Error ctrl->id %u, flag 0x%lx\n", ctrl->id, ctrl->flags);
@@ -416,13 +472,13 @@ static const struct v4l2_ctrl_ops isp_ctrl_ops = {
 	.s_ctrl = isp_subdev_set_ctrl,
 };
 
-static struct v4l2_ctrl_config wdr_cfg = {
+static struct v4l2_ctrl_config mode_cfg = {
 	.ops = &isp_ctrl_ops,
-	.id = V4L2_CID_AML_WDR,
-	.name = "wdr mode",
+	.id = V4L2_CID_AML_MODE,
+	.name = "isp mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0,
-	.max = 2,
+	.max = 5,
 	.step = 1,
 	.def = 0,
 };
@@ -433,7 +489,7 @@ int isp_subdev_ctrls_init(struct isp_dev_t *isp_dev)
 
 	v4l2_ctrl_handler_init(&isp_dev->ctrls, 1);
 
-	isp_dev->wdr = v4l2_ctrl_new_custom(&isp_dev->ctrls, &wdr_cfg, NULL);
+	isp_dev->wdr = v4l2_ctrl_new_custom(&isp_dev->ctrls, &mode_cfg, NULL);
 
 	isp_dev->sd.ctrl_handler = &isp_dev->ctrls;
 
@@ -451,7 +507,15 @@ static irqreturn_t isp_subdev_irq_handler(int irq, void *dev)
 	unsigned long flags;
 	struct isp_dev_t *isp_dev = dev;
 
-	if (isp_dev->isp_status == STATUS_STOP)
+	if (isp_dev->isp_status == STATUS_STOP) {
+		if (aml_adap_global_get_vdev() == isp_dev->index) {
+			pr_err("ISP%d: Stoped and Irq ignore\n", isp_dev->index);
+			aml_adap_global_done_completion();
+		}
+		return IRQ_HANDLED;
+	}
+
+	if (aml_adap_global_get_vdev() != isp_dev->index)
 		return IRQ_HANDLED;
 
 	spin_lock_irqsave(&isp_dev->irq_lock, flags);
@@ -486,7 +550,9 @@ static void isp_subdev_irq_tasklet(unsigned long data)
 			video->ops->cap_irq_handler(video, status);
 	}
 
-	isp_subdev_update_apb_dma(isp_dev);
+	isp_subdev_update_auto_dma(isp_dev);
+
+	aml_adap_global_done_completion();
 }
 
 static int isp_subdev_parse_dev(struct isp_dev_t *isp_dev)
@@ -538,11 +604,9 @@ static int isp_subdev_power_on(struct isp_dev_t *isp_dev)
 	switch (isp_dev->index) {
 	case 0:
 	case 1:
-		clk_set_rate(isp_dev->isp_clk, 666666666);
-	break;
 	case 2:
 	case 3:
-		clk_set_rate(isp_dev->isp_clk, 200000000);
+		clk_set_rate(isp_dev->isp_clk, 666666666);
 	break;
 	default:
 		dev_err(isp_dev->dev, "ISP%d: Error to set clk rate\n", isp_dev->index);
@@ -649,7 +713,11 @@ int aml_isp_subdev_init(void *c_dev)
 
 	isp_subdrv_reg_buf_alloc(isp_dev);
 
+	isp_global_init(isp_dev);
+
 	dev_info(isp_dev->dev, "ISP%u: subdev init\n", isp_dev->index);
+
+	g_isp_dev[cam_dev->index] = isp_dev;
 
 	return rtn;
 }
@@ -672,6 +740,8 @@ void aml_isp_subdev_deinit(void *c_dev)
 	devm_clk_put(isp_dev->dev, isp_dev->isp_clk);
 
 	isp_subdrv_reg_buf_free(isp_dev);
+
+	isp_global_deinit(isp_dev);
 
 	dev_info(isp_dev->dev, "ISP%u: subdev deinit\n", isp_dev->index);
 }

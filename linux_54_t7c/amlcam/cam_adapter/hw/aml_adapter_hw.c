@@ -264,33 +264,46 @@ const struct emb_ops_t emb_hw_ops = {
 
 static int adap_ddr_mode_cfg(void *a_dev)
 {
-	u32 val = 0;
 	struct adapter_dev_t *adap_dev = a_dev;
 
-	val = (2 << 4) | (2 << 20);
-	module_reg_write(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0, val);
-
-	val = (6 << 0);
-	module_reg_write(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL2, val);
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL9, 24, 2, 19);
 
 	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_ALIG_CNTL11, 2, 16, 3);
-
-	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL1, 1, 31, 1);
-	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL1, 2, 0, 3);
-	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL1, 4, 4, 4);
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0, 8, 24, 4);
 
 	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 1, 2, 2);
-	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 24, 1);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 26, 0);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL1, 0, 29, 1);
+
 	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 1, 25, 1);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 25, 1);
 
-	module_update_bits(a_dev, PIXEL_MD, MIPI_ADAPT_PIXEL0_CNTL3, 1, 2, 1);
-	module_update_bits(a_dev, PIXEL_MD, MIPI_ADAPT_PIXEL0_CNTL3, 1, 0, 1);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD1_CNTL0, 1, 2, 2);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD1_CNTL0, 0, 26, 0);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD1_CNTL1, 0, 29, 1);
 
-	module_update_bits(a_dev, PIXEL_MD, MIPI_ADAPT_PIXEL0_CNTL0, 1, 31, 1);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD1_CNTL0, 1, 25, 1);
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD1_CNTL0, 0, 25, 1);
 
-	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0, 7, 8, 3);
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL1, 2, 30, 2);
 
-	pr_info("ADAP%u: ddr new cfg\n", adap_dev->index);
+	//lbuf no sync
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL1, 0xFF, 20, 8);
+
+	//pixel rst
+	module_update_bits(a_dev, PIXEL_MD, MIPI_ADAPT_PIXEL0_CNTL3, 0, 0, 3);
+	module_update_bits(a_dev, PIXEL_MD, MIPI_ADAPT_PIXEL1_CNTL3, 0, 0, 3);
+
+	//align rst
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_ALIG_CNTL7, 0, 13, 2);
+
+	//vfifo rst
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL10, 0xF, 12, 4);
+
+	//vfifo full hold
+	module_update_bits(a_dev, ALIGN_MD, MIPI_ADAPT_ALIG_CNTL10, 0xFF, 24, 8);
+
+	pr_debug("ADAP%u: ddr new cfg\n", adap_dev->index);
 
 	return 0;
 }
@@ -333,10 +346,10 @@ static int adap_frontend_init(void *a_dev)
 		cfg_isp2ddr_enable = 0;
 		cfg_isp2comb_enable = 0;
 		vc_mode = 0x11110000;
-		mem_addr0_a = 0;
-		mem_addr0_b = 0;
-		mem_addr1_a = 0;
-		mem_addr1_b = 0;
+		mem_addr0_a = param->ddr_buf[0].addr[0];
+		mem_addr0_b = param->ddr_buf[0].addr[0];
+		mem_addr1_a = param->ddr_buf[0].addr[0];
+		mem_addr1_b = param->ddr_buf[0].addr[0];
 		reg_lbuf0_vs_sel = 3;
 		reg_vfifo_vs_out_pre = 7;
 		cfg_line_sup_vs_en	= 1;
@@ -359,22 +372,6 @@ static int adap_frontend_init(void *a_dev)
 		cfg_line_sup_vs_sel = 0;
 		cfg_line_sup_sel	= 0;
 		break;
-	case MODE_MIPI_YUV_SDR_DDR:
-		cfg_all_to_mem = 1;
-		pingpong_en = 0;
-		cfg_isp2ddr_enable = 0;
-		cfg_isp2comb_enable = 0;
-		vc_mode = 0x11110000;
-		mem_addr0_a = 0;
-		mem_addr0_b = 0;
-		mem_addr1_a = 0;
-		mem_addr1_b = 0;
-		reg_lbuf0_vs_sel = 3;
-		reg_vfifo_vs_out_pre = 7;
-		cfg_line_sup_vs_en	= 0;
-		cfg_line_sup_vs_sel = 0;
-		cfg_line_sup_sel	= 0;
-	break;
 	case MODE_MIPI_RAW_HDR_DDR_DIRCT:
 		cfg_all_to_mem = 0;
 		pingpong_en = 0;
@@ -390,6 +387,22 @@ static int adap_frontend_init(void *a_dev)
 		cfg_line_sup_vs_en = 1;
 		cfg_line_sup_vs_sel = 1;
 		cfg_line_sup_sel = 1;
+	break;
+	case MODE_MIPI_YUV_SDR_DDR:
+		cfg_all_to_mem = 1;
+		pingpong_en = 0;
+		cfg_isp2ddr_enable = 0;
+		cfg_isp2comb_enable = 0;
+		vc_mode = 0x11110000;
+		mem_addr0_a = 0;
+		mem_addr0_b = 0;
+		mem_addr1_a = 0;
+		mem_addr1_b = 0;
+		reg_lbuf0_vs_sel = 3;
+		reg_vfifo_vs_out_pre = 7;
+		cfg_line_sup_vs_en	= 0;
+		cfg_line_sup_vs_sel = 0;
+		cfg_line_sup_sel	= 0;
 	break;
 	case MODE_MIPI_RGB_SDR_DDR:
 		cfg_all_to_mem = 1;
@@ -558,10 +571,10 @@ static int adap_frontend_init(void *a_dev)
 		}
 	}
 
-	module_reg_write(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0,
-					0 << 24 |
-					reg_vfifo_vs_out_pre << 12 |
-					reg_lbuf0_vs_sel << 8);
+	//module_reg_write(a_dev, ALIGN_MD, MIPI_ADAPT_FE_MUX_CTL0,
+	//				0 << 24 |
+	//				reg_vfifo_vs_out_pre << 12 |
+	//				reg_lbuf0_vs_sel << 8);
 
 	return rtn;
 }
@@ -645,10 +658,10 @@ static int adap_reader_init(void *a_dev)
 		port_sel_1 = 1;
 		ddr_rden_0 = 1;
 		ddr_rden_1 = 0;
-		ddr_rd0_ping = 0;
-		ddr_rd0_pong = 0;
-		ddr_rd1_ping = 0;
-		ddr_rd1_pong = 0;
+		ddr_rd0_ping = param->ddr_buf[0].addr[0];
+		ddr_rd0_pong = param->ddr_buf[0].addr[0];
+		ddr_rd1_ping = param->ddr_buf[0].addr[0];
+		ddr_rd1_pong = param->ddr_buf[0].addr[0];
 	break;
 	case MODE_MIPI_RAW_SDR_DIRCT:
 		dol_mode = 0;
@@ -1042,7 +1055,7 @@ static int adap_align_init(void *a_dev)
 	module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL0,
 					(param->alig_param.alig_hsize + 64) << 0 |
 					(param->alig_param.alig_vsize + 64) << 16 );
-	
+
 	module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL1,
 					param->alig_param.alig_hsize << 16 |
 					0 << 0 );
@@ -1050,10 +1063,10 @@ static int adap_align_init(void *a_dev)
 	module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL2,
 					param->alig_param.alig_vsize << 16 |
 					0 << 0 );
-	
-	module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL3,
-					param->alig_param.alig_hsize << 0 |
-					0 << 16 );
+
+	//module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL3,
+	//				param->alig_param.alig_hsize << 0 |
+	//				0 << 16 );
 
 	module_reg_write(a_dev, module, MIPI_ADAPT_ALIG_CNTL6,
 					lane0_en << 0 |	//lane enable
@@ -1099,6 +1112,7 @@ static void adap_align_start(void *a_dev)
 
 static void adap_module_reset(void *a_dev)
 {
+	struct adapter_global_info *g_info = aml_adap_global_get_info();
 	struct adapter_dev_t *adap_dev = a_dev;
 	int module = FRONTEND_MD;
 
@@ -1121,7 +1135,10 @@ static void adap_module_reset(void *a_dev)
 
 	module_reg_write(a_dev, module, CSI2_GEN_CTRL0, 0x00000000);
 
-	module_update_bits(a_dev, module, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 0, 1);
+	if (g_info->user)
+		return;
+
+	module_update_bits(a_dev, READER_MD, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 0, 1);
 
 	udelay(1000);
 #ifdef T7C_CHIP
@@ -1138,6 +1155,7 @@ static int adap_hw_init(void *a_dev)
 	int rtn = 0;
 	struct adapter_dev_t *adap_dev = a_dev;
 	struct adapter_dev_param *param = &adap_dev->param;
+	struct adapter_global_info *g_info = aml_adap_global_get_info();
 
 	param->fe_param.fe_sel = adap_dev->index;
 	param->fe_param.fe_work_mode = param->mode;
@@ -1187,6 +1205,9 @@ static int adap_hw_init(void *a_dev)
 
 	rtn = adap_frontend_init(a_dev);
 	if (rtn)
+		return rtn;
+
+	if (g_info->user)
 		return rtn;
 
 	rtn = adap_reader_init(a_dev);
@@ -1375,6 +1396,9 @@ static int adap_rd_cfg_buf(struct aml_video *video, struct aml_buffer *buff)
 	module_reg_write(video->priv, module, MIPI_ADAPT_DDR_RD0_CNTL2, addr);
 	module_reg_write(video->priv, module, MIPI_ADAPT_DDR_RD0_CNTL3, addr);
 
+	module_update_bits(video->priv, module, MIPI_ADAPT_DDR_RD0_CNTL0, 1, 25, 1);
+	module_update_bits(video->priv, module, MIPI_ADAPT_DDR_RD0_CNTL0, 0, 25, 1);
+
 	return 0;
 }
 
@@ -1390,12 +1414,25 @@ static void adap_fe_disable(struct aml_video *video)
 
 static void adap_rd_enable(struct aml_video *video)
 {
+	adap_align_start(video->priv);
+	adap_pixel_start(video->priv);
 	adap_reader_start(video->priv);
 }
 
 static void adap_rd_disable(struct aml_video *video)
 {
 	return;
+}
+
+static void adap_hw_offline(void *a_dev)
+{
+	struct adapter_dev_t *adap_dev = a_dev;
+
+	adap_reader_init(a_dev);
+	adap_pixel_init(a_dev);
+	adap_align_init(a_dev);
+
+	adap_ddr_mode_cfg(a_dev);
 }
 
 static int adap_hw_irq_handler(void *a_dev)
@@ -1406,11 +1443,38 @@ static int adap_hw_irq_handler(void *a_dev)
 static int adap_hw_irq_status(void *a_dev)
 {
 	u32 val = 0;
+	struct adapter_dev_t *adap_dev = a_dev;
 
-	module_reg_read(a_dev, FRONTEND_MD, CSI2_INTERRUPT_CTRL_STAT, &val);
-	module_reg_write(a_dev, FRONTEND_MD, CSI2_INTERRUPT_CTRL_STAT, val);
+	module_reg_read(a_dev, adap_dev->index, CSI2_INTERRUPT_CTRL_STAT, &val);
+	module_reg_write(a_dev, adap_dev->index, CSI2_INTERRUPT_CTRL_STAT, val);
 
 	return val;
+}
+
+static void adap_hw_irq_disable(void *a_dev)
+{
+	struct adapter_dev_t *adap_dev = a_dev;
+	struct adapter_dev_param *param = &adap_dev->param;
+
+	if (param->mode != MODE_MIPI_RAW_SDR_DDR)
+		return;
+
+	module_update_bits(a_dev, adap_dev->index, CSI2_INTERRUPT_CTRL_STAT, 0, 2, 1); //fe wr done
+
+	//module_update_bits(a_dev, ISP_TOP_OFFSET, MIPI_TOP_ISP_PENDING_MASK0, 0, ALIGN_FRAME_END, 1); //align done
+}
+
+static void adap_hw_irq_enable(void *a_dev)
+{
+	struct adapter_dev_t *adap_dev = a_dev;
+	struct adapter_dev_param *param = &adap_dev->param;
+
+	if (param->mode != MODE_MIPI_RAW_SDR_DDR)
+		return;
+
+	module_update_bits(a_dev, adap_dev->index, CSI2_INTERRUPT_CTRL_STAT, 1, 2, 1); //fe wr done
+
+	//module_update_bits(a_dev, ISP_TOP_OFFSET, MIPI_TOP_ISP_PENDING_MASK0, 1, ALIGN_FRAME_END, 1); //align done
 }
 
 static void adap_hw_reset(void *a_dev)
@@ -1433,9 +1497,14 @@ static int adap_hw_start(void *a_dev)
 {
 	struct adapter_dev_t *adap_dev = a_dev;
 
-	adap_align_start(a_dev);
-	adap_pixel_start(a_dev);
-	adap_reader_start(a_dev);
+	if (adap_dev->param.mode == MODE_MIPI_RAW_SDR_DIRCT ||
+		adap_dev->param.mode == MODE_MIPI_RAW_HDR_DDR_DIRCT) {
+		adap_align_start(a_dev);
+		adap_pixel_start(a_dev);
+		adap_reader_start(a_dev);
+	} else
+		adap_ddr_mode_cfg(a_dev);
+
 	adap_frontend_start(a_dev);
 
 	pr_info("ADAP%u: hw start\n", adap_dev->index);
@@ -1447,7 +1516,7 @@ static void adap_hw_stop(void *a_dev)
 {
 	struct adapter_dev_t *adap_dev = a_dev;
 
-	adap_module_reset(a_dev);
+	adap_frontend_stop(a_dev);
 
 	pr_info("ADAP%u: hw stop\n", adap_dev->index);
 }
@@ -1469,4 +1538,7 @@ const struct adapter_dev_ops adap_dev_hw_ops = {
 	.hw_interrupt_status = adap_hw_irq_status,
 	.hw_timestamp = adap_hw_timestamp,
 	.hw_wdr_cfg_buf = adap_wdr_cfg_buf,
+	.hw_irq_en = adap_hw_irq_enable,
+	.hw_irq_dis = adap_hw_irq_disable,
+	.hw_offline_mode = adap_hw_offline,
 };

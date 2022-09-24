@@ -23,6 +23,7 @@
 void isp_apb_dma_check_done(struct isp_dev_t *isp_dev)
 {
 	u32 val = 0;
+	u32 failed = 0;
 
 	while (isp_dev->isp_status == STATUS_START) {
 		val = isp_hwreg_read(isp_dev, ISP_DMA_PENDING0);
@@ -30,6 +31,10 @@ void isp_apb_dma_check_done(struct isp_dev_t *isp_dev)
 			break;
 
 		udelay(300);
+		if (failed ++ > 1000) {
+			pr_err("isp apb dma timeout\n");
+			break;
+		}
 	}
 
 	isp_hwreg_write(isp_dev, ISP_DMA_PENDING0, val);
@@ -44,7 +49,7 @@ void isp_apb_dma_start(struct isp_dev_t *isp_dev)
 	isp_hwreg_write(isp_dev, ISP_DMA_SRC0_CTL, val);
 
 /* select task0 type and cmd length */
-	val = (1 << 31) | (1 << 30) | (isp_dev->wreg_cnt * 2 -1);
+	val = (1 << 31) | (1 << 30) | (isp_dev->twreg_cnt * 2 -1);
 	isp_hwreg_write(isp_dev, ISP_DMA_SRC0_PING_TASK0, val);
 
 /* config ping store addr */
@@ -56,7 +61,34 @@ void isp_apb_dma_start(struct isp_dev_t *isp_dev)
 	isp_hwreg_write(isp_dev, ISP_DMA_CTL0, val);
 }
 
+void isp_apb_dma_stop(struct isp_dev_t *isp_dev)
+{
+	isp_hwreg_write(isp_dev, ISP_DMA_CTL0, 0);
+}
+
 void isp_apb_dma_manual_trigger(struct isp_dev_t *isp_dev)
+{
+	isp_hwreg_update_bits(isp_dev, ISP_TOP_RDMA_CTRL, 1, 0, 1);
+
+	isp_hwreg_update_bits(isp_dev, ISP_TOP_RDMA_CTRL, 1, 16, 1);
+}
+
+void isp_apb_dma_fill_rreg_buff(struct isp_dev_t *isp_dev)
+{
+	u32 i = 0;
+	u32 base_reg = (ISP_TOP_INPUT_SIZE - ISP_BASE) >> 2;
+	u32 max_reg = (ISP_LOSSD_MIX_RO_BIT_LEN_L_3 - ISP_BASE) >> 2;
+	struct isp_global_info *g_info = isp_global_get_info();
+	struct aml_reg *g_rreg = g_info->rreg_buff.vaddr[AML_PLANE_A];
+	struct aml_reg *rreg = isp_dev->rreg_buff.vaddr[AML_PLANE_A];
+
+	for (i = base_reg; i <= max_reg; i++) {
+		rreg[i].addr = i;
+		rreg[i].val = g_rreg[i].val;
+	}
+}
+
+void isp_apb_dma_auto_trigger(struct isp_dev_t *isp_dev)
 {
 	u32 val =0;
 
@@ -67,12 +99,13 @@ void isp_apb_dma_manual_trigger(struct isp_dev_t *isp_dev)
 	isp_hwreg_write(isp_dev, ISP_TOP_RDMA_CTRL, val);
 }
 
-void isp_apb_dma_fill_rreg_buff(struct isp_dev_t *isp_dev)
+void isp_apb_dma_fill_gisp_rreg_buff(struct isp_global_info *g_isp)
 {
 	u32 i = 0;
-	u32 base_reg = ((ISP_TOP_INPUT_SIZE - ISP_BASE) >> 2);
-	u32 max_reg = ((ISP_LOSSD_MIX_RO_BIT_LEN_L_3 - ISP_BASE) >> 2);
-	struct aml_reg *rreg = isp_dev->rreg_buff.vaddr[AML_PLANE_A];
+	u32 base_reg = (ISP_TOP_INPUT_SIZE - ISP_BASE) >> 2;
+	u32 max_reg = (ISP_LOSSD_MIX_RO_BIT_LEN_L_3 - ISP_BASE) >> 2;
+	struct isp_dev_t *isp_dev = g_isp->isp_dev;
+	struct aml_reg *rreg = g_isp->rreg_buff.vaddr[AML_PLANE_A];
 
 	for (i = base_reg; i <= max_reg; i++) {
 		rreg[i].addr = i;

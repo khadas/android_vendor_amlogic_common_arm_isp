@@ -26,6 +26,8 @@ static void post_gamma_cfg_base(struct isp_dev_t *isp_dev, void *base)
 	aisp_base_cfg_t *base_cfg = base;
 	aisp_lut_fixed_cfg_t *lut_cfg = &base_cfg->fxlut_cfg;
 
+	isp_hw_lut_wstart(isp_dev, PST_GAMMA_LUT_CFG);
+
 	for (j = 0; j < 4; j++) {
 		isp_reg_write(isp_dev, ISP_PST_GAMMA_LUT_ADDR, j << 7);
 		for (i = 0; i < 64; i++) {
@@ -41,6 +43,8 @@ static void post_gamma_cfg_base(struct isp_dev_t *isp_dev, void *base)
 		val = lut_cfg->pst_gamma_lut[idx0];
 		isp_reg_write(isp_dev, ISP_PST_GAMMA_LUT_DATA, val);
 	}
+
+	isp_hw_lut_wend(isp_dev);
 }
 
 static void post_ccm_cfg_param(struct isp_dev_t *isp_dev, void *param)

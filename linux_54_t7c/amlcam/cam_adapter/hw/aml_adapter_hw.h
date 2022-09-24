@@ -182,6 +182,7 @@
 #define MIPI_ADAPT_FE_MUX_CTL2          (0x92<<2)
 #define MIPI_ADAPT_FE_MUX_CTL3          (0xbf<<2)
 #define MIPI_ADAPT_FE_MUX_CTL9          (0xc5<<2)
+#define MIPI_ADAPT_FE_MUX_CTL10         (0xc6<<2)
 
 #define MIPI_ADAPT_FE_MUX0_DLY_STAT0    (0x93<<2)
 #define MIPI_ADAPT_FE_MUX1_DLY_CNTL0    (0x94<<2)
@@ -243,6 +244,11 @@
 #define ISP_TOFWR_WMIF_CTRL6            (0x28<<2)
 #define ISP_TOFWR_WMIF_CTRL7            (0x29<<2)
 
+#define MIPI_TOP_ISP_PENDING_MASK0           (0xf0 << 2)
+#define MIPI_TOP_ISP_PENDING_MASK1           (0xf1 << 2)
+#define MIPI_TOP_ISP_PENDING0                (0xf3 << 2)
+#define MIPI_TOP_ISP_PENDING1                (0xf4 << 2)
+
 enum {
 	FRONTEND_MD = 0,
 	FRONTEND1_MD,
@@ -261,5 +267,13 @@ struct adap_regval {
 	u32 reg;
 	u32 val;
 };
+
+#define FRONT0_WR_DONE 28
+#define FRONT1_WR_DONE 2
+#define FRONT2_WR_DONE 8
+#define FRONT3_WR_DONE 14
+#define ALIGN_FRAME_END 9
+#define READ0_RD_DONE 21
+#define READ1_RD_DONE 15
 
 #endif /* __AML_P1_ADAPTER_HW_H__ */
