@@ -128,7 +128,7 @@ static const struct imx290_regval imx290_global_init_settings[] = {
 	{0x3013, 0x00},
 	{0x3014, 0x00},//Gain
 	{0x3016, 0x09},
-	{0x3018, 0x65}, /* VMAX[7:0] */
+	{0x3018, 0x85}, /* VMAX[7:0] */
 	{0x3019, 0x04}, /* VMAX[15:8] */
 	{0x301a, 0x00}, /* VMAX[16] */
 	{0x301b, 0x00},
@@ -260,7 +260,7 @@ static struct imx290_regval dol_1080p_30fps_4lane_10bits[] = {
 	{0x3012, 0x64 },
 	{0x3014, 0x00 },
 	{0x3016, 0x09 },
-	{0x3018, 0xC4 },//VMAX change from 0465 to 04C4
+	{0x3018, 0x85 },//VMAX change from 0465 to 04C4
 	{0x3019, 0x04 },//VMAX
 
 	{0x301c, 0xEC },//* HMAX */ change from 0898 to 07EC
