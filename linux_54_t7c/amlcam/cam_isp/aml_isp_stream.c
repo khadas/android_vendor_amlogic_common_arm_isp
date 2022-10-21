@@ -156,7 +156,7 @@ static int isp_cap_irq_handler(void *video, int status)
 			isp_cap_stream_bilateral_cfg(vd, b_current);
 		t_current = list_first_entry_or_null(&vd->head, struct aml_buffer, list);
 		if ((t_current == NULL) && (vd->id > AML_ISP_STREAM_PARAM)) {
-			pr_err("ISP%d video%d no buf %x %x\n", isp_dev->index, vd->id, b_current->addr[0], b_current->bsize);
+			pr_debug("ISP%d video%d no buf %x %x\n", isp_dev->index, vd->id, b_current->addr[0], b_current->bsize);
 			ops->hw_stream_cfg_buf(vd, b_current);
 			spin_unlock_irqrestore(&vd->buff_list_lock, flags);
 			return 0;
