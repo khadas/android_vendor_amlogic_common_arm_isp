@@ -477,6 +477,7 @@ static struct v4l2_ctrl_config mode_cfg = {
 	.id = V4L2_CID_AML_MODE,
 	.name = "isp mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
 	.min = 0,
 	.max = 5,
 	.step = 1,

@@ -1192,6 +1192,7 @@ static struct v4l2_ctrl_config wdr_cfg = {
 	.id = V4L2_CID_AML_MODE,
 	.name = "wdr mode",
 	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
 	.min = 0,
 	.max = 2,
 	.step = 1,
