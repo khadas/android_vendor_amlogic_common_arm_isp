@@ -50,6 +50,7 @@ static int soc_lens_log_status( struct v4l2_subdev *sd )
 static int soc_lens_init( struct v4l2_subdev *sd, u32 val )
 {
     int rc = 0;
+    pr_info("%s in, ctx idx %d", __func__, val);
 
     if ( val < FIRMWARE_CONTEXT_NUMBER ) {
         l_ctx[val].lens_context = NULL;
@@ -180,7 +181,7 @@ static const struct v4l2_subdev_ops lens_ops = {
 static int32_t soc_lens_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
-
+    pr_info("%s in ", __func__);
     v4l2_subdev_init( &soc_lens, &lens_ops );
 
     soc_lens.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
@@ -238,3 +239,4 @@ module_init( acamera_soc_lens_init );
 module_exit( acamera_soc_lens_exit );
 MODULE_LICENSE( "GPL v2" );
 MODULE_AUTHOR( "ARM IVG AC" );
+

@@ -55,8 +55,8 @@ static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
         p_fsm->frame_skip_start = 1;
         LOG( LOG_INFO, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );
 
-        if ( param->print_debug )
-            LOG( LOG_CRIT, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );
+        if ( param->print_debug)
+            LOG( LOG_INFO, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );
 
         /* update the done position and sharpness when sharpness value changed */
         if ( ( p_fsm->last_sharp_done != p_fsm->new_last_sharp ) && ( p_fsm->new_last_sharp != 0 ) ) {

@@ -453,18 +453,18 @@ static uint16_t _calibration_temper_strength[][2] = {
     {8*256, 135}};
 
 static uint32_t _calibration_af_lms[] = {
-    70 << 6,                       // Down_FarEnd
-    70 << 6,                       // Hor_FarEnd
-    70 << 6,                       // Up_FarEnd
-    112 << 6,                      // Down_Infinity
-    112 << 6,                      // Hor_Infinity
-    112 << 6,                      // Up_Infinity
-    832 << 6,                      // Down_Macro
-    832 << 6,                      // Hor_Macro
-    832 << 6,                      // Up_Macro
-    915 << 6,                      // Down_NearEnd
-    915 << 6,                      // Hor_NearEnd
-    915 << 6,                      // Up_NearEnd
+    180 << 6,                       // Down_FarEnd
+    180 << 6,                       // Hor_FarEnd
+    180 << 6,                       // Up_FarEnd
+    212 << 6,                      // Down_Infinity
+    212 << 6,                      // Hor_Infinity
+    212 << 6,                      // Up_Infinity
+    343 << 6,                      // Down_Macro
+    343 << 6,                      // Hor_Macro
+    343 << 6,                      // Up_Macro
+    377 << 6,                      // Down_NearEnd
+    377 << 6,                      // Hor_NearEnd
+    377 << 6,                      // Up_NearEnd
     11,                            // step_num
     6,                             // skip_frames_init
     2,                             // skip_frames_move

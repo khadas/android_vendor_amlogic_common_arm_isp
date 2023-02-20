@@ -45,8 +45,8 @@
 #define SYSTEM_LOG_MODULE_MAX LOG_MODULE_MAX
 
 //initial values for logger log level and log module masks on real time logging, otherwise fixed
-#define SYSTEM_LOG_LEVEL LOG_CRIT
-#define SYSTEM_LOG_MASK FW_LOG_MASK
+#define SYSTEM_LOG_LEVEL LOG_ERR
+#define SYSTEM_LOG_MASK  FW_LOG_MASK
 
 
 /*define for the logger for real time changing of level and module support
