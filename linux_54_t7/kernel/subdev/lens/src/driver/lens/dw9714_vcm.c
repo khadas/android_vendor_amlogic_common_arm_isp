@@ -86,8 +86,7 @@ static int dw9714_i2c_write(uint8_t *data, int bytes)
         }
 
         if (rc < 0) {
-            pr_err("%s:failed to write reg data: rc %d, saddr 0x%x\n", __func__,
-                        rc, saddr);
+            //pr_err("%s:failed to write reg data: rc %d, saddr 0x%x\n", __func__, rc, saddr);
             return rc;
         }
 
@@ -132,8 +131,7 @@ static int dw9714_i2c_read(uint8_t *data, int bytes)
         }
 
         if (rc < 0) {
-            pr_err("%s:failed to read reg data: rc %d, saddr 0x%x\n", __func__,
-                        rc, saddr);
+            //pr_err("%s:failed to read reg data: rc %d, saddr 0x%x\n", __func__, rc, saddr);
             return rc;
         }
 
@@ -163,7 +161,7 @@ static void dw9714_vcm_move( void *ctx, uint16_t position )
 
     if (0 != dw9714_i2c_read(data, DW9714_PACKET_BYTES))
     {
-        LOG( LOG_ERR, " fail " );
+        LOG( LOG_DEBUG, " fail " );
     }
 
     data[0] = (step >> 4) & 0b00111111;// PD & FLAG bits must be low. D9 - D4
@@ -171,7 +169,7 @@ static void dw9714_vcm_move( void *ctx, uint16_t position )
 
     if (0 != dw9714_i2c_write(data, DW9714_PACKET_BYTES))
     {
-        LOG( LOG_ERR, " fail " );
+        LOG( LOG_DEBUG, " fail " );
     }
 
     p_ctx->prev_pos = position;
@@ -184,8 +182,6 @@ static uint8_t dw9714_vcm_is_moving( void *ctx )
 
     if (0 == dw9714_i2c_read(data, DW9714_PACKET_BYTES)) {
         ret = (data[0] >> 6 ) & 0x01; // FLAG bit
-    } else {
-        LOG( LOG_ERR, " fail " );
     }
     LOG( LOG_INFO, "ret %d", ret);
     return ret;
@@ -211,6 +207,8 @@ static const lens_param_t *dw9714_vcm_get_parameters( void *ctx )
 
 uint8_t lens_dw9714_test( uint32_t lens_bus )
 {
+    if (lens_bus == -1)
+        return -1;
     return 1;
 }
 
@@ -228,6 +226,7 @@ static int dw9714_probe(struct i2c_client *client)
         LOG( LOG_INFO, "%s success, byte 0 & 1 0x%x  0x%x ", __func__, data[0], data[1]);
     } else {
         LOG( LOG_ERR, " read fail ");
+        return -1;
     }
 
     // initial value.
@@ -282,6 +281,7 @@ void lens_dw9714_deinit( void *ctx )
     if (g_dw9714_ctx.inited)
     {
         i2c_del_driver(&dw9714_i2c_driver);
+        g_dw9714_ctx.inited = 0;
     }
 }
 
