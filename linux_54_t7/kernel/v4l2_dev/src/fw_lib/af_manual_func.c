@@ -50,8 +50,8 @@ static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
     /* the new AF position is updated in sbuf FSM */
     if ( p_fsm->last_position != p_fsm->new_pos ) {
         int fw_id = p_fsm->cmn.ctx_id;
-
         p_fsm->lens_ctrl.move( p_fsm->lens_ctx, p_fsm->new_pos );
+        p_fsm->is_moving = 1;
         p_fsm->frame_skip_start = 1;
         LOG( LOG_INFO, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );
 
@@ -114,6 +114,8 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
     zones_vert = acamera_isp_metering_af_nodes_used_vert_read( p_fsm->cmn.isp_base );
     stats = p_sbuf_af->stats_data;
     p_sbuf_af->frame_num = p_fsm->frame_num;
+    p_fsm->is_moving = p_fsm->lens_ctrl.is_moving(p_fsm->lens_ctx);
+    p_sbuf_af->is_moving = p_fsm->is_moving;
 
     if ( zones_horiz || !zones_vert ) {
         zones_horiz = ISP_DEFAULT_AF_ZONES_HOR;

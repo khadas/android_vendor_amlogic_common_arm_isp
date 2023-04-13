@@ -117,6 +117,8 @@ struct _AF_fsm_t {
     uint8_t zones_horiz;
     uint8_t zones_vert;
     struct CropTypeTo3A afNnRoiTo3a;
+
+    uint8_t is_moving;
 };
 
 
