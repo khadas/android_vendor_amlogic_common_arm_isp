@@ -54,6 +54,7 @@ static void stop_streaming( void *ctx );
 
 static imx415_private_t imx415_ctx;
 static sensor_context_t sensor_ctx;
+static uint8_t config_mode;
 
 // 0 - reset & power-enable
 // 1 - reset-sub & power-enable-sub
@@ -379,6 +380,7 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
     sensor_param_t *param = &p_ctx->param;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     uint8_t setting_num = param->modes_table[mode].num;
+    config_mode = mode;
 
     reset_am_enable(p_ctx->sbp,pwr_dts_pin_name, config_sensor_idx, 0);
     sensor_hw_reset_enable();
@@ -523,8 +525,14 @@ static void start_streaming( void *ctx )
     sensor_context_t *p_ctx = ctx;
     acamera_sbus_ptr_t p_sbus = &p_ctx->sbus;
     sensor_param_t *param = &p_ctx->param;
+    uint8_t setting_num = param->modes_table[config_mode].num;
     sensor_set_iface(&param->modes_table[param->mode], p_ctx->win_offset, p_ctx);
     p_ctx->streaming_flg = 1;
+    if (sensor_get_id(ctx) != SENSOR_CHIP_ID) {
+        LOG(LOG_ERR, "%s: check sensor failed\n", __func__);
+        return;
+    }
+    sensor_load_sequence( p_sbus, p_ctx->seq_width, p_sensor_data, setting_num);
     acamera_sbus_write_u8( p_sbus, 0x3000, 0x00 );
 }
 
